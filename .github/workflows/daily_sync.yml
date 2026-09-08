@@ -3,7 +3,7 @@ name: Sync Delta Exchange Journal
 on:
   schedule:
     - cron: '30 18 * * *' # Runs daily at 18:30 UTC (00:00 IST midnight)
-  workflow_dispatch:      # Gives manual "Run workflow" trigger
+  workflow_dispatch:      # Manual "Run workflow" trigger
 
 permissions:
   contents: write
@@ -30,7 +30,7 @@ jobs:
         env:
           DELTA_API_KEY: ${{ secrets.DELTA_API_KEY }}
           DELTA_API_SECRET: ${{ secrets.DELTA_API_SECRET }}
-          DELTA_BASE_URL: ${{ secrets.DELTA_BASE_URL }}
+          PROXY_URL: ${{ secrets.PROXY_URL }}
         run: python scripts/fetch_delta.py
 
       - name: Commit and push updated trading metrics
