@@ -6,12 +6,11 @@ import hashlib
 import requests
 from datetime import datetime, timezone
 
-API_KEY = os.environ.get("DELTA_API_KEY")
-API_SECRET = os.environ.get("DELTA_API_SECRET")
-BASE_URL = os.environ.get("DELTA_BASE_URL", "https://api.india.delta.exchange")
+API_KEY = os.environ.get("DELTA_API_KEY", "").strip()
+API_SECRET = os.environ.get("DELTA_API_SECRET", "").strip()
+BASE_URL = os.environ.get("DELTA_BASE_URL", "https://api.india.delta.exchange").strip().rstrip('/')
 
 def get_signature(secret, method, path, query="", payload=""):
-    # Delta India requires Unix timestamp in seconds as a string
     timestamp = str(int(time.time()))
     query_str = f"?{query}" if query else ""
     message = method + timestamp + path + query_str + payload
@@ -31,12 +30,25 @@ def delta_api_get(path, query=""):
     }
     try:
         res = requests.get(url, headers=headers, timeout=20)
-        if res.status_code == 200:
-            return res.json().get("result", [])
-        print(f"Warning: Endpoint {path} returned HTTP {res.status_code}: {res.text}")
-        return []
+        print(f"DEBUG: GET {path}{'?' + query if query else ''} -> HTTP {res.status_code}")
+        
+        try:
+            data = res.json()
+        except Exception:
+            print(f"DEBUG: Response was not JSON: {res.text[:200]}")
+            return []
+            
+        if not data.get("success", False) and "result" not in data:
+            print(f"DEBUG: API Error response: {data}")
+            return []
+            
+        result = data.get("result", [])
+        print(f"DEBUG: Found {len(result) if isinstance(result, list) else 'non-list'} records in {path}")
+        if isinstance(result, list) and len(result) > 0:
+            print(f"DEBUG: Sample record from {path}: {result[0]}")
+        return result if isinstance(result, list) else []
     except Exception as e:
-        print(f"Request error for {path}: {str(e)}")
+        print(f"DEBUG: Exception requesting {path}: {str(e)}")
         return []
 
 def parse_delta_date(ts_val):
@@ -47,7 +59,6 @@ def parse_delta_date(ts_val):
         return datetime.fromisoformat(ts_str.replace("Z", "+00:00"))
     try:
         raw_num = int(ts_str)
-        # Microseconds vs seconds handling
         if raw_num > 10**12:
             return datetime.fromtimestamp(raw_num / 1000000, tz=timezone.utc)
         return datetime.fromtimestamp(raw_num, tz=timezone.utc)
@@ -55,19 +66,22 @@ def parse_delta_date(ts_val):
         return datetime.now(timezone.utc)
 
 def main():
-    print("Connecting to Delta Exchange India API...")
-    if not API_KEY or not API_SECRET:
-        raise ValueError("Missing API_KEY or API_SECRET environment variables.")
+    print(f"Target URL: {BASE_URL}")
+    print(f"API Key present: {'Yes' if API_KEY else 'No'}, Secret present: {'Yes' if API_SECRET else 'No'}")
 
-    # 1. Fetch Wallet Transactions (Deposits, Withdrawals, TDS, GST)
-    print("Pulling wallet cashflows...")
-    raw_wallet_txs = delta_api_get("/v2/wallet/transactions") or []
+    # 1. Fetch wallet transactions with higher limit
+    print("\n--- Pulling Wallet Transactions ---")
+    raw_wallet_txs = delta_api_get("/v2/wallet/transactions", "page_size=100")
 
-    # 2. Fetch Order Fills / Trades (Gross PnL, Contract Fills, Fees)
-    print("Pulling trade fills...")
-    raw_fills = delta_api_get("/v2/fills") or []
+    # 2. Fetch fills/trades
+    print("\n--- Pulling Fills ---")
+    raw_fills = delta_api_get("/v2/fills", "page_size=100")
+    
+    # 3. If fills is empty, try orders history
+    if not raw_fills:
+        print("\n--- Fills empty, checking /v2/orders/history ---")
+        raw_fills = delta_api_get("/v2/orders/history", "state=closed&page_size=100")
 
-    # Financial buckets
     total_deposits = 0.0
     total_withdrawals = 0.0
     total_brokerage = 0.0
@@ -80,7 +94,6 @@ def main():
     monthly_rollup = {}
     trade_list = []
 
-    # Process Cashflow Entries
     for tx in raw_wallet_txs:
         tx_type = str(tx.get("transaction_type", "")).lower()
         amount = abs(float(tx.get("amount", 0.0) or 0.0))
@@ -107,19 +120,17 @@ def main():
         elif "withdrawal" in tx_type:
             monthly_rollup[m_key]["withdrawals"] += amount
 
-    # Process Fills & Trades
     for fill in raw_fills:
-        fee = abs(float(fill.get("fee", 0.0) or 0.0))
-        realized_pnl = float(fill.get("realized_pnl", 0.0) or 0.0)
-        symbol = fill.get("symbol", "OPTION")
+        fee = abs(float(fill.get("fee", 0.0) or fill.get("commission", 0.0) or 0.0))
+        realized_pnl = float(fill.get("realized_pnl", 0.0) or fill.get("pnl", 0.0) or 0.0)
+        symbol = fill.get("symbol", fill.get("product_symbol", "OPTION"))
         size = float(fill.get("size", 0.0) or 0.0)
-        price = float(fill.get("price", 0.0) or 0.0)
+        price = float(fill.get("price", 0.0) or fill.get("average_fill_price", 0.0) or 0.0)
         side = fill.get("side", "buy").upper()
-        dt = parse_delta_date(fill.get("created_at"))
+        dt = parse_delta_date(fill.get("created_at") or fill.get("updated_at"))
         d_key = dt.strftime("%Y-%m-%d")
         m_key = dt.strftime("%Y-%m")
 
-        # Estimate standard Indian GST on brokerage fee (18%)
         gst_portion = fee * 0.18
         gross_trade_pnl = realized_pnl + fee
         net_trade_pnl = realized_pnl - gst_portion
@@ -129,7 +140,6 @@ def main():
         total_gross_pnl += gross_trade_pnl
         total_net_pnl += net_trade_pnl
 
-        # Day-level aggregation for calendar
         if d_key not in daily_rollup:
             daily_rollup[d_key] = {
                 "date": d_key, "trades": 0, "gross_pnl": 0.0,
@@ -141,7 +151,6 @@ def main():
         daily_rollup[d_key]["taxes"] += gst_portion
         daily_rollup[d_key]["net_pnl"] += net_trade_pnl
 
-        # Month-level aggregation
         if m_key not in monthly_rollup:
             monthly_rollup[m_key] = {
                 "month": m_key, "deposits": 0.0, "withdrawals": 0.0,
@@ -153,7 +162,6 @@ def main():
         monthly_rollup[m_key]["taxes"] += gst_portion
         monthly_rollup[m_key]["net_pnl"] += net_trade_pnl
 
-        # Granular Trade Entry
         trade_list.append({
             "timestamp": dt.strftime("%Y-%m-%d %H:%M:%S"),
             "date": d_key,
@@ -168,7 +176,6 @@ def main():
             "status": "WIN" if net_trade_pnl > 0 else ("LOSS" if net_trade_pnl < 0 else "BE")
         })
 
-    # Net Core Capital calculation
     core_capital = total_deposits - total_withdrawals
     reinvested_capital = max(0.0, total_deposits - max(0.0, core_capital))
 
@@ -187,13 +194,13 @@ def main():
         },
         "monthly_breakdown": sorted(monthly_rollup.values(), key=lambda x: x["month"], reverse=True),
         "daily_breakdown": daily_rollup,
-        "trades": trade_list[:200]  # Store last 200 trades for fast table render
+        "trades": trade_list[:200]
     }
 
     os.makedirs("data", exist_ok=True)
     with open("data/trade_journal.json", "w") as f:
         json.dump(summary_payload, f, indent=2)
-    print("Trade journal metrics successfully computed and saved to data/trade_journal.json!")
+    print("Done writing data/trade_journal.json.")
 
 if __name__ == "__main__":
     main()
