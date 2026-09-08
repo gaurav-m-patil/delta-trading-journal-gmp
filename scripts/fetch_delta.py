@@ -30,7 +30,7 @@ def delta_api_get(path, query=""):
         "api-key": API_KEY,
         "signature": signature,
         "timestamp": timestamp,
-        "User-Agent": "TradingJournalEngine/2.0"
+        "User-Agent": "TradingJournalEngine/2.1"
     }
     try:
         res = requests.get(url, headers=headers, proxies=PROXIES, timeout=15)
@@ -41,7 +41,6 @@ def delta_api_get(path, query=""):
         return []
 
 def get_ts_us(item):
-    """Extracts Delta timestamps to microseconds securely"""
     ts_str = str(item.get("created_at") or item.get("updated_at") or "")
     if "T" in ts_str:
         return int(datetime.fromisoformat(ts_str.replace("Z", "+00:00")).timestamp() * 1000000)
@@ -52,40 +51,47 @@ def get_ts_us(item):
         return 0
 
 def fetch_incremental(path, cache_list):
-    """Fetches unique records utilizing strictly shifting time-windows to prevent infinite loops"""
-    # Base timestamp: Jan 1, 2024
-    latest_us = 1704067200000000 
+    """Fetches records in 30-day chunks to bypass 1-year exchange archive limits"""
+    base_us = 1704067200000000 # Jan 1, 2024
     if cache_list:
-        latest_us = max(get_ts_us(item) for item in cache_list)
+        base_us = max(get_ts_us(item) for item in cache_list)
 
-    current_end = int(time.time() * 1000000)
+    current_us = int(time.time() * 1000000)
+    chunk_size = 30 * 24 * 60 * 60 * 1000000 # 30 days in microseconds
+    
     new_records = []
+    existing_ids = {item.get("id") for item in cache_list if item.get("id")}
     
-    print(f"Syncing {path} from timestamp {latest_us}...")
+    print(f"Syncing {path} from {datetime.fromtimestamp(base_us/1000000, tz=timezone.utc).strftime('%Y-%m-%d')} in 30-day chunks...")
     
-    while True:
-        query = f"page_size=100&start_time={latest_us}&end_time={current_end}"
-        batch = delta_api_get(path, query)
+    chunk_start = base_us
+    while chunk_start < current_us:
+        chunk_end = min(chunk_start + chunk_size, current_us)
+        inner_end = chunk_end
         
-        if not batch or len(batch) == 0:
-            break
+        while True:
+            query = f"page_size=100&start_time={chunk_start}&end_time={inner_end}"
+            batch = delta_api_get(path, query)
             
-        existing_ids = {item.get("id") for item in cache_list if item.get("id")}
-        new_ids = {item.get("id") for item in new_records if item.get("id")}
-        
-        unique_batch = [b for b in batch if b.get("id") not in existing_ids and b.get("id") not in new_ids]
-        new_records.extend(unique_batch)
-        
-        print(f"  -> API returned {len(batch)} records (Unique new: {len(unique_batch)})")
-        
-        if len(batch) < 100:
-            break
+            if not batch or len(batch) == 0:
+                break
+                
+            unique_batch = [b for b in batch if b.get("id") not in existing_ids]
+            new_records.extend(unique_batch)
+            for b in unique_batch:
+                existing_ids.add(b.get("id"))
             
-        # Shift the end window strictly backward to the oldest record in this batch
-        oldest_in_batch = min(get_ts_us(b) for b in batch)
-        current_end = oldest_in_batch - 1
+            if len(batch) < 100:
+                break
+                
+            oldest_in_batch = min(get_ts_us(b) for b in batch)
+            inner_end = oldest_in_batch - 1
+            time.sleep(0.15)
+            
+        chunk_start += chunk_size
         time.sleep(0.15)
-        
+
+    print(f"  -> Added {len(new_records)} new historical records.")
     cache_list.extend(new_records)
     return len(new_records)
 
@@ -105,8 +111,6 @@ def parse_delta_date(ts_val):
 
 def main():
     os.makedirs("data", exist_ok=True)
-    
-    # 1. Load Local Database Cache
     cache = {"wallet_txs": [], "fills": []}
     if os.path.exists(CACHE_FILE):
         try:
@@ -116,20 +120,14 @@ def main():
         except Exception:
             print("Cache unreadable. Starting fresh.")
 
-    # 2. Incrementally Fetch New Data
     new_txs = fetch_incremental("/v2/wallet/transactions", cache["wallet_txs"])
     new_fills = fetch_incremental("/v2/fills", cache["fills"])
-    
     if new_fills == 0:
         new_fills = fetch_incremental("/v2/orders/history", cache["fills"])
     
-    print(f"Sync complete. Added {new_txs} new transactions and {new_fills} new fills.")
-
-    # 3. Save Updated Cache
     with open(CACHE_FILE, "w") as f:
         json.dump(cache, f)
 
-    # 4. Transform & Recalculate KPIs for the UI
     total_deposits = 0.0
     total_withdrawals = 0.0
     total_brokerage = 0.0
