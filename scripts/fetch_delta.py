@@ -36,27 +36,23 @@ def delta_api_get(path, query=""):
         if res.status_code == 200:
             data = res.json()
             return data.get("result", [])
-        print(f"Warning: {path} returned status {res.status_code}")
+        print(f"Warning: {path} returned status {res.status_code} - {res.text}")
         return []
     except Exception as e:
         print(f"Exception fetching {path}: {str(e)}")
         return []
 
 def fetch_all_paginated(path, extra_params=""):
-    """Repeatedly fetches pages until every record back to 2024 is retrieved."""
+    """Pages through all historical records using page_num."""
     all_records = []
-    # Start looking from Jan 1, 2024 (timestamp in microseconds)
-    start_time_us = int(datetime(2024, 1, 1, tzinfo=timezone.utc).timestamp() * 1000000)
     page_size = 100
-    after = None
+    page_num = 1
 
     print(f"Fetching full history for {path}...")
     while True:
-        query_parts = [f"page_size={page_size}", f"start_time={start_time_us}"]
+        query_parts = [f"page_size={page_size}", f"page_num={page_num}"]
         if extra_params:
             query_parts.append(extra_params)
-        if after:
-            query_parts.append(f"after={after}")
         
         query = "&".join(query_parts)
         batch = delta_api_get(path, query)
@@ -65,14 +61,13 @@ def fetch_all_paginated(path, extra_params=""):
             break
 
         all_records.extend(batch)
-        print(f"  -> Pulled {len(batch)} records (Total so far: {len(all_records)})")
+        print(f"  -> Page {page_num}: Pulled {len(batch)} records (Total so far: {len(all_records)})")
 
         if len(batch) < page_size:
             break
 
-        # Delta pagination uses the ID or created_at cursor
-        after = batch[-1].get("id") or batch[-1].get("created_at")
-        time.sleep(0.15) # Avoid rate limits
+        page_num += 1
+        time.sleep(0.15) # Prevent rate limiting
 
     return all_records
 
@@ -113,7 +108,6 @@ def main():
     monthly_rollup = {}
     trade_list = []
 
-    # Process all deposits and withdrawals
     for tx in raw_wallet_txs:
         tx_type = str(tx.get("transaction_type", "")).lower()
         amount = abs(float(tx.get("amount", 0.0) or 0.0))
@@ -140,7 +134,6 @@ def main():
         elif "withdrawal" in tx_type:
             monthly_rollup[m_key]["withdrawals"] += amount
 
-    # Process all trades
     for fill in raw_fills:
         fee = abs(float(fill.get("fee", 0.0) or fill.get("commission", 0.0) or 0.0))
         realized_pnl = float(fill.get("realized_pnl", 0.0) or fill.get("pnl", 0.0) or 0.0)
@@ -215,7 +208,7 @@ def main():
         },
         "monthly_breakdown": sorted(monthly_rollup.values(), key=lambda x: x["month"], reverse=True),
         "daily_breakdown": daily_rollup,
-        "trades": trade_list[:500]
+        "trades": trade_list[:1000]
     }
 
     os.makedirs("data", exist_ok=True)
