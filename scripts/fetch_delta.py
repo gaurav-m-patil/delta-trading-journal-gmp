@@ -30,7 +30,7 @@ def delta_api_get(path, query=""):
         "api-key": API_KEY,
         "signature": signature,
         "timestamp": timestamp,
-        "User-Agent": "TradingJournalEngine/3.0"
+        "User-Agent": "TradingJournalEngine/4.0"
     }
     try:
         res = requests.get(url, headers=headers, proxies=PROXIES, timeout=15)
@@ -51,7 +51,7 @@ def get_ts_us(item):
         return 0
 
 def fetch_incremental(path, cache_list):
-    """Fetches records in 30-day chunks back to Jan 1, 2024 to bypass archive limits"""
+    """Fetches records in 30-day chunks back to Jan 1, 2024"""
     base_us = 1704067200000000 
     if cache_list:
         base_us = max(get_ts_us(item) for item in cache_list)
@@ -111,19 +111,19 @@ def parse_delta_date(ts_val):
 
 def main():
     os.makedirs("data", exist_ok=True)
-    cache = {"wallet_txs": [], "trades": []}
+    cache = {"wallet_txs": [], "fills": []}
     
     if os.path.exists(CACHE_FILE):
         try:
             with open(CACHE_FILE, "r") as f:
                 cache = json.load(f)
-            print(f"Loaded cache: {len(cache.get('wallet_txs', []))} wallet txs, {len(cache.get('trades', []))} trades.")
+            print(f"Loaded cache: {len(cache.get('wallet_txs', []))} wallet txs, {len(cache.get('fills', []))} fills.")
         except Exception:
             print("Cache unreadable. Starting fresh.")
 
-    # Always pull from orders/history to get exact realized PNL
+    # We MUST pull from /v2/fills to get the actual money, fees, and PnL
     new_txs = fetch_incremental("/v2/wallet/transactions", cache["wallet_txs"])
-    new_trades = fetch_incremental("/v2/orders/history", cache["trades"])
+    new_fills = fetch_incremental("/v2/fills", cache["fills"])
     
     with open(CACHE_FILE, "w") as f:
         json.dump(cache, f)
@@ -140,7 +140,6 @@ def main():
     monthly_rollup = {}
     trade_list = []
 
-    # Process Cashflow
     for tx in cache["wallet_txs"]:
         tx_type = str(tx.get("transaction_type", "")).lower()
         amount = abs(float(tx.get("amount", 0.0) or 0.0))
@@ -158,20 +157,13 @@ def main():
         if "deposit" in tx_type: monthly_rollup[m_key]["deposits"] += amount
         elif "withdrawal" in tx_type: monthly_rollup[m_key]["withdrawals"] += amount
 
-    # Process Trading Math (The Corrected Logic)
-    sorted_trades = sorted(cache["trades"], key=lambda x: get_ts_us(x), reverse=True)
+    sorted_fills = sorted(cache["fills"], key=lambda x: get_ts_us(x), reverse=True)
 
-    for trade in sorted_trades:
-        # Fills without closed state are pending/canceled.
-        if trade.get("state") not in ["closed", "filled"]:
-            continue
-            
-        fee = abs(float(trade.get("fee", 0.0) or trade.get("commission", 0.0) or 0.0))
-        realized_pnl = float(trade.get("realized_pnl", 0.0) or trade.get("pnl", 0.0) or 0.0)
+    for fill in sorted_fills:
+        fee = abs(float(fill.get("fee", 0.0) or fill.get("commission", 0.0) or 0.0))
+        realized_pnl = float(fill.get("realized_pnl", 0.0) or fill.get("pnl", 0.0) or 0.0)
         
-        # CORRECTED MATH: 
-        # If realized PNL is exactly 0, it was just an opening trade (no market gain/loss generated yet).
-        # We DO NOT add fees into Gross PNL for opening trades.
+        # CORRECT MATH: If realized_pnl is 0, it was an opening trade. We do NOT add fees to Gross PnL here.
         if realized_pnl != 0:
             gross_trade_pnl = realized_pnl + fee
         else:
@@ -180,11 +172,11 @@ def main():
         gst_portion = fee * 0.18
         net_trade_pnl = gross_trade_pnl - fee - gst_portion
         
-        symbol = trade.get("symbol", trade.get("product_symbol", "OPTION"))
-        size = float(trade.get("size", 0.0) or 0.0)
-        price = float(trade.get("average_fill_price", 0.0) or trade.get("price", 0.0) or 0.0)
-        side = trade.get("side", "buy").upper()
-        dt = parse_delta_date(trade.get("created_at") or trade.get("updated_at"))
+        symbol = fill.get("symbol", fill.get("product_symbol", "OPTION"))
+        size = float(fill.get("size", 0.0) or 0.0)
+        price = float(fill.get("price", 0.0) or fill.get("average_fill_price", 0.0) or 0.0)
+        side = fill.get("side", "buy").upper()
+        dt = parse_delta_date(fill.get("created_at") or fill.get("updated_at"))
         d_key = dt.strftime("%Y-%m-%d")
         m_key = dt.strftime("%Y-%m")
 
@@ -246,7 +238,7 @@ def main():
 
     with open("data/trade_journal.json", "w") as f:
         json.dump(summary_payload, f, indent=2)
-    print("UI Dashboard metrics successfully rebuilt with corrected logic!")
+    print("UI Dashboard metrics successfully rebuilt with precise financial logic!")
 
 if __name__ == "__main__":
     main()
