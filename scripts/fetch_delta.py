@@ -12,6 +12,7 @@ PROXY_URL = os.environ.get("PROXY_URL", "").strip()
 BASE_URL = "https://api.india.delta.exchange"
 
 PROXIES = {"http": PROXY_URL, "https": PROXY_URL} if PROXY_URL else None
+CACHE_FILE = "data/raw_cache.json"
 
 def get_signature(secret, method, path, query="", payload=""):
     timestamp = str(int(time.time()))
@@ -29,47 +30,64 @@ def delta_api_get(path, query=""):
         "api-key": API_KEY,
         "signature": signature,
         "timestamp": timestamp,
-        "User-Agent": "TradingJournalEngine/1.0"
+        "User-Agent": "TradingJournalEngine/2.0"
     }
     try:
-        res = requests.get(url, headers=headers, proxies=PROXIES, timeout=25)
+        res = requests.get(url, headers=headers, proxies=PROXIES, timeout=15)
         if res.status_code == 200:
-            data = res.json()
-            return data.get("result", [])
-        print(f"Warning: {path} returned status {res.status_code} - {res.text}")
+            return res.json().get("result", [])
         return []
-    except Exception as e:
-        print(f"Exception fetching {path}: {str(e)}")
+    except Exception:
         return []
 
-def fetch_all_paginated(path, extra_params=""):
-    """Pages through all historical records using page_num."""
-    all_records = []
-    page_size = 100
-    page_num = 1
+def get_ts_us(item):
+    """Extracts Delta timestamps to microseconds securely"""
+    ts_str = str(item.get("created_at") or item.get("updated_at") or "")
+    if "T" in ts_str:
+        return int(datetime.fromisoformat(ts_str.replace("Z", "+00:00")).timestamp() * 1000000)
+    try:
+        raw_num = int(ts_str)
+        return raw_num * 1000000 if raw_num < 10**12 else raw_num
+    except:
+        return 0
 
-    print(f"Fetching full history for {path}...")
+def fetch_incremental(path, cache_list):
+    """Fetches unique records utilizing strictly shifting time-windows to prevent infinite loops"""
+    # Base timestamp: Jan 1, 2024
+    latest_us = 1704067200000000 
+    if cache_list:
+        latest_us = max(get_ts_us(item) for item in cache_list)
+
+    current_end = int(time.time() * 1000000)
+    new_records = []
+    
+    print(f"Syncing {path} from timestamp {latest_us}...")
+    
     while True:
-        query_parts = [f"page_size={page_size}", f"page_num={page_num}"]
-        if extra_params:
-            query_parts.append(extra_params)
-        
-        query = "&".join(query_parts)
+        query = f"page_size=100&start_time={latest_us}&end_time={current_end}"
         batch = delta_api_get(path, query)
-
-        if not batch or not isinstance(batch, list) or len(batch) == 0:
+        
+        if not batch or len(batch) == 0:
             break
-
-        all_records.extend(batch)
-        print(f"  -> Page {page_num}: Pulled {len(batch)} records (Total so far: {len(all_records)})")
-
-        if len(batch) < page_size:
+            
+        existing_ids = {item.get("id") for item in cache_list if item.get("id")}
+        new_ids = {item.get("id") for item in new_records if item.get("id")}
+        
+        unique_batch = [b for b in batch if b.get("id") not in existing_ids and b.get("id") not in new_ids]
+        new_records.extend(unique_batch)
+        
+        print(f"  -> API returned {len(batch)} records (Unique new: {len(unique_batch)})")
+        
+        if len(batch) < 100:
             break
-
-        page_num += 1
-        time.sleep(0.15) # Prevent rate limiting
-
-    return all_records
+            
+        # Shift the end window strictly backward to the oldest record in this batch
+        oldest_in_batch = min(get_ts_us(b) for b in batch)
+        current_end = oldest_in_batch - 1
+        time.sleep(0.15)
+        
+    cache_list.extend(new_records)
+    return len(new_records)
 
 def parse_delta_date(ts_val):
     if not ts_val:
@@ -86,16 +104,32 @@ def parse_delta_date(ts_val):
         return datetime.now(timezone.utc)
 
 def main():
-    print("Starting full historical sync from 2024...")
+    os.makedirs("data", exist_ok=True)
+    
+    # 1. Load Local Database Cache
+    cache = {"wallet_txs": [], "fills": []}
+    if os.path.exists(CACHE_FILE):
+        try:
+            with open(CACHE_FILE, "r") as f:
+                cache = json.load(f)
+            print(f"Loaded cache: {len(cache['wallet_txs'])} wallet txs, {len(cache['fills'])} fills.")
+        except Exception:
+            print("Cache unreadable. Starting fresh.")
 
-    # 1. Pull all cash flow records
-    raw_wallet_txs = fetch_all_paginated("/v2/wallet/transactions")
+    # 2. Incrementally Fetch New Data
+    new_txs = fetch_incremental("/v2/wallet/transactions", cache["wallet_txs"])
+    new_fills = fetch_incremental("/v2/fills", cache["fills"])
+    
+    if new_fills == 0:
+        new_fills = fetch_incremental("/v2/orders/history", cache["fills"])
+    
+    print(f"Sync complete. Added {new_txs} new transactions and {new_fills} new fills.")
 
-    # 2. Pull all trade executions
-    raw_fills = fetch_all_paginated("/v2/fills")
-    if not raw_fills:
-        raw_fills = fetch_all_paginated("/v2/orders/history", "state=closed")
+    # 3. Save Updated Cache
+    with open(CACHE_FILE, "w") as f:
+        json.dump(cache, f)
 
+    # 4. Transform & Recalculate KPIs for the UI
     total_deposits = 0.0
     total_withdrawals = 0.0
     total_brokerage = 0.0
@@ -108,33 +142,27 @@ def main():
     monthly_rollup = {}
     trade_list = []
 
-    for tx in raw_wallet_txs:
+    for tx in cache["wallet_txs"]:
         tx_type = str(tx.get("transaction_type", "")).lower()
         amount = abs(float(tx.get("amount", 0.0) or 0.0))
         dt = parse_delta_date(tx.get("created_at"))
         d_key = dt.strftime("%Y-%m-%d")
         m_key = dt.strftime("%Y-%m")
 
-        if "deposit" in tx_type:
-            total_deposits += amount
-        elif "withdrawal" in tx_type:
-            total_withdrawals += amount
-        elif "tds" in tx_type:
-            total_taxes_tds += amount
-        elif "gst" in tx_type:
-            total_taxes_gst += amount
+        if "deposit" in tx_type: total_deposits += amount
+        elif "withdrawal" in tx_type: total_withdrawals += amount
+        elif "tds" in tx_type: total_taxes_tds += amount
+        elif "gst" in tx_type: total_taxes_gst += amount
 
         if m_key not in monthly_rollup:
-            monthly_rollup[m_key] = {
-                "month": m_key, "deposits": 0.0, "withdrawals": 0.0,
-                "gross_pnl": 0.0, "brokerage": 0.0, "taxes": 0.0, "net_pnl": 0.0, "trades_count": 0
-            }
-        if "deposit" in tx_type:
-            monthly_rollup[m_key]["deposits"] += amount
-        elif "withdrawal" in tx_type:
-            monthly_rollup[m_key]["withdrawals"] += amount
+            monthly_rollup[m_key] = {"month": m_key, "deposits": 0.0, "withdrawals": 0.0, "gross_pnl": 0.0, "brokerage": 0.0, "taxes": 0.0, "net_pnl": 0.0, "trades_count": 0}
+        
+        if "deposit" in tx_type: monthly_rollup[m_key]["deposits"] += amount
+        elif "withdrawal" in tx_type: monthly_rollup[m_key]["withdrawals"] += amount
 
-    for fill in raw_fills:
+    sorted_fills = sorted(cache["fills"], key=lambda x: get_ts_us(x), reverse=True)
+
+    for fill in sorted_fills:
         fee = abs(float(fill.get("fee", 0.0) or fill.get("commission", 0.0) or 0.0))
         realized_pnl = float(fill.get("realized_pnl", 0.0) or fill.get("pnl", 0.0) or 0.0)
         symbol = fill.get("symbol", fill.get("product_symbol", "OPTION"))
@@ -155,10 +183,7 @@ def main():
         total_net_pnl += net_trade_pnl
 
         if d_key not in daily_rollup:
-            daily_rollup[d_key] = {
-                "date": d_key, "trades": 0, "gross_pnl": 0.0,
-                "brokerage": 0.0, "taxes": 0.0, "net_pnl": 0.0
-            }
+            daily_rollup[d_key] = {"date": d_key, "trades": 0, "gross_pnl": 0.0, "brokerage": 0.0, "taxes": 0.0, "net_pnl": 0.0}
         daily_rollup[d_key]["trades"] += 1
         daily_rollup[d_key]["gross_pnl"] += gross_trade_pnl
         daily_rollup[d_key]["brokerage"] += fee
@@ -166,10 +191,7 @@ def main():
         daily_rollup[d_key]["net_pnl"] += net_trade_pnl
 
         if m_key not in monthly_rollup:
-            monthly_rollup[m_key] = {
-                "month": m_key, "deposits": 0.0, "withdrawals": 0.0,
-                "gross_pnl": 0.0, "brokerage": 0.0, "taxes": 0.0, "net_pnl": 0.0, "trades_count": 0
-            }
+            monthly_rollup[m_key] = {"month": m_key, "deposits": 0.0, "withdrawals": 0.0, "gross_pnl": 0.0, "brokerage": 0.0, "taxes": 0.0, "net_pnl": 0.0, "trades_count": 0}
         monthly_rollup[m_key]["trades_count"] += 1
         monthly_rollup[m_key]["gross_pnl"] += gross_trade_pnl
         monthly_rollup[m_key]["brokerage"] += fee
@@ -208,13 +230,12 @@ def main():
         },
         "monthly_breakdown": sorted(monthly_rollup.values(), key=lambda x: x["month"], reverse=True),
         "daily_breakdown": daily_rollup,
-        "trades": trade_list[:1000]
+        "trades": trade_list[:2000] 
     }
 
-    os.makedirs("data", exist_ok=True)
     with open("data/trade_journal.json", "w") as f:
         json.dump(summary_payload, f, indent=2)
-    print("Full history sync complete!")
+    print("UI Dashboard metrics successfully rebuilt from cache!")
 
 if __name__ == "__main__":
     main()
