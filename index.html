@@ -56,12 +56,15 @@
       </div>
     </div>
 
-    <!-- GLOBAL TIMEFRAME SELECTOR -->
+    <!-- DUAL SMART TIMEFRAME SELECTOR -->
     <div class="flex flex-wrap items-center gap-3 w-full lg:w-auto">
-      <div class="flex items-center bg-cardDark border border-borderDark rounded-xl p-1 shadow-sm w-full sm:w-auto">
-        <i class="fa-regular fa-calendar px-3 text-slate-400 text-xs"></i>
-        <select id="timeframeSelect" onchange="onFilterChange()" class="bg-transparent text-white text-xs font-semibold py-1.5 pr-8 pl-1 focus:outline-none cursor-pointer">
-          <!-- Dynamically populated -->
+      <div class="flex items-center bg-cardDark border border-borderDark rounded-xl p-1 shadow-sm w-full sm:w-auto gap-1">
+        <i class="fa-regular fa-calendar-days pl-3 pr-2 text-slate-400 text-xs"></i>
+        <select id="yearSelect" onchange="onYearChange()" class="bg-transparent text-white text-xs font-semibold py-1.5 px-2 focus:outline-none cursor-pointer border-r border-borderDark">
+          <!-- Populated dynamically -->
+        </select>
+        <select id="monthSelect" onchange="onMonthChange()" class="bg-transparent text-white text-xs font-semibold py-1.5 px-2 focus:outline-none cursor-pointer">
+          <!-- Populated dynamically -->
         </select>
       </div>
 
@@ -175,13 +178,11 @@
     let rawJournalData = null;
     let apexChartInstance = null;
 
-    // Formatter changed to USD formatting
     const formatUSD = (val) => {
       const num = Number(val) || 0;
       return (num < 0 ? "-$" : "$") + Math.abs(num).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
     };
 
-    // Fetch Live Exchange Rate via Open API
     async function fetchExchangeRate() {
       try {
         const res = await fetch('https://open.er-api.com/v6/latest/USD');
@@ -212,38 +213,69 @@
       const months = (monthly_breakdown || []).map(m => m.month).sort().reverse();
       const years = [...new Set(months.map(m => m.slice(0, 4)))].sort().reverse();
 
-      const currentMonthKey = new Date().toISOString().slice(0, 7);
-      const select = document.getElementById('timeframeSelect');
-      select.innerHTML = '';
-
-      select.innerHTML += `<option value="ALL">All Time (Full Journey)</option>`;
-
+      const yearSelect = document.getElementById('yearSelect');
+      yearSelect.innerHTML = `<option value="ALL">All-Time</option>`;
+      
       years.forEach(y => {
-        select.innerHTML += `<option value="YEAR:${y}">Full Year ${y}</option>`;
+        yearSelect.innerHTML += `<option value="${y}">${y}</option>`;
       });
 
-      const optGroup = document.createElement('optgroup');
-      optGroup.label = "Individual Months";
-      months.forEach(m => {
-        const d = new Date(m + "-01");
-        const monthLabel = d.toLocaleString('default', { month: 'long', year: 'numeric' });
-        optGroup.innerHTML += `<option value="MONTH:${m}">${monthLabel}</option>`;
-      });
-      select.appendChild(optGroup);
-
-      const currentMonthOption = months.find(m => m === currentMonthKey) || months[0];
-      if (currentMonthOption) {
-        select.value = `MONTH:${currentMonthOption}`;
-      } else {
-        select.value = "ALL";
+      const currentYear = new Date().getFullYear().toString();
+      if (years.includes(currentYear)) {
+          yearSelect.value = currentYear;
+      } else if (years.length > 0) {
+          yearSelect.value = years[0];
       }
 
-      renderFilteredView(select.value);
+      onYearChange(); 
     }
 
-    function onFilterChange() {
-      const selected = document.getElementById('timeframeSelect').value;
-      renderFilteredView(selected);
+    function onYearChange() {
+      const yearSelect = document.getElementById('yearSelect').value;
+      const monthSelect = document.getElementById('monthSelect');
+      
+      if (yearSelect === 'ALL') {
+        monthSelect.style.display = 'none';
+        renderFilteredView('ALL');
+        return;
+      }
+      
+      monthSelect.style.display = 'inline-block';
+      monthSelect.innerHTML = `<option value="YEAR_ALL">Entire ${yearSelect}</option>`;
+      
+      const { monthly_breakdown } = rawJournalData;
+      const monthsInYear = (monthly_breakdown || [])
+        .map(m => m.month)
+        .filter(m => m.startsWith(yearSelect))
+        .sort().reverse();
+        
+      monthsInYear.forEach(m => {
+        const d = new Date(m + "-01");
+        const monthName = d.toLocaleString('default', { month: 'short' });
+        monthSelect.innerHTML += `<option value="${m}">${monthName}</option>`;
+      });
+
+      const currentMonthKey = new Date().toISOString().slice(0, 7);
+      if (monthsInYear.includes(currentMonthKey)) {
+          monthSelect.value = currentMonthKey;
+      } else {
+          monthSelect.value = "YEAR_ALL";
+      }
+      
+      onMonthChange();
+    }
+
+    function onMonthChange() {
+      const year = document.getElementById('yearSelect').value;
+      const month = document.getElementById('monthSelect').value;
+      
+      if (year === 'ALL') {
+          renderFilteredView('ALL');
+      } else if (month === 'YEAR_ALL') {
+          renderFilteredView(`YEAR:${year}`);
+      } else {
+          renderFilteredView(`MONTH:${month}`);
+      }
     }
 
     function renderFilteredView(filterValue) {
@@ -297,7 +329,6 @@
       const winRate = totalClosed > 0 ? Math.round((winCount / totalClosed) * 100) : 0;
       const coreCapital = periodDeposits - periodWithdrawals;
 
-      // Updating UI strings with formatUSD
       document.getElementById('kpiDeposits').innerText = formatUSD(periodDeposits);
       document.getElementById('kpiWithdrawals').innerText = formatUSD(periodWithdrawals);
       document.getElementById('kpiCoreCapital').innerText = formatUSD(coreCapital);
@@ -494,7 +525,6 @@
       });
     }
 
-    // Initialize both data fetching operations
     document.addEventListener("DOMContentLoaded", () => {
       fetchJournalData();
       fetchExchangeRate();
