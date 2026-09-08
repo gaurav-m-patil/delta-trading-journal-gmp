@@ -19,15 +19,34 @@ def get_signature(secret, method, path, query=""):
     sig = hmac.new(secret.encode('utf-8'), message.encode('utf-8'), hashlib.sha256).hexdigest()
     return sig, timestamp
 
-def fetch_endpoint(path, extra_params=""):
-    """Brute-force fetches every single page the API physically allows"""
+def get_ts_us(item):
+    """Safely extracts timestamps to microseconds"""
+    ts_str = str(item.get("created_at") or item.get("updated_at") or "")
+    if "T" in ts_str:
+        return int(datetime.fromisoformat(ts_str.replace("Z", "+00:00")).timestamp() * 1000000)
+    try:
+        raw_num = int(ts_str)
+        return raw_num * 1000000 if raw_num < 10**12 else raw_num
+    except:
+        return int(time.time() * 1000000)
+
+def fetch_history_backwards(path, extra_params=""):
+    """
+    Stateless, bulletproof pagination.
+    Walks backwards in time using end_time cursors to guarantee no infinite loops.
+    """
     results = []
-    page = 1
-    print(f"Fetching all available data for {path}...")
-    while True:
-        query = f"page_size=100&page_num={page}"
-        if extra_params: query += f"&{extra_params}"
-        
+    seen_ids = set()
+    current_end = int(time.time() * 1000000)
+    cutoff_time = 1704067200000000 # Stop at Jan 1, 2024
+    
+    print(f"Fetching {path} backwards from today...")
+    
+    while current_end >= cutoff_time:
+        query = f"page_size=100&end_time={current_end}"
+        if extra_params: 
+            query += f"&{extra_params}"
+            
         url = f"{BASE_URL}{path}?{query}"
         sig, ts = get_signature(API_SECRET, "GET", path, query)
         headers = {"api-key": API_KEY, "signature": sig, "timestamp": ts}
@@ -35,18 +54,32 @@ def fetch_endpoint(path, extra_params=""):
         try:
             res = requests.get(url, headers=headers, proxies=PROXIES, timeout=15)
             if res.status_code != 200:
+                print(f"  -> API returned status {res.status_code}. Stopping.")
                 break
-            data = res.json().get("result", [])
-            if not data:
+                
+            batch = res.json().get("result", [])
+            if not batch or len(batch) == 0:
                 break
-            results.extend(data)
-            print(f"  -> Page {page}: Pulled {len(data)} records (Total: {len(results)})")
-            if len(data) < 100:
-                break
-            page += 1
+                
+            unique_batch = [b for b in batch if b.get("id") not in seen_ids]
+            results.extend(unique_batch)
+            for b in unique_batch: 
+                seen_ids.add(b.get("id"))
+                
+            print(f"  -> Pulled {len(batch)} records. (Total stored: {len(results)})")
+            
+            if len(batch) < 100:
+                break # Reached the absolute end of the exchange's available data
+                
+            # Move the time cursor to just before the oldest record in this batch
+            oldest_in_batch = min(get_ts_us(b) for b in batch)
+            current_end = oldest_in_batch - 1
             time.sleep(0.15)
-        except Exception:
+            
+        except Exception as e:
+            print(f"  -> Error: {str(e)}")
             break
+            
     return results
 
 def parse_date(ts_val):
@@ -63,8 +96,11 @@ def parse_date(ts_val):
 def main():
     os.makedirs("data", exist_ok=True)
     
-    wallet_txs = fetch_endpoint("/v2/wallet/transactions")
-    closed_orders = fetch_endpoint("/v2/orders/history", "state=closed")
+    print("--- Pulling Wallet Ledger ---")
+    wallet_txs = fetch_history_backwards("/v2/wallet/transactions")
+    
+    print("--- Pulling Closed Orders ---")
+    closed_orders = fetch_history_backwards("/v2/orders/history", "state=closed")
 
     total_deposits = 0.0
     total_withdrawals = 0.0
@@ -78,7 +114,7 @@ def main():
     monthly_rollup = {}
     trade_list = []
 
-    # 1. PARSE WALLET (For Exact Deposits, Withdrawals, and Statutory Taxes)
+    # 1. PARSE WALLET (Deposits, Withdrawals, Statutory Taxes)
     for tx in wallet_txs:
         tx_type = str(tx.get("transaction_type", "")).lower()
         amount = float(tx.get("amount", 0.0) or 0.0)
@@ -90,7 +126,7 @@ def main():
         if m_key not in monthly_rollup:
             monthly_rollup[m_key] = {"month": m_key, "deposits": 0.0, "withdrawals": 0.0, "gross_pnl": 0.0, "brokerage": 0.0, "taxes": 0.0, "net_pnl": 0.0, "trades_count": 0}
 
-        # Any positive cashflow not tied to trading is a Deposit
+        # Handle Deposits (including INR Fiat transfers)
         if any(k in tx_type for k in ["deposit", "credit", "fund_transfer", "fiat_in"]):
             total_deposits += abs_amount
             monthly_rollup[m_key]["deposits"] += abs_amount
@@ -98,7 +134,7 @@ def main():
             total_deposits += abs_amount
             monthly_rollup[m_key]["deposits"] += abs_amount
 
-        # Any negative cashflow not tied to trading/taxes is a Withdrawal
+        # Handle Withdrawals
         if any(k in tx_type for k in ["withdrawal", "debit", "fiat_out"]):
             total_withdrawals += abs_amount
             monthly_rollup[m_key]["withdrawals"] += abs_amount
@@ -106,10 +142,11 @@ def main():
             total_withdrawals += abs_amount
             monthly_rollup[m_key]["withdrawals"] += abs_amount
 
+        # Handle Taxes
         if "tds" in tx_type: total_taxes_tds += abs_amount
         if "gst" in tx_type: total_taxes_gst += abs_amount
 
-    # 2. PARSE ORDERS (For Accurate PnL and Brokerage)
+    # 2. PARSE ORDERS (Accurate PnL and Brokerage)
     for order in closed_orders:
         realized_pnl = float(order.get("realized_pnl", 0.0) or 0.0)
         fee = abs(float(order.get("fee", 0.0) or order.get("commission", 0.0) or 0.0))
