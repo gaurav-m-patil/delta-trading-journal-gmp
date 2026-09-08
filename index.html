@@ -3,7 +3,14 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>TradeZella Terminal | Delta India</title>
+  <title>Delta Trading Journal</title>
+  
+  <!-- PWA Meta Tags -->
+  <meta name="theme-color" content="#080b11">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <link rel="manifest" href="manifest.json">
+
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://cdn.jsdelivr.net/npm/apexcharts"></script>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
@@ -61,13 +68,10 @@
       <div class="flex items-center bg-cardDark border border-borderDark rounded-xl p-1 shadow-sm w-full sm:w-auto gap-1">
         <i class="fa-regular fa-calendar-days pl-3 pr-2 text-slate-400 text-xs"></i>
         <select id="yearSelect" onchange="onYearChange()" class="bg-transparent text-white text-xs font-semibold py-1.5 px-2 focus:outline-none cursor-pointer border-r border-borderDark">
-          <!-- Populated dynamically -->
         </select>
         <select id="monthSelect" onchange="onMonthChange()" class="bg-transparent text-white text-xs font-semibold py-1.5 px-2 focus:outline-none cursor-pointer">
-          <!-- Populated dynamically -->
         </select>
       </div>
-
       <button onclick="fetchJournalData(); fetchExchangeRate();" class="px-4 py-2 text-xs font-medium bg-cardDark border border-borderDark hover:bg-panelDark rounded-xl transition-colors flex items-center gap-2 text-slate-300">
         <i class="fa-solid fa-arrows-rotate"></i> Refresh
       </button>
@@ -79,17 +83,17 @@
     <div class="bg-cardDark border border-borderDark p-3.5 rounded-xl">
       <span class="text-slate-400 text-[11px] font-medium uppercase tracking-wider block mb-1">Gross Inflows</span>
       <h3 class="text-base md:text-lg font-bold text-white font-mono" id="kpiDeposits">$0.00</h3>
-      <span class="text-[10px] text-slate-500">Deposited (USD)</span>
+      <span class="text-[10px] text-slate-500 text-indigo-300">All-Time Deposited</span>
     </div>
     <div class="bg-cardDark border border-borderDark p-3.5 rounded-xl">
       <span class="text-slate-400 text-[11px] font-medium uppercase tracking-wider block mb-1">Withdrawals</span>
       <h3 class="text-base md:text-lg font-bold text-white font-mono" id="kpiWithdrawals">$0.00</h3>
-      <span class="text-[10px] text-slate-500">To bank (USD)</span>
+      <span class="text-[10px] text-slate-500 text-indigo-300">All-Time to Bank</span>
     </div>
     <div class="bg-cardDark border border-borderDark p-3.5 rounded-xl border-l-4 border-l-indigo-500">
       <span class="text-indigo-300 text-[11px] font-medium uppercase tracking-wider block mb-1">Net Invested</span>
       <h3 class="text-base md:text-lg font-bold text-white font-mono" id="kpiCoreCapital">$0.00</h3>
-      <span class="text-[10px] text-indigo-400">Core capital at risk</span>
+      <span class="text-[10px] text-indigo-400">Total Core Capital</span>
     </div>
     <div class="bg-cardDark border border-borderDark p-3.5 rounded-xl">
       <span class="text-slate-400 text-[11px] font-medium uppercase tracking-wider block mb-1">Gross PnL</span>
@@ -137,9 +141,7 @@
         <p class="text-xs text-slate-400" id="groupingSubtitle">Day-by-day realized results in USD</p>
       </div>
     </div>
-    <div id="adaptiveContainer">
-      <!-- Injected dynamically -->
-    </div>
+    <div id="adaptiveContainer"></div>
   </section>
 
   <!-- 4. TRADE AUDIT EXECUTION TABLE -->
@@ -168,7 +170,6 @@
           </tr>
         </thead>
         <tbody id="tradeLogBody" class="divide-y divide-borderDark text-slate-300">
-          <!-- Injected dynamically -->
         </tbody>
       </table>
     </div>
@@ -215,10 +216,7 @@
 
       const yearSelect = document.getElementById('yearSelect');
       yearSelect.innerHTML = `<option value="ALL">All-Time</option>`;
-      
-      years.forEach(y => {
-        yearSelect.innerHTML += `<option value="${y}">${y}</option>`;
-      });
+      years.forEach(y => { yearSelect.innerHTML += `<option value="${y}">${y}</option>`; });
 
       const currentYear = new Date().getFullYear().toString();
       if (years.includes(currentYear)) {
@@ -226,7 +224,6 @@
       } else if (years.length > 0) {
           yearSelect.value = years[0];
       }
-
       onYearChange(); 
     }
 
@@ -261,7 +258,6 @@
       } else {
           monthSelect.value = "YEAR_ALL";
       }
-      
       onMonthChange();
     }
 
@@ -269,13 +265,9 @@
       const year = document.getElementById('yearSelect').value;
       const month = document.getElementById('monthSelect').value;
       
-      if (year === 'ALL') {
-          renderFilteredView('ALL');
-      } else if (month === 'YEAR_ALL') {
-          renderFilteredView(`YEAR:${year}`);
-      } else {
-          renderFilteredView(`MONTH:${month}`);
-      }
+      if (year === 'ALL') renderFilteredView('ALL');
+      else if (month === 'YEAR_ALL') renderFilteredView(`YEAR:${year}`);
+      else renderFilteredView(`MONTH:${month}`);
     }
 
     function renderFilteredView(filterValue) {
@@ -285,8 +277,6 @@
       const { trades, monthly_breakdown, daily_breakdown, kpis } = rawJournalData;
 
       let filteredTrades = [];
-      let periodDeposits = 0;
-      let periodWithdrawals = 0;
       let periodGross = 0;
       let periodBrokerage = 0;
       let periodTaxes = 0;
@@ -294,8 +284,6 @@
 
       if (filterValue === 'ALL') {
         filteredTrades = trades || [];
-        periodDeposits = kpis.total_deposits;
-        periodWithdrawals = kpis.total_withdrawals;
         periodGross = kpis.total_gross_pnl;
         periodBrokerage = kpis.total_brokerage;
         periodTaxes = kpis.total_taxes;
@@ -304,8 +292,6 @@
         filteredTrades = (trades || []).filter(t => t.date.startsWith(val));
         const matchingMonths = (monthly_breakdown || []).filter(m => m.month.startsWith(val));
         matchingMonths.forEach(m => {
-          periodDeposits += m.deposits || 0;
-          periodWithdrawals += m.withdrawals || 0;
           periodGross += m.gross_pnl || 0;
           periodBrokerage += m.brokerage || 0;
           periodTaxes += m.taxes || 0;
@@ -315,8 +301,6 @@
         filteredTrades = (trades || []).filter(t => t.date.startsWith(val));
         const mData = (monthly_breakdown || []).find(m => m.month === val);
         if (mData) {
-          periodDeposits = mData.deposits || 0;
-          periodWithdrawals = mData.withdrawals || 0;
           periodGross = mData.gross_pnl || 0;
           periodBrokerage = mData.brokerage || 0;
           periodTaxes = mData.taxes || 0;
@@ -324,15 +308,12 @@
         }
       }
 
-      const winCount = filteredTrades.filter(t => t.status === 'WIN').length;
-      const totalClosed = filteredTrades.length;
-      const winRate = totalClosed > 0 ? Math.round((winCount / totalClosed) * 100) : 0;
-      const coreCapital = periodDeposits - periodWithdrawals;
+      // 1. Force Deposits/Withdrawals to always show All-Time totals so your account size doesn't reset to $0
+      document.getElementById('kpiDeposits').innerText = formatUSD(kpis.total_deposits);
+      document.getElementById('kpiWithdrawals').innerText = formatUSD(kpis.total_withdrawals);
+      document.getElementById('kpiCoreCapital').innerText = formatUSD(kpis.net_core_capital);
 
-      document.getElementById('kpiDeposits').innerText = formatUSD(periodDeposits);
-      document.getElementById('kpiWithdrawals').innerText = formatUSD(periodWithdrawals);
-      document.getElementById('kpiCoreCapital').innerText = formatUSD(coreCapital);
-
+      // 2. Render Dynamic PnL Values
       const elGross = document.getElementById('kpiGross');
       elGross.innerText = formatUSD(periodGross);
       elGross.className = `text-base md:text-lg font-bold font-mono ${periodGross >= 0 ? 'text-winGreen' : 'text-lossRed'}`;
@@ -344,6 +325,9 @@
       elNet.innerText = formatUSD(periodNet);
       elNet.className = `text-base md:text-lg font-bold font-mono ${periodNet >= 0 ? 'text-winGreen' : 'text-lossRed'}`;
 
+      const winCount = filteredTrades.filter(t => t.status === 'WIN').length;
+      const totalClosed = filteredTrades.length;
+      const winRate = totalClosed > 0 ? Math.round((winCount / totalClosed) * 100) : 0;
       document.getElementById('kpiWinRate').innerText = `${winRate}%`;
       document.getElementById('kpiTradeCount').innerText = `${totalClosed} total trades`;
 
@@ -368,12 +352,9 @@
         const firstDayIndex = new Date(year, month, 1).getDay();
         const totalDays = new Date(year, month + 1, 0).getDate();
 
-        let calHTML = `
-          <div class="grid grid-cols-7 gap-2 mb-2 text-center text-[11px] font-semibold text-slate-400 uppercase tracking-wider">
+        let calHTML = `<div class="grid grid-cols-7 gap-2 mb-2 text-center text-[11px] font-semibold text-slate-400 uppercase tracking-wider">
             <div>Sun</div><div>Mon</div><div>Tue</div><div>Wed</div><div>Thu</div><div>Fri</div><div>Sat</div>
-          </div>
-          <div class="grid grid-cols-7 gap-2">
-        `;
+          </div><div class="grid grid-cols-7 gap-2">`;
 
         for (let i = 0; i < firstDayIndex; i++) {
           calHTML += `<div class="min-h-[75px] rounded-xl border border-borderDark/40 bg-brandDark/30"></div>`;
@@ -389,29 +370,21 @@
             const bgBorder = isWin ? 'bg-winGreen/10 border-winGreen/40' : (isLoss ? 'bg-lossRed/10 border-lossRed/40' : 'bg-slate-800/40 border-slate-700');
             const textColor = isWin ? 'text-winGreen' : (isLoss ? 'text-lossRed' : 'text-slate-300');
 
-            calHTML += `
-              <div class="min-h-[75px] p-2 rounded-xl border ${bgBorder} flex flex-col justify-between">
+            calHTML += `<div class="min-h-[75px] p-2 rounded-xl border ${bgBorder} flex flex-col justify-between">
                 <div class="flex justify-between items-center text-[10px] text-slate-400">
-                  <span class="font-bold">${day}</span>
-                  <span>${dayData.trades} trds</span>
+                  <span class="font-bold">${day}</span><span>${dayData.trades} trds</span>
                 </div>
                 <div class="text-xs sm:text-sm font-bold font-mono ${textColor}">${formatUSD(dayData.net_pnl)}</div>
                 <div class="text-[9px] text-slate-500 font-mono">F: ${formatUSD(dayData.brokerage + dayData.taxes)}</div>
-              </div>
-            `;
+              </div>`;
           } else {
-            calHTML += `
-              <div class="min-h-[75px] p-2 rounded-xl border border-borderDark/60 bg-panelDark/40 flex flex-col justify-between">
-                <span class="text-[10px] text-slate-500 font-bold">${day}</span>
-                <span class="text-[10px] text-slate-600 font-mono">-</span>
-                <span></span>
-              </div>
-            `;
+            calHTML += `<div class="min-h-[75px] p-2 rounded-xl border border-borderDark/60 bg-panelDark/40 flex flex-col justify-between">
+                <span class="text-[10px] text-slate-500 font-bold">${day}</span><span class="text-[10px] text-slate-600 font-mono">-</span><span></span>
+              </div>`;
           }
         }
         calHTML += `</div>`;
         container.innerHTML = calHTML;
-
       } else {
         title.innerText = type === 'YEAR' ? `Year ${val} Monthly Breakdown` : "All-Time Monthly Trajectory";
         subtitle.innerText = "Aggregated monthly cashflows, fees, and net returns (USD)";
@@ -423,8 +396,7 @@
           const d = new Date(m.month + "-01");
           const mName = d.toLocaleString('default', { month: 'short', year: 'numeric' });
           const isWin = m.net_pnl >= 0;
-          gridHTML += `
-            <div class="border border-borderDark bg-panelDark/40 hover:border-slate-600 p-4 rounded-xl flex flex-col justify-between">
+          gridHTML += `<div class="border border-borderDark bg-panelDark/40 hover:border-slate-600 p-4 rounded-xl flex flex-col justify-between">
               <div class="flex justify-between items-center mb-2">
                 <span class="font-bold text-sm text-white">${mName}</span>
                 <span class="text-[10px] px-2 py-0.5 rounded bg-cardDark text-slate-400 border border-borderDark">${m.trades_count || 0} trades</span>
@@ -434,11 +406,9 @@
                 <h4 class="text-base font-bold font-mono ${isWin ? 'text-winGreen' : 'text-lossRed'}">${formatUSD(m.net_pnl)}</h4>
               </div>
               <div class="flex justify-between items-center pt-2 border-t border-borderDark/60 text-[10px] text-slate-400 font-mono">
-                <span>Gross: ${formatUSD(m.gross_pnl)}</span>
-                <span class="text-lossRed">Fees: ${formatUSD(m.brokerage + m.taxes)}</span>
+                <span>Gross: ${formatUSD(m.gross_pnl)}</span><span class="text-lossRed">Fees: ${formatUSD(m.brokerage + m.taxes)}</span>
               </div>
-            </div>
-          `;
+            </div>`;
         });
         gridHTML += `</div>`;
         container.innerHTML = gridHTML;
@@ -506,8 +476,7 @@
       }
 
       trades.slice(0, 300).forEach(t => {
-        tbody.innerHTML += `
-          <tr class="hover:bg-panelDark/40">
+        tbody.innerHTML += `<tr class="hover:bg-panelDark/40">
             <td class="py-2.5 px-3 font-mono text-[11px] text-slate-400">${t.timestamp}</td>
             <td class="py-2.5 px-3 font-semibold text-white">${t.symbol}</td>
             <td class="py-2.5 px-3"><span class="px-2 py-0.5 rounded text-[10px] font-bold ${t.side === 'BUY' ? 'bg-emerald-500/20 text-emerald-400' : 'bg-red-500/20 text-red-400'}">${t.side}</span></td>
@@ -517,11 +486,8 @@
             <td class="py-2.5 px-3 text-right font-mono text-lossRed">${formatUSD(t.brokerage)}</td>
             <td class="py-2.5 px-3 text-right font-mono text-lossRed">${formatUSD(t.taxes)}</td>
             <td class="py-2.5 px-3 text-right font-mono font-bold ${t.net_pnl >= 0 ? 'text-winGreen' : 'text-lossRed'}">${formatUSD(t.net_pnl)}</td>
-            <td class="py-2.5 px-3 text-center">
-              <span class="px-2 py-0.5 rounded-full text-[10px] font-semibold ${t.status === 'WIN' ? 'bg-winGreen/10 text-winGreen border border-winGreen/20' : 'bg-lossRed/10 text-lossRed border border-lossRed/20'}">${t.status}</span>
-            </td>
-          </tr>
-        `;
+            <td class="py-2.5 px-3 text-center"><span class="px-2 py-0.5 rounded-full text-[10px] font-semibold ${t.status === 'WIN' ? 'bg-winGreen/10 text-winGreen border border-winGreen/20' : 'bg-lossRed/10 text-lossRed border border-lossRed/20'}">${t.status}</span></td>
+          </tr>`;
       });
     }
 
@@ -529,6 +495,14 @@
       fetchJournalData();
       fetchExchangeRate();
     });
+
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('./sw.js').then(reg => {
+          console.log('PWA Ready');
+        });
+      });
+    }
   </script>
 </body>
 </html>
