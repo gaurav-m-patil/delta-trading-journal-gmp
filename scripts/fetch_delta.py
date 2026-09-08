@@ -8,7 +8,7 @@ from datetime import datetime, timezone
 
 API_KEY = os.environ.get("DELTA_API_KEY", "").strip()
 API_SECRET = os.environ.get("DELTA_API_SECRET", "").strip()
-BASE_URL = os.environ.get("DELTA_BASE_URL", "https://api.india.delta.exchange").strip().rstrip('/')
+BASE_URL = "https://api.india.delta.exchange"
 
 def get_signature(secret, method, path, query="", payload=""):
     timestamp = str(int(time.time()))
@@ -35,7 +35,7 @@ def delta_api_get(path, query=""):
         try:
             data = res.json()
         except Exception:
-            print(f"DEBUG: Response was not JSON: {res.text[:200]}")
+            print(f"DEBUG: Response not JSON: {res.text[:200]}")
             return []
             
         if not data.get("success", False) and "result" not in data:
@@ -44,8 +44,6 @@ def delta_api_get(path, query=""):
             
         result = data.get("result", [])
         print(f"DEBUG: Found {len(result) if isinstance(result, list) else 'non-list'} records in {path}")
-        if isinstance(result, list) and len(result) > 0:
-            print(f"DEBUG: Sample record from {path}: {result[0]}")
         return result if isinstance(result, list) else []
     except Exception as e:
         print(f"DEBUG: Exception requesting {path}: {str(e)}")
@@ -69,17 +67,14 @@ def main():
     print(f"Target URL: {BASE_URL}")
     print(f"API Key present: {'Yes' if API_KEY else 'No'}, Secret present: {'Yes' if API_SECRET else 'No'}")
 
-    # 1. Fetch wallet transactions with higher limit
     print("\n--- Pulling Wallet Transactions ---")
     raw_wallet_txs = delta_api_get("/v2/wallet/transactions", "page_size=100")
 
-    # 2. Fetch fills/trades
     print("\n--- Pulling Fills ---")
     raw_fills = delta_api_get("/v2/fills", "page_size=100")
     
-    # 3. If fills is empty, try orders history
     if not raw_fills:
-        print("\n--- Fills empty, checking /v2/orders/history ---")
+        print("\n--- Checking /v2/orders/history ---")
         raw_fills = delta_api_get("/v2/orders/history", "state=closed&page_size=100")
 
     total_deposits = 0.0
