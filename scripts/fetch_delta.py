@@ -11,7 +11,6 @@ API_SECRET = os.environ.get("DELTA_API_SECRET", "").strip()
 PROXY_URL = os.environ.get("PROXY_URL", "").strip()
 BASE_URL = "https://api.india.delta.exchange"
 
-# Configure static proxy dictionary if provided
 PROXIES = {"http": PROXY_URL, "https": PROXY_URL} if PROXY_URL else None
 
 def get_signature(secret, method, path, query="", payload=""):
@@ -34,24 +33,48 @@ def delta_api_get(path, query=""):
     }
     try:
         res = requests.get(url, headers=headers, proxies=PROXIES, timeout=25)
-        print(f"DEBUG: GET {path}{'?' + query if query else ''} -> HTTP {res.status_code}")
-        
-        try:
+        if res.status_code == 200:
             data = res.json()
-        except Exception:
-            print(f"DEBUG: Response not JSON: {res.text[:200]}")
-            return []
-            
-        if not data.get("success", False) and "result" not in data:
-            print(f"DEBUG: API Error response: {data}")
-            return []
-            
-        result = data.get("result", [])
-        print(f"DEBUG: Found {len(result) if isinstance(result, list) else 'non-list'} records in {path}")
-        return result if isinstance(result, list) else []
-    except Exception as e:
-        print(f"DEBUG: Exception requesting {path}: {str(e)}")
+            return data.get("result", [])
+        print(f"Warning: {path} returned status {res.status_code}")
         return []
+    except Exception as e:
+        print(f"Exception fetching {path}: {str(e)}")
+        return []
+
+def fetch_all_paginated(path, extra_params=""):
+    """Repeatedly fetches pages until every record back to 2024 is retrieved."""
+    all_records = []
+    # Start looking from Jan 1, 2024 (timestamp in microseconds)
+    start_time_us = int(datetime(2024, 1, 1, tzinfo=timezone.utc).timestamp() * 1000000)
+    page_size = 100
+    after = None
+
+    print(f"Fetching full history for {path}...")
+    while True:
+        query_parts = [f"page_size={page_size}", f"start_time={start_time_us}"]
+        if extra_params:
+            query_parts.append(extra_params)
+        if after:
+            query_parts.append(f"after={after}")
+        
+        query = "&".join(query_parts)
+        batch = delta_api_get(path, query)
+
+        if not batch or not isinstance(batch, list) or len(batch) == 0:
+            break
+
+        all_records.extend(batch)
+        print(f"  -> Pulled {len(batch)} records (Total so far: {len(all_records)})")
+
+        if len(batch) < page_size:
+            break
+
+        # Delta pagination uses the ID or created_at cursor
+        after = batch[-1].get("id") or batch[-1].get("created_at")
+        time.sleep(0.15) # Avoid rate limits
+
+    return all_records
 
 def parse_delta_date(ts_val):
     if not ts_val:
@@ -68,27 +91,15 @@ def parse_delta_date(ts_val):
         return datetime.now(timezone.utc)
 
 def main():
-    print(f"Target URL: {BASE_URL}")
-    print(f"Proxy Active: {'Yes' if PROXY_URL else 'No'}")
-    print(f"API Key present: {'Yes' if API_KEY else 'No'}, Secret present: {'Yes' if API_SECRET else 'No'}")
+    print("Starting full historical sync from 2024...")
 
-    # Verify IP being used
-    if PROXY_URL:
-        try:
-            ip_check = requests.get("https://api.ipify.org?format=json", proxies=PROXIES, timeout=10).json()
-            print(f"DEBUG: Current outbound proxy IP is {ip_check.get('ip')}")
-        except Exception as e:
-            print(f"DEBUG: Could not verify outbound IP: {str(e)}")
+    # 1. Pull all cash flow records
+    raw_wallet_txs = fetch_all_paginated("/v2/wallet/transactions")
 
-    print("\n--- Pulling Wallet Transactions ---")
-    raw_wallet_txs = delta_api_get("/v2/wallet/transactions", "page_size=100")
-
-    print("\n--- Pulling Fills ---")
-    raw_fills = delta_api_get("/v2/fills", "page_size=100")
-    
+    # 2. Pull all trade executions
+    raw_fills = fetch_all_paginated("/v2/fills")
     if not raw_fills:
-        print("\n--- Checking /v2/orders/history ---")
-        raw_fills = delta_api_get("/v2/orders/history", "state=closed&page_size=100")
+        raw_fills = fetch_all_paginated("/v2/orders/history", "state=closed")
 
     total_deposits = 0.0
     total_withdrawals = 0.0
@@ -102,6 +113,7 @@ def main():
     monthly_rollup = {}
     trade_list = []
 
+    # Process all deposits and withdrawals
     for tx in raw_wallet_txs:
         tx_type = str(tx.get("transaction_type", "")).lower()
         amount = abs(float(tx.get("amount", 0.0) or 0.0))
@@ -128,6 +140,7 @@ def main():
         elif "withdrawal" in tx_type:
             monthly_rollup[m_key]["withdrawals"] += amount
 
+    # Process all trades
     for fill in raw_fills:
         fee = abs(float(fill.get("fee", 0.0) or fill.get("commission", 0.0) or 0.0))
         realized_pnl = float(fill.get("realized_pnl", 0.0) or fill.get("pnl", 0.0) or 0.0)
@@ -202,13 +215,13 @@ def main():
         },
         "monthly_breakdown": sorted(monthly_rollup.values(), key=lambda x: x["month"], reverse=True),
         "daily_breakdown": daily_rollup,
-        "trades": trade_list[:200]
+        "trades": trade_list[:500]
     }
 
     os.makedirs("data", exist_ok=True)
     with open("data/trade_journal.json", "w") as f:
         json.dump(summary_payload, f, indent=2)
-    print("Done writing data/trade_journal.json.")
+    print("Full history sync complete!")
 
 if __name__ == "__main__":
     main()
