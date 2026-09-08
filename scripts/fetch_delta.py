@@ -30,7 +30,7 @@ def delta_api_get(path, query=""):
         "api-key": API_KEY,
         "signature": signature,
         "timestamp": timestamp,
-        "User-Agent": "TradingJournalEngine/4.0"
+        "User-Agent": "TradingJournalEngine/5.0"
     }
     try:
         res = requests.get(url, headers=headers, proxies=PROXIES, timeout=15)
@@ -51,18 +51,16 @@ def get_ts_us(item):
         return 0
 
 def fetch_incremental(path, cache_list):
-    """Fetches records in 30-day chunks back to Jan 1, 2024"""
+    """Fetches records up to the 1-year API Cold Storage limit"""
     base_us = 1704067200000000 
     if cache_list:
         base_us = max(get_ts_us(item) for item in cache_list)
 
     current_us = int(time.time() * 1000000)
-    chunk_size = 30 * 24 * 60 * 60 * 1000000 # 30 days
+    chunk_size = 30 * 24 * 60 * 60 * 1000000
     
     new_records = []
     existing_ids = {item.get("id") for item in cache_list if item.get("id")}
-    
-    print(f"Syncing {path} from {datetime.fromtimestamp(base_us/1000000, tz=timezone.utc).strftime('%Y-%m-%d')}...")
     
     chunk_start = base_us
     while chunk_start < current_us:
@@ -91,7 +89,6 @@ def fetch_incremental(path, cache_list):
         chunk_start += chunk_size
         time.sleep(0.15)
 
-    print(f"  -> Added {len(new_records)} new records.")
     cache_list.extend(new_records)
     return len(new_records)
 
@@ -117,13 +114,11 @@ def main():
         try:
             with open(CACHE_FILE, "r") as f:
                 cache = json.load(f)
-            print(f"Loaded cache: {len(cache.get('wallet_txs', []))} wallet txs, {len(cache.get('fills', []))} fills.")
         except Exception:
-            print("Cache unreadable. Starting fresh.")
+            pass
 
-    # We MUST pull from /v2/fills to get the actual money, fees, and PnL
-    new_txs = fetch_incremental("/v2/wallet/transactions", cache["wallet_txs"])
-    new_fills = fetch_incremental("/v2/fills", cache["fills"])
+    fetch_incremental("/v2/wallet/transactions", cache["wallet_txs"])
+    fetch_incremental("/v2/fills", cache["fills"])
     
     with open(CACHE_FILE, "w") as f:
         json.dump(cache, f)
@@ -139,67 +134,76 @@ def main():
     daily_rollup = {}
     monthly_rollup = {}
     trade_list = []
+    
+    unique_tx_types = set()
 
+    # 1. PARSE WALLET FOR PENNY-PERFECT MATH & INR TRANSFERS
     for tx in cache["wallet_txs"]:
         tx_type = str(tx.get("transaction_type", "")).lower()
-        amount = abs(float(tx.get("amount", 0.0) or 0.0))
+        unique_tx_types.add(tx_type)
+        
+        raw_amount = float(tx.get("amount", 0.0) or 0.0)
+        abs_amount = abs(raw_amount)
+        
         dt = parse_delta_date(tx.get("created_at"))
+        d_key = dt.strftime("%Y-%m-%d")
         m_key = dt.strftime("%Y-%m")
-
-        if "deposit" in tx_type: total_deposits += amount
-        elif "withdrawal" in tx_type: total_withdrawals += amount
-        elif "tds" in tx_type: total_taxes_tds += amount
-        elif "gst" in tx_type: total_taxes_gst += amount
 
         if m_key not in monthly_rollup:
             monthly_rollup[m_key] = {"month": m_key, "deposits": 0.0, "withdrawals": 0.0, "gross_pnl": 0.0, "brokerage": 0.0, "taxes": 0.0, "net_pnl": 0.0, "trades_count": 0}
-        
-        if "deposit" in tx_type: monthly_rollup[m_key]["deposits"] += amount
-        elif "withdrawal" in tx_type: monthly_rollup[m_key]["withdrawals"] += amount
+        if d_key not in daily_rollup:
+            daily_rollup[d_key] = {"date": d_key, "trades": 0, "gross_pnl": 0.0, "brokerage": 0.0, "taxes": 0.0, "net_pnl": 0.0}
 
+        # Categorize Wallet Ledger Entries
+        if "tds" in tx_type: 
+            total_taxes_tds += abs_amount
+            monthly_rollup[m_key]["taxes"] += abs_amount
+            daily_rollup[d_key]["taxes"] += abs_amount
+        elif "gst" in tx_type: 
+            total_taxes_gst += abs_amount
+            monthly_rollup[m_key]["taxes"] += abs_amount
+            daily_rollup[d_key]["taxes"] += abs_amount
+        elif "commission" in tx_type or "fee" in tx_type:
+            total_brokerage += abs_amount
+            monthly_rollup[m_key]["brokerage"] += abs_amount
+            daily_rollup[d_key]["brokerage"] += abs_amount
+        elif "pnl" in tx_type or "settlement" in tx_type:
+            # Positive PNL is gain, negative is loss
+            total_gross_pnl += raw_amount 
+            monthly_rollup[m_key]["gross_pnl"] += raw_amount
+            daily_rollup[d_key]["gross_pnl"] += raw_amount
+            total_net_pnl += raw_amount
+            monthly_rollup[m_key]["net_pnl"] += raw_amount
+            daily_rollup[d_key]["net_pnl"] += raw_amount
+        elif any(k in tx_type for k in ["deposit", "transfer", "fiat", "buy"]) and raw_amount > 0:
+            total_deposits += abs_amount
+            monthly_rollup[m_key]["deposits"] += abs_amount
+        elif any(k in tx_type for k in ["withdrawal", "transfer", "fiat", "sell"]) and raw_amount < 0:
+            total_withdrawals += abs_amount
+            monthly_rollup[m_key]["withdrawals"] += abs_amount
+            
+    print(f"DEBUG: Delta India Wallet Tx Types Found -> {unique_tx_types}")
+
+    # 2. PARSE FILLS JUST FOR THE TRADE EXECUTION TABLE
     sorted_fills = sorted(cache["fills"], key=lambda x: get_ts_us(x), reverse=True)
 
     for fill in sorted_fills:
         fee = abs(float(fill.get("fee", 0.0) or fill.get("commission", 0.0) or 0.0))
         realized_pnl = float(fill.get("realized_pnl", 0.0) or fill.get("pnl", 0.0) or 0.0)
         
-        # CORRECT MATH: If realized_pnl is 0, it was an opening trade. We do NOT add fees to Gross PnL here.
-        if realized_pnl != 0:
-            gross_trade_pnl = realized_pnl + fee
-        else:
-            gross_trade_pnl = 0.0
-            
-        gst_portion = fee * 0.18
-        net_trade_pnl = gross_trade_pnl - fee - gst_portion
-        
         symbol = fill.get("symbol", fill.get("product_symbol", "OPTION"))
         size = float(fill.get("size", 0.0) or 0.0)
         price = float(fill.get("price", 0.0) or fill.get("average_fill_price", 0.0) or 0.0)
         side = fill.get("side", "buy").upper()
+        
         dt = parse_delta_date(fill.get("created_at") or fill.get("updated_at"))
-        d_key = dt.strftime("%Y-%m-%d")
         m_key = dt.strftime("%Y-%m")
+        d_key = dt.strftime("%Y-%m-%d")
+        
+        if m_key in monthly_rollup: monthly_rollup[m_key]["trades_count"] += 1
+        if d_key in daily_rollup: daily_rollup[d_key]["trades"] += 1
 
-        total_brokerage += fee
-        total_taxes_gst += gst_portion
-        total_gross_pnl += gross_trade_pnl
-        total_net_pnl += net_trade_pnl
-
-        if d_key not in daily_rollup:
-            daily_rollup[d_key] = {"date": d_key, "trades": 0, "gross_pnl": 0.0, "brokerage": 0.0, "taxes": 0.0, "net_pnl": 0.0}
-        daily_rollup[d_key]["trades"] += 1
-        daily_rollup[d_key]["gross_pnl"] += gross_trade_pnl
-        daily_rollup[d_key]["brokerage"] += fee
-        daily_rollup[d_key]["taxes"] += gst_portion
-        daily_rollup[d_key]["net_pnl"] += net_trade_pnl
-
-        if m_key not in monthly_rollup:
-            monthly_rollup[m_key] = {"month": m_key, "deposits": 0.0, "withdrawals": 0.0, "gross_pnl": 0.0, "brokerage": 0.0, "taxes": 0.0, "net_pnl": 0.0, "trades_count": 0}
-        monthly_rollup[m_key]["trades_count"] += 1
-        monthly_rollup[m_key]["gross_pnl"] += gross_trade_pnl
-        monthly_rollup[m_key]["brokerage"] += fee
-        monthly_rollup[m_key]["taxes"] += gst_portion
-        monthly_rollup[m_key]["net_pnl"] += net_trade_pnl
+        net_trade_pnl = realized_pnl - fee - (fee * 0.18)
 
         trade_list.append({
             "timestamp": dt.strftime("%Y-%m-%d %H:%M:%S"),
@@ -208,13 +212,15 @@ def main():
             "side": side,
             "size": size,
             "price": price,
-            "gross_pnl": round(gross_trade_pnl, 2),
+            "gross_pnl": round(realized_pnl, 2),
             "brokerage": round(fee, 2),
-            "taxes": round(gst_portion, 2),
+            "taxes": round(fee * 0.18, 2),
             "net_pnl": round(net_trade_pnl, 2),
             "status": "WIN" if net_trade_pnl > 0 else ("LOSS" if net_trade_pnl < 0 else "BE")
         })
 
+    # Subtract fees and taxes from the global Net PnL (since they are separated in the wallet)
+    total_net_pnl = total_gross_pnl - total_brokerage - total_taxes_gst - total_taxes_tds
     core_capital = total_deposits - total_withdrawals
     reinvested_capital = max(0.0, total_deposits - max(0.0, core_capital))
 
@@ -233,12 +239,11 @@ def main():
         },
         "monthly_breakdown": sorted(monthly_rollup.values(), key=lambda x: x["month"], reverse=True),
         "daily_breakdown": daily_rollup,
-        "trades": trade_list[:2000] 
+        "trades": trade_list[:15000] # Expanded from 2000 to prevent cutoff
     }
 
     with open("data/trade_journal.json", "w") as f:
         json.dump(summary_payload, f, indent=2)
-    print("UI Dashboard metrics successfully rebuilt with precise financial logic!")
 
 if __name__ == "__main__":
     main()
