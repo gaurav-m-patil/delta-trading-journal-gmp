@@ -8,7 +8,11 @@ from datetime import datetime, timezone
 
 API_KEY = os.environ.get("DELTA_API_KEY", "").strip()
 API_SECRET = os.environ.get("DELTA_API_SECRET", "").strip()
+PROXY_URL = os.environ.get("PROXY_URL", "").strip()
 BASE_URL = "https://api.india.delta.exchange"
+
+# Configure static proxy dictionary if provided
+PROXIES = {"http": PROXY_URL, "https": PROXY_URL} if PROXY_URL else None
 
 def get_signature(secret, method, path, query="", payload=""):
     timestamp = str(int(time.time()))
@@ -29,7 +33,7 @@ def delta_api_get(path, query=""):
         "User-Agent": "TradingJournalEngine/1.0"
     }
     try:
-        res = requests.get(url, headers=headers, timeout=20)
+        res = requests.get(url, headers=headers, proxies=PROXIES, timeout=25)
         print(f"DEBUG: GET {path}{'?' + query if query else ''} -> HTTP {res.status_code}")
         
         try:
@@ -65,7 +69,16 @@ def parse_delta_date(ts_val):
 
 def main():
     print(f"Target URL: {BASE_URL}")
+    print(f"Proxy Active: {'Yes' if PROXY_URL else 'No'}")
     print(f"API Key present: {'Yes' if API_KEY else 'No'}, Secret present: {'Yes' if API_SECRET else 'No'}")
+
+    # Verify IP being used
+    if PROXY_URL:
+        try:
+            ip_check = requests.get("https://api.ipify.org?format=json", proxies=PROXIES, timeout=10).json()
+            print(f"DEBUG: Current outbound proxy IP is {ip_check.get('ip')}")
+        except Exception as e:
+            print(f"DEBUG: Could not verify outbound IP: {str(e)}")
 
     print("\n--- Pulling Wallet Transactions ---")
     raw_wallet_txs = delta_api_get("/v2/wallet/transactions", "page_size=100")
