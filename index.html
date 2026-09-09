@@ -155,8 +155,8 @@
   <section id="tradeTableSection" class="bg-cardDark border border-borderDark p-4 md:p-5 rounded-2xl">
     <div class="flex justify-between items-center mb-4">
       <div>
-        <h2 class="font-bold text-sm md:text-base text-white">Execution Audit Log</h2>
-        <p class="text-[11px] text-slate-400" id="tableSubtitle">All trades executed during selected period</p>
+        <h2 class="font-bold text-sm md:text-base text-white">Grouped Trade Log</h2>
+        <p class="text-[11px] text-slate-400" id="tableSubtitle">Scale-ins and scale-outs merged into single positions</p>
       </div>
       <span class="text-xs font-mono text-slate-400" id="tradeCountBadge">Showing 0 trades</span>
     </div>
@@ -164,16 +164,15 @@
       <table class="w-full text-left text-xs min-w-[750px]">
         <thead class="bg-brandDark/80 text-slate-400 border-b border-borderDark uppercase tracking-wider text-[10px]">
           <tr>
-            <th class="py-2.5 px-3">Date/Time (IST)</th>
+            <th class="py-2.5 px-3">Opened At (IST)</th>
             <th class="py-2.5 px-3">Symbol</th>
-            <th class="py-2.5 px-3">Side</th>
-            <th class="py-2.5 px-3 text-right">Size</th>
-            <th class="py-2.5 px-3 text-right">Avg Price</th>
+            <th class="py-2.5 px-3">Entry Side</th>
+            <th class="py-2.5 px-3 text-right">Max Size</th>
             <th class="py-2.5 px-3 text-right">Gross PnL</th>
             <th class="py-2.5 px-3 text-right">Brokerage</th>
             <th class="py-2.5 px-3 text-right">GST (18%)</th>
             <th class="py-2.5 px-3 text-right">Net PnL</th>
-            <th class="py-2.5 px-3 text-center">Status</th>
+            <th class="py-2.5 px-3 text-center">Outcome</th>
           </tr>
         </thead>
         <tbody id="tradeLogBody" class="divide-y divide-borderDark text-slate-300 font-mono text-[11px]"></tbody>
@@ -203,7 +202,12 @@
         const res = await fetch('./data/raw_data.json?t=' + Date.now());
         if (!res.ok) throw new Error("Could not find data/raw_data.json");
         rawDumpCache = await res.json();
-        document.getElementById('lastUpdated').innerText = `Synced Data As Of: ${rawDumpCache.generated_at}`;
+        
+        // Fix 1: Convert UTC generation timestamp safely to IST
+        const genDateStr = rawDumpCache.generated_at.replace(" UTC", "Z").replace(" ", "T");
+        const istTime = new Date(genDateStr).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata', year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true });
+        document.getElementById('lastUpdated').innerText = `Synced Data As Of: ${istTime} (IST)`;
+        
         processRawData(rawDumpCache);
       } catch (err) {
         console.error(err);
@@ -214,6 +218,7 @@
     function processRawData(rawDump) {
       let total_deposits = 0, total_withdrawals = 0, raw_wallet_taxes = 0;
 
+      // 1. Process Wallet Ledger
       (rawDump.wallet_txs || []).forEach(tx => {
         const type = (tx.transaction_type || "").toLowerCase();
         const amt = parseFloat(tx.amount || 0);
@@ -228,6 +233,49 @@
         }
       });
 
+      // Fix 2: The True Position Grouping Engine
+      const tradesBySymbol = {};
+      
+      (rawDump.orders || []).forEach(order => {
+        if (order.state !== "closed" && order.state !== "filled") return;
+
+        const grossPnl = parseFloat((order.meta_data && order.meta_data.pnl) ? order.meta_data.pnl : 0);
+        const fee = Math.abs(parseFloat(order.paid_commission || 0));
+        if (grossPnl === 0 && fee === 0) return;
+
+        const sym = order.product_symbol || order.symbol || "OPTION";
+        const orderDate = new Date(order.created_at);
+
+        if (!tradesBySymbol[sym]) {
+          tradesBySymbol[sym] = {
+            symbol: sym,
+            openDate: orderDate,
+            side: (order.side || "").toUpperCase(),
+            maxSize: 0,
+            grossPnl: 0,
+            fee: 0,
+            executions: 0
+          };
+        }
+
+        // Anchor the trade to the EARLIEST execution timestamp (the opening trade)
+        if (orderDate < tradesBySymbol[sym].openDate) {
+          tradesBySymbol[sym].openDate = orderDate;
+          tradesBySymbol[sym].side = (order.side || "").toUpperCase();
+        }
+
+        tradesBySymbol[sym].grossPnl += grossPnl;
+        tradesBySymbol[sym].fee += fee;
+        tradesBySymbol[sym].executions += 1;
+
+        // Calculate max position size. Opening orders usually have 0 realized PnL.
+        if (grossPnl === 0) {
+          tradesBySymbol[sym].maxSize += parseFloat(order.size || 0);
+        } else if (tradesBySymbol[sym].maxSize === 0) {
+          tradesBySymbol[sym].maxSize = parseFloat(order.size || 0);
+        }
+      });
+
       const allTrades = [];
       const dailyMap = {};
       const monthlyMap = {};
@@ -236,18 +284,12 @@
         timeZone: 'Asia/Kolkata', year: 'numeric', month: '2-digit', day: '2-digit' 
       });
 
-      (rawDump.orders || []).forEach(order => {
-        if (order.state !== "closed" && order.state !== "filled") return;
+      // Map the grouped symbols into individual "Trades"
+      Object.values(tradesBySymbol).forEach(trade => {
+        const gst = trade.fee * 0.18;
+        const netPnl = trade.grossPnl - trade.fee - gst;
 
-        const grossPnl = parseFloat((order.meta_data && order.meta_data.pnl) ? order.meta_data.pnl : 0);
-        const fee = Math.abs(parseFloat(order.paid_commission || 0));
-        if (grossPnl === 0 && fee === 0) return;
-
-        const gst = fee * 0.18;
-        const netPnl = grossPnl - fee - gst;
-
-        const dateObj = new Date(order.created_at);
-        const parts = istFormatter.formatToParts(dateObj);
+        const parts = istFormatter.formatToParts(trade.openDate);
         const y = parts.find(p => p.type === 'year').value;
         const m = parts.find(p => p.type === 'month').value;
         const d = parts.find(p => p.type === 'day').value;
@@ -256,24 +298,24 @@
         const monthKey = `${y}-${m}`;
 
         if (!dailyMap[dayKey]) dailyMap[dayKey] = { gross_pnl: 0, brokerage: 0, taxes: 0, net_pnl: 0, trades: 0, wins: 0, losses: 0 };
-        dailyMap[dayKey].gross_pnl += grossPnl; dailyMap[dayKey].brokerage += fee; dailyMap[dayKey].taxes += gst; dailyMap[dayKey].net_pnl += netPnl; dailyMap[dayKey].trades += 1;
+        dailyMap[dayKey].gross_pnl += trade.grossPnl; dailyMap[dayKey].brokerage += trade.fee; dailyMap[dayKey].taxes += gst; dailyMap[dayKey].net_pnl += netPnl; dailyMap[dayKey].trades += 1;
         if (netPnl > 0) dailyMap[dayKey].wins += 1; else if (netPnl < 0) dailyMap[dayKey].losses += 1;
 
         if (!monthlyMap[monthKey]) monthlyMap[monthKey] = { month: monthKey, gross_pnl: 0, brokerage: 0, taxes: 0, net_pnl: 0, trades: 0 };
-        monthlyMap[monthKey].gross_pnl += grossPnl; monthlyMap[monthKey].brokerage += fee; monthlyMap[monthKey].taxes += gst; monthlyMap[monthKey].net_pnl += netPnl; monthlyMap[monthKey].trades += 1;
+        monthlyMap[monthKey].gross_pnl += trade.grossPnl; monthlyMap[monthKey].brokerage += trade.fee; monthlyMap[monthKey].taxes += gst; monthlyMap[monthKey].net_pnl += netPnl; monthlyMap[monthKey].trades += 1;
 
         allTrades.push({
-          timestamp: dateObj.toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' }),
+          timestamp: trade.openDate.toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' }),
           rawDate: dayKey,
           monthKey: monthKey,
-          symbol: order.product_symbol || order.symbol || "OPTION",
-          side: (order.side || "").toUpperCase(),
-          size: parseFloat(order.size || 0),
-          price: parseFloat(order.average_fill_price || order.limit_price || 0),
-          gross_pnl: grossPnl,
-          brokerage: fee,
+          symbol: trade.symbol,
+          side: trade.side,
+          size: trade.maxSize,
+          gross_pnl: trade.grossPnl,
+          brokerage: trade.fee,
           taxes: gst,
           net_pnl: netPnl,
+          executions: trade.executions,
           status: netPnl > 0 ? 'WIN' : (netPnl < 0 ? 'LOSS' : 'BE')
         });
       });
@@ -299,7 +341,6 @@
 
       if (preset === 'SPECIFIC_MONTH') specificMonthBox.classList.remove('hidden');
       else if (preset === 'CUSTOM') { customBox.classList.remove('hidden'); customBox.classList.add('flex'); }
-      
       applyGlobalFilter();
     }
 
@@ -396,7 +437,7 @@
 
       if (isSingleMonth && targetMonthStr) {
         document.getElementById('middleSectionTitle').innerText = `Daily Journal Calendar`;
-        document.getElementById('middleSectionSubtitle').innerText = `Day-by-day realized PnL and trade activity`;
+        document.getElementById('middleSectionSubtitle').innerText = `Day-by-day realized PnL and grouped trade activity`;
         const parts = targetMonthStr.split('-');
         const year = parseInt(parts[0]), month = parseInt(parts[1]) - 1;
         const firstDayOfWeek = new Date(year, month, 1).getDay();
@@ -435,7 +476,6 @@
         const matchingMonths = Object.keys(processedState.monthlyMap).filter(m => `${m}-01` >= startDate.slice(0, 7) && `${m}-01` <= endDate.slice(0, 7)).sort().reverse();
         if (matchingMonths.length === 0) return container.innerHTML = `<div class="p-8 text-center text-slate-500 text-xs">No trade history found.</div>`;
 
-        // COMPACT MOBILE GRID FIX: 2 columns on mobile, scaling up on larger screens
         let gridHTML = `<div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-2 sm:gap-3">`;
         matchingMonths.forEach(mKey => {
           const mData = processedState.monthlyMap[mKey];
@@ -496,15 +536,11 @@
           height: 260, 
           width: '100%',
           background: 'transparent', 
-          toolbar: { show: false },  // REMOVES DOWNLOAD/PAN ICONS
-          zoom: { enabled: false }   // LOCKS CHART - NO ZOOMING OR PANNING
+          toolbar: { show: false }, 
+          zoom: { enabled: false } 
         },
-        dataLabels: { enabled: false }, // REMOVES MESSY TEXT NUMBERS ON THE LINE
-        markers: { 
-          size: 3,                   // ADDS CLEAN DOTS ON THE DATA POINTS
-          strokeWidth: 0,
-          hover: { size: 5 }
-        },
+        dataLabels: { enabled: false },
+        markers: { size: 3, strokeWidth: 0, hover: { size: 5 } },
         colors: ['#10b981', '#6366f1'], 
         stroke: { curve: 'smooth', width: 2 },
         fill: { type: 'gradient', gradient: { shadeIntensity: 1, opacityFrom: 0.25, opacityTo: 0.0 } },
@@ -519,17 +555,17 @@
     function renderTable(trades) {
       const tbody = document.getElementById('tradeLogBody');
       tbody.innerHTML = '';
-      document.getElementById('tradeCountBadge').innerText = `Showing all ${trades.length} trades`;
+      document.getElementById('tradeCountBadge').innerText = `Showing ${trades.length} grouped trades`;
       if (trades.length === 0) return tbody.innerHTML = `<tr><td colspan="10" class="text-center py-6 text-slate-500 font-sans">No trades recorded.</td></tr>`;
 
       trades.forEach(t => {
         tbody.innerHTML += `
           <tr class="hover:bg-panelDark/40">
             <td class="py-2.5 px-3 text-slate-400">${t.timestamp}</td>
-            <td class="py-2.5 px-3 font-semibold text-white">${t.symbol}</td>
+            <td class="py-2.5 px-3 font-semibold text-white">${t.symbol} <span class="text-[9px] text-slate-500 ml-1">(${t.executions} fills)</span></td>
             <td class="py-2.5 px-3"><span class="px-1.5 py-0.5 rounded text-[10px] font-bold ${t.side === 'BUY' ? 'bg-emerald-500/20 text-emerald-400' : 'bg-red-500/20 text-red-400'}">${t.side}</span></td>
             <td class="py-2.5 px-3 text-right">${t.size}</td>
-            <td class="py-2.5 px-3 text-right">${formatUSD(t.price)}</td>
+            <td class="py-2.5 px-3 text-right text-slate-500">Grouped</td>
             <td class="py-2.5 px-3 text-right ${t.gross_pnl >= 0 ? 'text-winGreen' : 'text-lossRed'}">${formatUSD(t.gross_pnl)}</td>
             <td class="py-2.5 px-3 text-right text-lossRed">${formatUSD(t.brokerage)}</td>
             <td class="py-2.5 px-3 text-right text-lossRed">${formatUSD(t.taxes)}</td>
