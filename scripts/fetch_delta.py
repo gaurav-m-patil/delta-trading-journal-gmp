@@ -68,8 +68,15 @@ def main():
     os.makedirs("data", exist_ok=True)
     raw_dump = {"generated_at": datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC")}
     
-    # Extract everything raw. The HTML/JavaScript will do the math later.
-    raw_dump["wallet_txs"] = extract_api_data("/v2/wallet/transactions")
+    # Extract everything raw
+    wallet_txs = extract_api_data("/v2/wallet/transactions")
+    
+    # FIX: Ensure every wallet tx has a reliable 'created_at' string for the frontend date filter
+    for tx in wallet_txs:
+        if not tx.get("created_at") and tx.get("updated_at"):
+            tx["created_at"] = tx["updated_at"]
+
+    raw_dump["wallet_txs"] = wallet_txs
     raw_dump["orders"] = extract_api_data("/v2/orders/history")
 
     # Bundle the Gemini API key silently into the JSON
