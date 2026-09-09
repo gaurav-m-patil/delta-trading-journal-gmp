@@ -30,8 +30,9 @@
   </script>
   <style>
     body { background-color: #080b11; color: #f8fafc; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
-    .custom-scroll::-webkit-scrollbar { width: 6px; height: 6px; }
-    .custom-scroll::-webkit-scrollbar-thumb { background: #1e293b; border-radius: 4px; }
+    .custom-scroll::-webkit-scrollbar { height: 6px; width: 6px; }
+    .custom-scroll::-webkit-scrollbar-thumb { background: #334155; border-radius: 4px; }
+    .custom-scroll::-webkit-scrollbar-track { background: transparent; }
     option { background-color: #0f172a; color: #f8fafc; }
   </style>
 </head>
@@ -53,6 +54,7 @@
       </div>
     </div>
 
+    <!-- GLOBAL TIMEFRAME SELECTOR -->
     <div class="flex flex-wrap items-center gap-2 w-full xl:w-auto">
       <div class="flex items-center bg-cardDark border border-borderDark rounded-xl p-1.5 shadow-sm gap-2">
         <i class="fa-regular fa-calendar-days pl-2 text-slate-400 text-xs"></i>
@@ -83,6 +85,7 @@
     </div>
   </header>
 
+  <!-- 1. KPI SCORECARD RIBBON -->
   <section class="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-3 mb-6">
     <div class="bg-cardDark border border-borderDark p-3 rounded-xl">
       <span class="text-slate-400 text-[10px] font-medium uppercase tracking-wider block mb-1">Gross Inflows</span>
@@ -126,6 +129,7 @@
     </div>
   </section>
 
+  <!-- 2. PERFORMANCE TRAJECTORY CHART -->
   <section class="bg-cardDark border border-borderDark p-4 md:p-5 rounded-2xl mb-6">
     <div class="flex justify-between items-center mb-3">
       <div>
@@ -133,9 +137,11 @@
         <p class="text-[11px] text-slate-400" id="chartSubtitle">Cumulative Net Take-Home vs Gross Outcome</p>
       </div>
     </div>
-    <div id="equityChart" class="h-[260px] w-full"></div>
+    <!-- w-full and overflow-hidden ensures it stays within screen bounds on mobile -->
+    <div id="equityChart" class="h-[260px] w-full overflow-hidden"></div>
   </section>
 
+  <!-- 3. ADAPTIVE SECTION -->
   <section class="bg-cardDark border border-borderDark p-4 md:p-5 rounded-2xl mb-6">
     <div class="flex justify-between items-center mb-4">
       <div>
@@ -147,6 +153,7 @@
     <div id="middleSectionContainer"></div>
   </section>
 
+  <!-- 4. BOTTOM EXECUTION AUDIT LOG TABLE -->
   <section id="tradeTableSection" class="bg-cardDark border border-borderDark p-4 md:p-5 rounded-2xl">
     <div class="flex justify-between items-center mb-4">
       <div>
@@ -155,8 +162,8 @@
       </div>
       <span class="text-xs font-mono text-slate-400" id="tradeCountBadge">Showing 0 trades</span>
     </div>
-    <div class="overflow-x-auto custom-scroll">
-      <table class="w-full text-left text-xs">
+    <div class="overflow-x-auto custom-scroll pb-2">
+      <table class="w-full text-left text-xs min-w-[750px]">
         <thead class="bg-brandDark/80 text-slate-400 border-b border-borderDark uppercase tracking-wider text-[10px]">
           <tr>
             <th class="py-2.5 px-3">Date/Time (IST)</th>
@@ -184,6 +191,14 @@
     const formatUSD = (val) => {
       const num = Number(val) || 0;
       return (num < 0 ? "-$" : "$") + Math.abs(num).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    };
+
+    // Converts large numbers like 15000 to 15.0k for the chart Y-axis so it doesn't squish mobile views
+    const compactUSD = (val) => {
+      const num = Number(val) || 0;
+      const absNum = Math.abs(num);
+      if (absNum >= 1000) return (num < 0 ? "-$" : "$") + (absNum / 1000).toFixed(1) + "k";
+      return (num < 0 ? "-$" : "$") + absNum.toFixed(0);
     };
 
     async function fetchRawData() {
@@ -417,9 +432,18 @@
         const firstDayOfWeek = new Date(year, month, 1).getDay();
         const daysInMonth = new Date(year, month + 1, 0).getDate();
 
-        let calHTML = `<div class="grid grid-cols-7 gap-1.5 sm:gap-2 mb-2 text-center text-[10px] sm:text-[11px] font-semibold text-slate-400 uppercase tracking-wider">
-            <div>Sun</div><div>Mon</div><div>Tue</div><div>Wed</div><div>Thu</div><div>Fri</div><div>Sat</div></div><div class="grid grid-cols-7 gap-1.5 sm:gap-2">`;
-        for (let i = 0; i < firstDayOfWeek; i++) calHTML += `<div class="min-h-[80px] rounded-xl border border-borderDark/40 bg-brandDark/20"></div>`;
+        // Wrap the calendar in a horizontal scrollable container to prevent mobile squishing
+        let calHTML = `
+          <div class="overflow-x-auto custom-scroll pb-3">
+            <div class="min-w-[550px] w-full">
+              <div class="grid grid-cols-7 gap-1.5 sm:gap-2 mb-2 text-center text-[10px] sm:text-[11px] font-semibold text-slate-400 uppercase tracking-wider">
+                <div>Sun</div><div>Mon</div><div>Tue</div><div>Wed</div><div>Thu</div><div>Fri</div><div>Sat</div>
+              </div>
+              <div class="grid grid-cols-7 gap-1.5 sm:gap-2">`;
+              
+        for (let i = 0; i < firstDayOfWeek; i++) {
+          calHTML += `<div class="min-h-[70px] sm:min-h-[80px] rounded-xl border border-borderDark/40 bg-brandDark/20"></div>`;
+        }
 
         for (let day = 1; day <= daysInMonth; day++) {
           const fullDateKey = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
@@ -427,17 +451,17 @@
           if (dayData && dayData.trades > 0) {
             const isWin = dayData.net_pnl > 0, isLoss = dayData.net_pnl < 0;
             calHTML += `
-              <div class="min-h-[80px] p-2 rounded-xl border ${isWin ? 'bg-winGreen/10 border-winGreen/40' : (isLoss ? 'bg-lossRed/10 border-lossRed/40' : 'bg-slate-800/30 border-slate-700')} flex flex-col justify-between transition-all hover:scale-[1.02]">
-                <div class="flex justify-between items-center text-[10px]"><span class="font-bold text-white">${day}</span><span class="px-1 py-0.2 rounded bg-cardDark/80 text-[9px] font-mono text-slate-300">${dayData.trades}t</span></div>
-                <div class="my-1"><div class="text-xs sm:text-sm font-bold font-mono ${isWin ? 'text-winGreen' : (isLoss ? 'text-lossRed' : 'text-slate-300')}">${dayData.net_pnl >= 0 ? '+' : ''}${formatUSD(dayData.net_pnl)}</div>
-                <div class="text-[9px] font-mono text-slate-400"><span class="text-winGreen">${dayData.wins}W</span> - <span class="text-lossRed">${dayData.losses}L</span></div></div>
-                <div class="text-[9px] text-slate-500 font-mono">Fees: ${formatUSD(dayData.brokerage + dayData.taxes)}</div>
+              <div class="min-h-[70px] sm:min-h-[80px] p-1.5 sm:p-2 rounded-xl border ${isWin ? 'bg-winGreen/10 border-winGreen/40' : (isLoss ? 'bg-lossRed/10 border-lossRed/40' : 'bg-slate-800/30 border-slate-700')} flex flex-col justify-between transition-all hover:scale-[1.02]">
+                <div class="flex justify-between items-center text-[9px] sm:text-[10px]"><span class="font-bold text-white">${day}</span><span class="px-1 py-0.2 rounded bg-cardDark/80 text-[8px] sm:text-[9px] font-mono text-slate-300">${dayData.trades}t</span></div>
+                <div class="my-1"><div class="text-[10px] sm:text-sm font-bold font-mono ${isWin ? 'text-winGreen' : (isLoss ? 'text-lossRed' : 'text-slate-300')}">${dayData.net_pnl >= 0 ? '+' : ''}${formatUSD(dayData.net_pnl)}</div>
+                <div class="text-[8px] sm:text-[9px] font-mono text-slate-400"><span class="text-winGreen">${dayData.wins}W</span> - <span class="text-lossRed">${dayData.losses}L</span></div></div>
+                <div class="text-[8px] sm:text-[9px] text-slate-500 font-mono">Fees: ${formatUSD(dayData.brokerage + dayData.taxes)}</div>
               </div>`;
           } else {
-            calHTML += `<div class="min-h-[80px] p-2 rounded-xl border border-borderDark/40 bg-panelDark/20 flex flex-col justify-between"><span class="text-[10px] text-slate-600 font-bold">${day}</span><span class="text-[10px] text-slate-700 font-mono text-center">-</span><span></span></div>`;
+            calHTML += `<div class="min-h-[70px] sm:min-h-[80px] p-1.5 sm:p-2 rounded-xl border border-borderDark/40 bg-panelDark/20 flex flex-col justify-between"><span class="text-[9px] sm:text-[10px] text-slate-600 font-bold">${day}</span><span class="text-[9px] sm:text-[10px] text-slate-700 font-mono text-center">-</span><span></span></div>`;
           }
         }
-        container.innerHTML = calHTML + `</div>`;
+        container.innerHTML = calHTML + `</div></div></div>`;
       } else {
         document.getElementById('middleSectionTitle').innerText = `Monthly Performance Overview`;
         document.getElementById('middleSectionSubtitle').innerText = `Aggregated monthly cashflows and net trajectory`;
@@ -492,12 +516,31 @@
       if (apexChartInstance) apexChartInstance.destroy();
       apexChartInstance = new ApexCharts(document.querySelector("#equityChart"), {
         series: [{ name: 'Net Take-Home', data: netSeries }, { name: 'Gross Outcome', data: grossSeries }],
-        chart: { type: 'area', height: 260, background: 'transparent', toolbar: { show: false } },
-        colors: ['#10b981', '#6366f1'], stroke: { curve: 'smooth', width: 2 },
+        chart: { 
+          type: 'area', 
+          height: 260, 
+          width: '100%',
+          background: 'transparent', 
+          toolbar: { show: false } 
+        },
+        colors: ['#10b981', '#6366f1'], 
+        stroke: { curve: 'smooth', width: 2 },
         fill: { type: 'gradient', gradient: { shadeIntensity: 1, opacityFrom: 0.25, opacityTo: 0.0 } },
-        xaxis: { categories: cat, labels: { style: { colors: '#64748b', fontSize: '10px' } } },
-        yaxis: { labels: { style: { colors: '#64748b', fontSize: '10px' }, formatter: (v) => formatUSD(v) } },
-        grid: { borderColor: '#1e293b', strokeDashArray: 3 }, tooltip: { theme: 'dark' }
+        xaxis: { 
+          categories: cat, 
+          labels: { 
+            style: { colors: '#64748b', fontSize: '9px' },
+            hideOverlappingLabels: true
+          } 
+        },
+        yaxis: { 
+          labels: { 
+            style: { colors: '#64748b', fontSize: '10px' }, 
+            formatter: (v) => compactUSD(v) // Implemented compact formatting to save horizontal space
+          } 
+        },
+        grid: { padding: { left: 10, right: 10 }, borderColor: '#1e293b', strokeDashArray: 3 }, 
+        tooltip: { theme: 'dark' }
       });
       apexChartInstance.render();
     }
