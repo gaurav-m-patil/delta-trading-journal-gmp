@@ -73,28 +73,24 @@
     </div>
   </div>
 
-  <!-- HEADER -->
-  <header class="flex flex-col xl:flex-row justify-between items-start xl:items-center pb-6 border-b border-borderDark mb-6 gap-4">
-    <div>
+  <!-- HEADER (Streamlined & Clean for Mobile & Desktop) -->
+  <header class="flex flex-col lg:flex-row justify-between items-start lg:items-center pb-5 border-b border-borderDark mb-5 gap-4">
+    <div class="flex items-center justify-between w-full lg:w-auto">
       <div class="flex items-center gap-3">
         <div class="h-10 w-10 bg-indigo-600 rounded-xl flex items-center justify-center text-white font-bold shadow-lg shadow-indigo-500/20"><i class="fa-solid fa-chart-line text-lg"></i></div>
         <div>
-          <h1 class="text-xl md:text-2xl font-bold tracking-tight text-white flex items-center gap-2">Delta Trading Journal <span class="px-2 py-0.5 rounded text-[10px] font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">Live</span></h1>
-          <p class="text-xs text-slate-400 mt-0.5" id="lastUpdated">Loading raw database...</p>
+          <h1 class="text-lg md:text-2xl font-bold tracking-tight text-white flex items-center gap-2">Delta Trading Journal <span class="px-2 py-0.5 rounded text-[10px] font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">Live</span></h1>
+          <p class="text-[11px] text-slate-400 mt-0.5" id="lastUpdated">Loading raw database...</p>
         </div>
       </div>
     </div>
 
-    <div class="flex flex-wrap items-center gap-2 w-full xl:w-auto">
-      <button onclick="toggleAICoach()" class="px-3.5 py-2 text-xs font-bold bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 hover:bg-indigo-500/20 rounded-xl transition-colors flex items-center gap-1.5">
-        <i class="fa-solid fa-sparkles"></i> AI Coach
-      </button>
-      
-      <!-- MODERN PILL TIMEFRAME SELECTOR -->
-      <div class="flex items-center bg-cardDark border border-borderDark rounded-xl p-1 gap-1">
-        <button onclick="setPreset('CURRENT_MONTH')" id="btn_CURRENT_MONTH" class="px-3 py-1.5 text-xs font-semibold rounded-lg transition-colors bg-indigo-600 text-white">Current Month</button>
-        <button onclick="setPreset('CUSTOM')" id="btn_CUSTOM" class="px-3 py-1.5 text-xs font-semibold rounded-lg transition-colors text-slate-400 hover:text-white">Custom Range</button>
-        <button onclick="setPreset('ALL_TIME')" id="btn_ALL_TIME" class="px-3 py-1.5 text-xs font-semibold rounded-lg transition-colors text-slate-400 hover:text-white">All-Time</button>
+    <div class="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5 w-full lg:w-auto">
+      <!-- TIME FRAME PILLS -->
+      <div class="flex items-center bg-cardDark border border-borderDark rounded-xl p-1 gap-1 w-full sm:w-auto justify-center">
+        <button onclick="setPreset('CURRENT_MONTH')" id="btn_CURRENT_MONTH" class="flex-1 sm:flex-none px-3 py-1.5 text-xs font-semibold rounded-lg transition-colors bg-indigo-600 text-white text-center">Current Month</button>
+        <button onclick="setPreset('CUSTOM')" id="btn_CUSTOM" class="flex-1 sm:flex-none px-3 py-1.5 text-xs font-semibold rounded-lg transition-colors text-slate-400 hover:text-white text-center">Custom Range</button>
+        <button onclick="setPreset('ALL_TIME')" id="btn_ALL_TIME" class="flex-1 sm:flex-none px-3 py-1.5 text-xs font-semibold rounded-lg transition-colors text-slate-400 hover:text-white text-center">All-Time</button>
       </div>
 
       <div id="customDateContainer" class="hidden items-center gap-1.5 bg-cardDark border border-borderDark rounded-xl px-2.5 py-1">
@@ -103,28 +99,44 @@
         <input type="date" id="customEndDate" onchange="applyGlobalFilter()" class="bg-transparent text-[11px] text-white focus:outline-none font-mono">
       </div>
 
-      <div class="flex items-center gap-1">
-        <button onclick="triggerGitHubWorkflow()" id="syncWorkflowBtn" class="px-3.5 py-2 text-xs font-medium bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl transition-colors flex items-center gap-1.5 shadow-lg shadow-indigo-600/20">
+      <!-- ACTION BUTTONS ROW -->
+      <div class="flex items-center gap-2">
+        <button onclick="toggleAICoach()" class="flex-1 sm:flex-none px-3.5 py-2 text-xs font-bold bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 hover:bg-indigo-500/20 rounded-xl transition-colors flex items-center justify-center gap-1.5">
+          <i class="fa-solid fa-sparkles"></i> AI Coach
+        </button>
+        <button onclick="triggerGitHubWorkflow()" id="syncWorkflowBtn" class="flex-1 sm:flex-none px-3.5 py-2 text-xs font-medium bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl transition-colors flex items-center justify-center gap-1.5 shadow-lg shadow-indigo-600/20">
           <i class="fa-solid fa-play"></i> Run Sync
         </button>
-        <button onclick="toggleGhSettings()" class="p-2 text-xs bg-cardDark border border-borderDark hover:bg-panelDark rounded-xl text-slate-400 hover:text-white transition-colors">
+        <button onclick="toggleGhSettings()" class="p-2 text-xs bg-cardDark border border-borderDark hover:bg-panelDark rounded-xl text-slate-400 hover:text-white transition-colors" title="Settings">
           <i class="fa-solid fa-gear"></i>
         </button>
+        <button onclick="fetchRawData()" class="p-2 text-xs bg-cardDark border border-borderDark hover:bg-panelDark rounded-xl text-slate-300 transition-colors" title="Refresh">
+          <i class="fa-solid fa-arrows-rotate"></i>
+        </button>
       </div>
-
-      <button onclick="fetchRawData()" class="px-3.5 py-2 text-xs font-medium bg-cardDark border border-borderDark hover:bg-panelDark rounded-xl transition-colors flex items-center gap-1.5 text-slate-300">
-        <i class="fa-solid fa-arrows-rotate"></i> Refresh
-      </button>
     </div>
   </header>
 
+  <!-- TIMEFRAME STATUS BANNER (Moved to top as requested) -->
+  <section class="mb-5">
+    <div class="bg-cardDark border border-borderDark px-4 py-3 rounded-xl flex items-center justify-between shadow-sm">
+      <div class="flex items-center gap-2.5">
+        <div class="h-7 w-7 rounded-lg bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center text-indigo-400 text-xs"><i class="fa-regular fa-clock"></i></div>
+        <div>
+          <span class="text-[10px] text-slate-400 uppercase tracking-wider block font-medium">Active Timeframe</span>
+          <h3 class="text-sm font-bold text-white font-mono" id="kpiActivity">Loading...</h3>
+        </div>
+      </div>
+      <div id="calendarBadge" class="text-xs font-mono text-indigo-300 font-semibold px-2.5 py-1 rounded-lg bg-panelDark border border-borderDark"></div>
+    </div>
+  </section>
+
   <!-- KPI SCORECARD -->
-  <section class="grid grid-cols-2 sm:grid-cols-5 gap-3 mb-6">
+  <section class="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">
     <div class="bg-cardDark border border-borderDark p-3.5 rounded-xl"><span class="text-slate-400 text-[10px] font-medium uppercase tracking-wider block mb-1">Gross PnL</span><h3 class="text-base font-bold font-mono" id="kpiGross">$0.00</h3><span class="text-[9px] text-slate-500">Market outcome</span></div>
     <div class="bg-cardDark border border-borderDark p-3.5 rounded-xl"><span class="text-slate-400 text-[10px] font-medium uppercase tracking-wider block mb-1">Brokerage & Fees</span><h3 class="text-base font-bold text-lossRed font-mono" id="kpiBrokerage">$0.00</h3><span class="text-[9px] text-slate-500">Exchange charges</span></div>
     <div class="bg-cardDark border border-borderDark p-3.5 rounded-xl border-l-4 border-l-emerald-500"><span class="text-emerald-300 text-[10px] font-medium uppercase tracking-wider block mb-1">Net PnL</span><h3 class="text-base font-bold font-mono" id="kpiNet">$0.00</h3><span class="text-[9px] text-emerald-400">Net Take-Home</span></div>
     <div class="bg-cardDark border border-borderDark p-3.5 rounded-xl"><span class="text-slate-400 text-[10px] font-medium uppercase tracking-wider block mb-1">Win Rate</span><h3 class="text-base font-bold text-white font-mono" id="kpiWinRate">0%</h3><span class="text-[9px] text-slate-500" id="kpiTradeCount">0 trades</span></div>
-    <div class="bg-cardDark border border-borderDark p-3.5 rounded-xl col-span-2 sm:col-span-1"><span class="text-slate-400 text-[10px] font-medium uppercase tracking-wider block mb-1">Total Volume / Activity</span><h3 class="text-base font-bold text-indigo-300 font-mono" id="kpiActivity">Active</h3><span class="text-[9px] text-slate-500">Timeframe status</span></div>
   </section>
 
   <!-- TRAJECTORY & INSTRUMENT ANALYSIS -->
@@ -152,7 +164,6 @@
   <section class="bg-cardDark border border-borderDark p-4 md:p-5 rounded-2xl mb-6">
     <div class="flex justify-between items-center mb-4">
       <div><h2 class="font-bold text-sm md:text-base text-white" id="middleSectionTitle">Journal Overview</h2><p class="text-[11px] text-slate-400" id="middleSectionSubtitle">Performance breakdown</p></div>
-      <div id="calendarBadge" class="text-xs font-mono text-indigo-300"></div>
     </div>
     <div id="middleSectionContainer" class="w-full"></div>
   </section>
@@ -208,9 +219,9 @@
       ['CURRENT_MONTH', 'CUSTOM', 'ALL_TIME'].forEach(p => {
         const btn = document.getElementById(`btn_${p}`);
         if(p === preset) {
-          btn.className = "px-3 py-1.5 text-xs font-semibold rounded-lg transition-colors bg-indigo-600 text-white";
+          btn.className = "flex-1 sm:flex-none px-3 py-1.5 text-xs font-semibold rounded-lg transition-colors bg-indigo-600 text-white text-center";
         } else {
-          btn.className = "px-3 py-1.5 text-xs font-semibold rounded-lg transition-colors text-slate-400 hover:text-white";
+          btn.className = "flex-1 sm:flex-none px-3 py-1.5 text-xs font-semibold rounded-lg transition-colors text-slate-400 hover:text-white text-center";
         }
       });
 
@@ -597,10 +608,11 @@
         const year = parseInt(parts[0]), month = parseInt(parts[1]) - 1;
         const daysInMonth = new Date(year, month + 1, 0).getDate();
 
-        // RESPONSIVE 10-DAY GRID FOR DESKTOP (`grid-cols-10`), 7-DAY WEEK FOR MOBILE (`grid-cols-7`)
+        // RESPONSIVE CALENDAR: 7-day grid on mobile (`grid-cols-7`), 10-day grid on desktop (`sm:grid-cols-10`)
         let calHTML = `<div class="w-full max-w-5xl mx-auto">
           <div class="grid grid-cols-7 sm:grid-cols-10 gap-1.5 sm:gap-2 mb-1.5 text-center text-[9px] sm:text-[10px] font-semibold text-slate-400 uppercase tracking-wider">
-            <div>D1</div><div>D2</div><div>D3</div><div>D4</div><div>D5</div><div>D6</div><div>D7</div><div>D8</div><div>D9</div><div>D10</div>
+            <div class="sm:hidden">S</div><div class="sm:hidden">M</div><div class="sm:hidden">T</div><div class="sm:hidden">W</div><div class="sm:hidden">T</div><div class="sm:hidden">F</div><div class="sm:hidden">S</div>
+            <div class="hidden sm:block">D1</div><div class="hidden sm:block">D2</div><div class="hidden sm:block">D3</div><div class="hidden sm:block">D4</div><div class="hidden sm:block">D5</div><div class="hidden sm:block">D6</div><div class="hidden sm:block">D7</div><div class="hidden sm:block">D8</div><div class="hidden sm:block">D9</div><div class="hidden sm:block">D10</div>
           </div>
           <div class="grid grid-cols-7 sm:grid-cols-10 gap-1.5 sm:gap-2">`;
 
