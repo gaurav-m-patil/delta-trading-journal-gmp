@@ -36,7 +36,7 @@
     option { background-color: #0f172a; color: #f8fafc; }
   </style>
 </head>
-<body class="min-h-screen p-3 md:p-6 lg:p-8">
+<body class="min-h-screen p-2 md:p-6 lg:p-8">
 
   <header class="flex flex-col xl:flex-row justify-between items-start xl:items-center pb-6 border-b border-borderDark mb-6 gap-4">
     <div>
@@ -161,12 +161,13 @@
       <span class="text-xs font-mono text-slate-400" id="tradeCountBadge">Showing 0 trades</span>
     </div>
     <div class="overflow-x-auto custom-scroll pb-2">
-      <table class="w-full text-left text-xs min-w-[750px]">
+      <!-- Added min width to prevent header crushing on narrow screens -->
+      <table class="w-full text-left text-xs min-w-[700px]">
         <thead class="bg-brandDark/80 text-slate-400 border-b border-borderDark uppercase tracking-wider text-[10px]">
           <tr>
             <th class="py-2.5 px-3">Opened At (IST)</th>
             <th class="py-2.5 px-3">Symbol</th>
-            <th class="py-2.5 px-3">Entry Side</th>
+            <th class="py-2.5 px-3 text-center">Entry Side</th>
             <th class="py-2.5 px-3 text-right">Max Size</th>
             <th class="py-2.5 px-3 text-right">Gross PnL</th>
             <th class="py-2.5 px-3 text-right">Brokerage</th>
@@ -203,7 +204,6 @@
         if (!res.ok) throw new Error("Could not find data/raw_data.json");
         rawDumpCache = await res.json();
         
-        // Fix 1: Convert UTC generation timestamp safely to IST
         const genDateStr = rawDumpCache.generated_at.replace(" UTC", "Z").replace(" ", "T");
         const istTime = new Date(genDateStr).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata', year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true });
         document.getElementById('lastUpdated').innerText = `Synced Data As Of: ${istTime} (IST)`;
@@ -218,7 +218,6 @@
     function processRawData(rawDump) {
       let total_deposits = 0, total_withdrawals = 0, raw_wallet_taxes = 0;
 
-      // 1. Process Wallet Ledger
       (rawDump.wallet_txs || []).forEach(tx => {
         const type = (tx.transaction_type || "").toLowerCase();
         const amt = parseFloat(tx.amount || 0);
@@ -233,7 +232,6 @@
         }
       });
 
-      // Fix 2: The True Position Grouping Engine
       const tradesBySymbol = {};
       
       (rawDump.orders || []).forEach(order => {
@@ -258,7 +256,6 @@
           };
         }
 
-        // Anchor the trade to the EARLIEST execution timestamp (the opening trade)
         if (orderDate < tradesBySymbol[sym].openDate) {
           tradesBySymbol[sym].openDate = orderDate;
           tradesBySymbol[sym].side = (order.side || "").toUpperCase();
@@ -268,7 +265,6 @@
         tradesBySymbol[sym].fee += fee;
         tradesBySymbol[sym].executions += 1;
 
-        // Calculate max position size. Opening orders usually have 0 realized PnL.
         if (grossPnl === 0) {
           tradesBySymbol[sym].maxSize += parseFloat(order.size || 0);
         } else if (tradesBySymbol[sym].maxSize === 0) {
@@ -284,7 +280,6 @@
         timeZone: 'Asia/Kolkata', year: 'numeric', month: '2-digit', day: '2-digit' 
       });
 
-      // Map the grouped symbols into individual "Trades"
       Object.values(tradesBySymbol).forEach(trade => {
         const gst = trade.fee * 0.18;
         const netPnl = trade.grossPnl - trade.fee - gst;
@@ -443,15 +438,14 @@
         const firstDayOfWeek = new Date(year, month, 1).getDay();
         const daysInMonth = new Date(year, month + 1, 0).getDate();
 
+        // Fully responsive, no-scroll grid layout
         let calHTML = `
-          <div class="overflow-x-auto custom-scroll pb-3">
-            <div class="min-w-[550px] w-full">
-              <div class="grid grid-cols-7 gap-1.5 sm:gap-2 mb-2 text-center text-[10px] sm:text-[11px] font-semibold text-slate-400 uppercase tracking-wider">
-                <div>Sun</div><div>Mon</div><div>Tue</div><div>Wed</div><div>Thu</div><div>Fri</div><div>Sat</div>
-              </div>
-              <div class="grid grid-cols-7 gap-1.5 sm:gap-2">`;
+          <div class="grid grid-cols-7 gap-1 sm:gap-2 mb-1 sm:mb-2 text-center text-[8px] sm:text-[11px] font-semibold text-slate-400 uppercase tracking-wider">
+            <div>Sun</div><div>Mon</div><div>Tue</div><div>Wed</div><div>Thu</div><div>Fri</div><div>Sat</div>
+          </div>
+          <div class="grid grid-cols-7 gap-1 sm:gap-2">`;
               
-        for (let i = 0; i < firstDayOfWeek; i++) calHTML += `<div class="min-h-[70px] sm:min-h-[80px] rounded-xl border border-borderDark/40 bg-brandDark/20"></div>`;
+        for (let i = 0; i < firstDayOfWeek; i++) calHTML += `<div class="min-h-[55px] sm:min-h-[80px] rounded-md sm:rounded-xl border border-borderDark/40 bg-brandDark/20"></div>`;
 
         for (let day = 1; day <= daysInMonth; day++) {
           const fullDateKey = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
@@ -459,17 +453,18 @@
           if (dayData && dayData.trades > 0) {
             const isWin = dayData.net_pnl > 0, isLoss = dayData.net_pnl < 0;
             calHTML += `
-              <div class="min-h-[70px] sm:min-h-[80px] p-1.5 sm:p-2 rounded-xl border ${isWin ? 'bg-winGreen/10 border-winGreen/40' : (isLoss ? 'bg-lossRed/10 border-lossRed/40' : 'bg-slate-800/30 border-slate-700')} flex flex-col justify-between transition-all hover:scale-[1.02]">
-                <div class="flex justify-between items-center text-[9px] sm:text-[10px]"><span class="font-bold text-white">${day}</span><span class="px-1 py-0.2 rounded bg-cardDark/80 text-[8px] sm:text-[9px] font-mono text-slate-300">${dayData.trades}t</span></div>
-                <div class="my-1"><div class="text-[10px] sm:text-sm font-bold font-mono ${isWin ? 'text-winGreen' : (isLoss ? 'text-lossRed' : 'text-slate-300')}">${dayData.net_pnl >= 0 ? '+' : ''}${formatUSD(dayData.net_pnl)}</div>
-                <div class="text-[8px] sm:text-[9px] font-mono text-slate-400"><span class="text-winGreen">${dayData.wins}W</span> - <span class="text-lossRed">${dayData.losses}L</span></div></div>
-                <div class="text-[8px] sm:text-[9px] text-slate-500 font-mono">Fees: ${formatUSD(dayData.brokerage + dayData.taxes)}</div>
+              <div class="min-h-[55px] sm:min-h-[80px] p-1 sm:p-2 rounded-md sm:rounded-xl border ${isWin ? 'bg-winGreen/10 border-winGreen/40' : (isLoss ? 'bg-lossRed/10 border-lossRed/40' : 'bg-slate-800/30 border-slate-700')} flex flex-col justify-between transition-all hover:scale-[1.02]">
+                <div class="flex justify-between items-center text-[8px] sm:text-[10px]"><span class="font-bold text-white">${day}</span><span class="px-0.5 sm:px-1 py-0.2 rounded bg-cardDark/80 text-[7px] sm:text-[9px] font-mono text-slate-300">${dayData.trades}t</span></div>
+                <div class="my-0.5 sm:my-1"><div class="text-[8px] sm:text-sm font-bold font-mono ${isWin ? 'text-winGreen' : (isLoss ? 'text-lossRed' : 'text-slate-300')}">${dayData.net_pnl >= 0 ? '+' : ''}${formatUSD(dayData.net_pnl)}</div>
+                <div class="text-[7px] sm:text-[9px] font-mono text-slate-400"><span class="text-winGreen">${dayData.wins}W</span>-<span class="text-lossRed">${dayData.losses}L</span></div></div>
+                <div class="text-[7px] sm:text-[9px] text-slate-500 font-mono hidden sm:block">Fees: ${formatUSD(dayData.brokerage + dayData.taxes)}</div>
+                <div class="text-[6px] sm:text-[9px] text-slate-500 font-mono sm:hidden">F:${formatUSD(dayData.brokerage + dayData.taxes)}</div>
               </div>`;
           } else {
-            calHTML += `<div class="min-h-[70px] sm:min-h-[80px] p-1.5 sm:p-2 rounded-xl border border-borderDark/40 bg-panelDark/20 flex flex-col justify-between"><span class="text-[9px] sm:text-[10px] text-slate-600 font-bold">${day}</span><span class="text-[9px] sm:text-[10px] text-slate-700 font-mono text-center">-</span><span></span></div>`;
+            calHTML += `<div class="min-h-[55px] sm:min-h-[80px] p-1 sm:p-2 rounded-md sm:rounded-xl border border-borderDark/40 bg-panelDark/20 flex flex-col justify-between"><span class="text-[8px] sm:text-[10px] text-slate-600 font-bold">${day}</span><span class="text-[8px] sm:text-[10px] text-slate-700 font-mono text-center">-</span><span></span></div>`;
           }
         }
-        container.innerHTML = calHTML + `</div></div></div>`;
+        container.innerHTML = calHTML + `</div>`;
       } else {
         document.getElementById('middleSectionTitle').innerText = `Monthly Performance Overview`;
         document.getElementById('middleSectionSubtitle').innerText = `Aggregated monthly cashflows and net trajectory`;
@@ -532,12 +527,7 @@
       apexChartInstance = new ApexCharts(document.querySelector("#equityChart"), {
         series: [{ name: 'Net Take-Home', data: netSeries }, { name: 'Gross Outcome', data: grossSeries }],
         chart: { 
-          type: 'area', 
-          height: 260, 
-          width: '100%',
-          background: 'transparent', 
-          toolbar: { show: false }, 
-          zoom: { enabled: false } 
+          type: 'area', height: 260, width: '100%', background: 'transparent', toolbar: { show: false }, zoom: { enabled: false } 
         },
         dataLabels: { enabled: false },
         markers: { size: 3, strokeWidth: 0, hover: { size: 5 } },
@@ -556,16 +546,15 @@
       const tbody = document.getElementById('tradeLogBody');
       tbody.innerHTML = '';
       document.getElementById('tradeCountBadge').innerText = `Showing ${trades.length} grouped trades`;
-      if (trades.length === 0) return tbody.innerHTML = `<tr><td colspan="10" class="text-center py-6 text-slate-500 font-sans">No trades recorded.</td></tr>`;
+      if (trades.length === 0) return tbody.innerHTML = `<tr><td colspan="9" class="text-center py-6 text-slate-500 font-sans">No trades recorded.</td></tr>`;
 
       trades.forEach(t => {
         tbody.innerHTML += `
-          <tr class="hover:bg-panelDark/40">
+          <tr class="hover:bg-panelDark/40 border-b border-borderDark/50">
             <td class="py-2.5 px-3 text-slate-400">${t.timestamp}</td>
             <td class="py-2.5 px-3 font-semibold text-white">${t.symbol} <span class="text-[9px] text-slate-500 ml-1">(${t.executions} fills)</span></td>
-            <td class="py-2.5 px-3"><span class="px-1.5 py-0.5 rounded text-[10px] font-bold ${t.side === 'BUY' ? 'bg-emerald-500/20 text-emerald-400' : 'bg-red-500/20 text-red-400'}">${t.side}</span></td>
+            <td class="py-2.5 px-3 text-center"><span class="px-1.5 py-0.5 rounded text-[10px] font-bold ${t.side === 'BUY' ? 'bg-emerald-500/20 text-emerald-400' : 'bg-red-500/20 text-red-400'}">${t.side}</span></td>
             <td class="py-2.5 px-3 text-right">${t.size}</td>
-            <td class="py-2.5 px-3 text-right text-slate-500">Grouped</td>
             <td class="py-2.5 px-3 text-right ${t.gross_pnl >= 0 ? 'text-winGreen' : 'text-lossRed'}">${formatUSD(t.gross_pnl)}</td>
             <td class="py-2.5 px-3 text-right text-lossRed">${formatUSD(t.brokerage)}</td>
             <td class="py-2.5 px-3 text-right text-lossRed">${formatUSD(t.taxes)}</td>
