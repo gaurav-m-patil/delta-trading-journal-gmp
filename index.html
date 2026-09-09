@@ -53,7 +53,6 @@
       </div>
     </div>
 
-    <!-- GLOBAL TIMEFRAME SELECTOR -->
     <div class="flex flex-wrap items-center gap-2 w-full xl:w-auto">
       <div class="flex items-center bg-cardDark border border-borderDark rounded-xl p-1.5 shadow-sm gap-2">
         <i class="fa-regular fa-calendar-days pl-2 text-slate-400 text-xs"></i>
@@ -84,7 +83,6 @@
     </div>
   </header>
 
-  <!-- 1. KPI SCORECARD RIBBON -->
   <section class="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-3 mb-6">
     <div class="bg-cardDark border border-borderDark p-3 rounded-xl">
       <span class="text-slate-400 text-[10px] font-medium uppercase tracking-wider block mb-1">Gross Inflows</span>
@@ -128,7 +126,6 @@
     </div>
   </section>
 
-  <!-- 2. PERFORMANCE TRAJECTORY CHART -->
   <section class="bg-cardDark border border-borderDark p-4 md:p-5 rounded-2xl mb-6">
     <div class="flex justify-between items-center mb-3">
       <div>
@@ -139,7 +136,6 @@
     <div id="equityChart" class="h-[260px] w-full"></div>
   </section>
 
-  <!-- 3. ADAPTIVE SECTION -->
   <section class="bg-cardDark border border-borderDark p-4 md:p-5 rounded-2xl mb-6">
     <div class="flex justify-between items-center mb-4">
       <div>
@@ -151,7 +147,6 @@
     <div id="middleSectionContainer"></div>
   </section>
 
-  <!-- 4. BOTTOM EXECUTION AUDIT LOG TABLE -->
   <section id="tradeTableSection" class="bg-cardDark border border-borderDark p-4 md:p-5 rounded-2xl">
     <div class="flex justify-between items-center mb-4">
       <div>
@@ -227,8 +222,7 @@
       const dailyMap = {};
       const monthlyMap = {};
 
-      // Date Formatter securely locked to IST to prevent UTC bleed
-      const istFormatter = new Intl.DateTimeFormat('en-CA', { 
+      const istFormatter = new Intl.DateTimeFormat('en-US', { 
         timeZone: 'Asia/Kolkata', year: 'numeric', month: '2-digit', day: '2-digit' 
       });
 
@@ -242,10 +236,14 @@
         const gst = fee * 0.18;
         const netPnl = grossPnl - fee - gst;
 
-        // STRICTLY use created_at to attribute trades to the exact day they were opened
         const dateObj = new Date(order.created_at);
-        const dayKey = istFormatter.format(dateObj); // Forces "YYYY-MM-DD" in IST
-        const monthKey = dayKey.slice(0, 7);         // YYYY-MM
+        const parts = istFormatter.formatToParts(dateObj);
+        const y = parts.find(p => p.type === 'year').value;
+        const m = parts.find(p => p.type === 'month').value;
+        const d = parts.find(p => p.type === 'day').value;
+        
+        const dayKey = `${y}-${m}-${d}`; 
+        const monthKey = `${y}-${m}`;
 
         if (!dailyMap[dayKey]) dailyMap[dayKey] = { gross_pnl: 0, brokerage: 0, taxes: 0, net_pnl: 0, trades: 0, wins: 0, losses: 0 };
         dailyMap[dayKey].gross_pnl += grossPnl;
@@ -324,24 +322,24 @@
       if (preset === 'CURRENT_MONTH') {
         isSingleMonth = true;
         targetMonthStr = `${curYear}-${String(curMonth + 1).padStart(2, '0')}`;
-        startDate = new Date(curYear, curMonth, 1).toISOString().slice(0, 10);
-        endDate = new Date(curYear, curMonth + 1, 0).toISOString().slice(0, 10);
+        startDate = `${targetMonthStr}-01`;
+        endDate = `${targetMonthStr}-${String(new Date(curYear, curMonth + 1, 0).getDate()).padStart(2, '0')}`;
         displayLabel = new Date(curYear, curMonth, 1).toLocaleString('default', { month: 'long', year: 'numeric' });
       } else if (preset === 'LAST_MONTH') {
         isSingleMonth = true;
         const prevDate = new Date(curYear, curMonth - 1, 1);
         const pYear = prevDate.getFullYear(), pMonth = prevDate.getMonth();
         targetMonthStr = `${pYear}-${String(pMonth + 1).padStart(2, '0')}`;
-        startDate = new Date(pYear, pMonth, 1).toISOString().slice(0, 10);
-        endDate = new Date(pYear, pMonth + 1, 0).toISOString().slice(0, 10);
+        startDate = `${targetMonthStr}-01`;
+        endDate = `${targetMonthStr}-${String(new Date(pYear, pMonth + 1, 0).getDate()).padStart(2, '0')}`;
         displayLabel = prevDate.toLocaleString('default', { month: 'long', year: 'numeric' });
       } else if (preset === 'SPECIFIC_MONTH') {
         isSingleMonth = true;
         targetMonthStr = document.getElementById('specificMonthInput').value || `${curYear}-${String(curMonth + 1).padStart(2, '0')}`;
         const parts = targetMonthStr.split('-');
         const sYear = parseInt(parts[0]), sMonth = parseInt(parts[1]) - 1;
-        startDate = new Date(sYear, sMonth, 1).toISOString().slice(0, 10);
-        endDate = new Date(sYear, sMonth + 1, 0).toISOString().slice(0, 10);
+        startDate = `${targetMonthStr}-01`;
+        endDate = `${targetMonthStr}-${String(new Date(sYear, sMonth + 1, 0).getDate()).padStart(2, '0')}`;
         displayLabel = new Date(sYear, sMonth, 1).toLocaleString('default', { month: 'long', year: 'numeric' });
       } else if (preset === 'THIS_FY') {
         const fyStart = curMonth >= 3 ? curYear : curYear - 1;
@@ -370,7 +368,6 @@
       if (!processedState) return;
       const { startDate, endDate, isSingleMonth, targetMonthStr, displayLabel } = resolveFilterBounds();
 
-      // Ensure exact date matching
       const filteredTrades = processedState.allTrades.filter(t => t.rawDate >= startDate && t.rawDate <= endDate);
       
       let periodGross = 0, periodBrokerage = 0, periodTaxes = 0, periodNet = 0;
@@ -467,7 +464,6 @@
       let runningNet = 0, runningGross = 0;
 
       if (isSingleMonth) {
-        // Smart Aggregation: Day by Day
         const dailyAgg = {};
         chronological.forEach(t => {
           if (!dailyAgg[t.rawDate]) dailyAgg[t.rawDate] = { net: 0, gross: 0 };
@@ -480,7 +476,6 @@
           netSeries.push(Number(runningNet.toFixed(2))); grossSeries.push(Number(runningGross.toFixed(2)));
         });
       } else {
-        // Smart Aggregation: Month by Month
         const monthlyAgg = {};
         chronological.forEach(t => {
           if (!monthlyAgg[t.monthKey]) monthlyAgg[t.monthKey] = { net: 0, gross: 0 };
