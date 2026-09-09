@@ -11,6 +11,7 @@ API_SECRET = os.environ.get("DELTA_API_SECRET", "").strip()
 PROXY_URL = os.environ.get("PROXY_URL", "").strip()
 BASE_URL = "https://api.india.delta.exchange"
 PROXIES = {"http": PROXY_URL, "https": PROXY_URL} if PROXY_URL else None
+CACHE_FILE = "data/raw_cache.json"
 
 def get_signature(secret, method, path, query=""):
     timestamp = str(int(time.time()))
@@ -30,20 +31,19 @@ def get_ts_us(item):
     except:
         return int(time.time() * 1000000)
 
-def fetch_history_backwards(path, extra_params=""):
+def fetch_time_window(path, start_us, end_us, extra_params=""):
     """
-    Stateless, bulletproof pagination.
-    Walks backwards in time using end_time cursors to guarantee no infinite loops.
+    Strict time-window fetcher. 
+    Uses start_time and end_time to prevent infinite loops.
     """
     results = []
     seen_ids = set()
-    current_end = int(time.time() * 1000000)
-    cutoff_time = 1704067200000000 # Stop at Jan 1, 2024
+    cursor = end_us
     
-    print(f"Fetching {path} backwards from today...")
+    print(f"  -> Fetching from {datetime.fromtimestamp(start_us/1000000, tz=timezone.utc).strftime('%Y-%m-%d')} to {datetime.fromtimestamp(end_us/1000000, tz=timezone.utc).strftime('%Y-%m-%d')}")
     
-    while current_end >= cutoff_time:
-        query = f"page_size=100&end_time={current_end}"
+    while cursor >= start_us:
+        query = f"page_size=100&start_time={start_us}&end_time={cursor}"
         if extra_params: 
             query += f"&{extra_params}"
             
@@ -54,7 +54,7 @@ def fetch_history_backwards(path, extra_params=""):
         try:
             res = requests.get(url, headers=headers, proxies=PROXIES, timeout=15)
             if res.status_code != 200:
-                print(f"  -> API returned status {res.status_code}. Stopping.")
+                print(f"     API returned status {res.status_code}. Stopping.")
                 break
                 
             batch = res.json().get("result", [])
@@ -65,19 +65,17 @@ def fetch_history_backwards(path, extra_params=""):
             results.extend(unique_batch)
             for b in unique_batch: 
                 seen_ids.add(b.get("id"))
-                
-            print(f"  -> Pulled {len(batch)} records. (Total stored: {len(results)})")
             
             if len(batch) < 100:
-                break # Reached the absolute end of the exchange's available data
+                break # Reached the absolute end of this time window
                 
-            # Move the time cursor to just before the oldest record in this batch
+            # Move the time cursor backward to just before the oldest record in this batch
             oldest_in_batch = min(get_ts_us(b) for b in batch)
-            current_end = oldest_in_batch - 1
+            cursor = oldest_in_batch - 1
             time.sleep(0.15)
             
         except Exception as e:
-            print(f"  -> Error: {str(e)}")
+            print(f"     Error: {str(e)}")
             break
             
     return results
@@ -96,12 +94,51 @@ def parse_date(ts_val):
 def main():
     os.makedirs("data", exist_ok=True)
     
-    print("--- Pulling Wallet Ledger ---")
-    wallet_txs = fetch_history_backwards("/v2/wallet/transactions")
+    # 1. Determine Time Boundaries
+    now = datetime.now(timezone.utc)
+    current_end_us = int(now.timestamp() * 1000000)
     
-    print("--- Pulling Closed Orders ---")
-    closed_orders = fetch_history_backwards("/v2/orders/history", "state=closed")
+    # Start of the current month
+    start_of_month = datetime(now.year, now.month, 1, tzinfo=timezone.utc)
+    start_of_month_us = int(start_of_month.timestamp() * 1000000)
+    
+    # Absolute beginning of history (Jan 1, 2025)
+    inception_date_us = 1735689600000000 
+    
+    # 2. Load Cache and Filter out Current Month
+    cache = {"wallet_txs": [], "orders": []}
+    is_first_run = True
+    
+    if os.path.exists(CACHE_FILE):
+        try:
+            with open(CACHE_FILE, "r") as f:
+                loaded_cache = json.load(f)
+                
+            # Retain only records that happened BEFORE the 1st of the current month
+            cache["wallet_txs"] = [tx for tx in loaded_cache.get("wallet_txs", []) if get_ts_us(tx) < start_of_month_us]
+            cache["orders"] = [o for o in loaded_cache.get("orders", []) if get_ts_us(o) < start_of_month_us]
+            is_first_run = False
+            print("Loaded historical cache. Current month data has been cleared for rescan.")
+        except Exception:
+            print("Cache unreadable. Proceeding with full historical sync.")
 
+    # 3. Determine Sync Window
+    sync_start_us = inception_date_us if is_first_run else start_of_month_us
+
+    # 4. Fetch Data
+    print("--- Syncing Wallet Ledger ---")
+    new_wallet_txs = fetch_time_window("/v2/wallet/transactions", sync_start_us, current_end_us)
+    cache["wallet_txs"].extend(new_wallet_txs)
+    
+    print("--- Syncing Closed Orders ---")
+    new_orders = fetch_time_window("/v2/orders/history", sync_start_us, current_end_us, "state=closed")
+    cache["orders"].extend(new_orders)
+
+    # 5. Save the updated Cache
+    with open(CACHE_FILE, "w") as f:
+        json.dump(cache, f)
+
+    # 6. Calculate KPIs
     total_deposits = 0.0
     total_withdrawals = 0.0
     total_brokerage = 0.0
@@ -114,8 +151,8 @@ def main():
     monthly_rollup = {}
     trade_list = []
 
-    # 1. PARSE WALLET (Deposits, Withdrawals, Statutory Taxes)
-    for tx in wallet_txs:
+    # Process Wallet
+    for tx in cache["wallet_txs"]:
         tx_type = str(tx.get("transaction_type", "")).lower()
         amount = float(tx.get("amount", 0.0) or 0.0)
         abs_amount = abs(amount)
@@ -126,7 +163,6 @@ def main():
         if m_key not in monthly_rollup:
             monthly_rollup[m_key] = {"month": m_key, "deposits": 0.0, "withdrawals": 0.0, "gross_pnl": 0.0, "brokerage": 0.0, "taxes": 0.0, "net_pnl": 0.0, "trades_count": 0}
 
-        # Handle Deposits (including INR Fiat transfers)
         if any(k in tx_type for k in ["deposit", "credit", "fund_transfer", "fiat_in"]):
             total_deposits += abs_amount
             monthly_rollup[m_key]["deposits"] += abs_amount
@@ -134,7 +170,6 @@ def main():
             total_deposits += abs_amount
             monthly_rollup[m_key]["deposits"] += abs_amount
 
-        # Handle Withdrawals
         if any(k in tx_type for k in ["withdrawal", "debit", "fiat_out"]):
             total_withdrawals += abs_amount
             monthly_rollup[m_key]["withdrawals"] += abs_amount
@@ -142,12 +177,11 @@ def main():
             total_withdrawals += abs_amount
             monthly_rollup[m_key]["withdrawals"] += abs_amount
 
-        # Handle Taxes
         if "tds" in tx_type: total_taxes_tds += abs_amount
         if "gst" in tx_type: total_taxes_gst += abs_amount
 
-    # 2. PARSE ORDERS (Accurate PnL and Brokerage)
-    for order in closed_orders:
+    # Process Orders
+    for order in cache["orders"]:
         realized_pnl = float(order.get("realized_pnl", 0.0) or 0.0)
         fee = abs(float(order.get("fee", 0.0) or order.get("commission", 0.0) or 0.0))
         
@@ -220,7 +254,7 @@ def main():
         },
         "monthly_breakdown": sorted(monthly_rollup.values(), key=lambda x: x["month"], reverse=True),
         "daily_breakdown": daily_rollup,
-        "trades": sorted(trade_list, key=lambda x: x["timestamp"], reverse=True)
+        "trades": sorted(trade_list, key=lambda x: x["timestamp"], reverse=True)[:15000]
     }
 
     with open("data/trade_journal.json", "w") as f:
