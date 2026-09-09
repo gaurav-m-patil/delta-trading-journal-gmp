@@ -86,25 +86,15 @@
     </div>
 
     <div class="flex flex-wrap items-center gap-2 w-full xl:w-auto">
-      <button onclick="toggleAICoach()" class="px-3.5 py-1.5 text-[11px] font-bold bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 hover:bg-indigo-500/20 rounded-xl transition-colors flex items-center gap-1.5">
+      <button onclick="toggleAICoach()" class="px-3.5 py-2 text-xs font-bold bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 hover:bg-indigo-500/20 rounded-xl transition-colors flex items-center gap-1.5">
         <i class="fa-solid fa-sparkles"></i> AI Coach
       </button>
       
-      <div class="flex items-center bg-cardDark border border-borderDark rounded-xl p-1.5 shadow-sm gap-2">
-        <i class="fa-regular fa-calendar-days pl-2 text-slate-400 text-xs"></i>
-        <select id="timeframePreset" onchange="onPresetChange()" class="bg-transparent text-white text-xs font-semibold pr-2 focus:outline-none cursor-pointer">
-          <option value="CURRENT_MONTH" selected>Current Month</option>
-          <option value="LAST_MONTH">Last Month</option>
-          <option value="SPECIFIC_MONTH">Specific Month...</option>
-          <option value="THIS_FY">This FY (2026-27)</option>
-          <option value="LAST_FY">Last FY (2025-26)</option>
-          <option value="ALL_TIME">All-Time</option>
-          <option value="CUSTOM">Custom Range...</option>
-        </select>
-      </div>
-
-      <div id="specificMonthContainer" class="hidden items-center bg-cardDark border border-borderDark rounded-xl px-2.5 py-1">
-        <input type="month" id="specificMonthInput" onchange="applyGlobalFilter()" class="bg-transparent text-xs text-white focus:outline-none font-mono cursor-pointer">
+      <!-- MODERN PILL TIMEFRAME SELECTOR -->
+      <div class="flex items-center bg-cardDark border border-borderDark rounded-xl p-1 gap-1">
+        <button onclick="setPreset('CURRENT_MONTH')" id="btn_CURRENT_MONTH" class="px-3 py-1.5 text-xs font-semibold rounded-lg transition-colors bg-indigo-600 text-white">Current Month</button>
+        <button onclick="setPreset('CUSTOM')" id="btn_CUSTOM" class="px-3 py-1.5 text-xs font-semibold rounded-lg transition-colors text-slate-400 hover:text-white">Custom Range</button>
+        <button onclick="setPreset('ALL_TIME')" id="btn_ALL_TIME" class="px-3 py-1.5 text-xs font-semibold rounded-lg transition-colors text-slate-400 hover:text-white">All-Time</button>
       </div>
 
       <div id="customDateContainer" class="hidden items-center gap-1.5 bg-cardDark border border-borderDark rounded-xl px-2.5 py-1">
@@ -199,6 +189,7 @@
     let apexChartInstance = null;
     let callPutChart = null;
     let buySellChart = null;
+    let currentPreset = 'CURRENT_MONTH';
 
     document.addEventListener("DOMContentLoaded", () => { 
       const savedToken = localStorage.getItem("gh_pat_token");
@@ -212,6 +203,24 @@
 
     const formatUSD = (val) => { const num = Number(val) || 0; return (num < 0 ? "-$" : "$") + Math.abs(num).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }); };
     const compactUSD = (val) => { const num = Number(val) || 0; const absNum = Math.abs(num); if (absNum >= 1000) return (num < 0 ? "-$" : "$") + (absNum / 1000).toFixed(1) + "k"; return (num < 0 ? "-$" : "$") + absNum.toFixed(0); };
+
+    function setPreset(preset) {
+      currentPreset = preset;
+      ['CURRENT_MONTH', 'CUSTOM', 'ALL_TIME'].forEach(p => {
+        const btn = document.getElementById(`btn_${p}`);
+        if(p === preset) {
+          btn.className = "px-3 py-1.5 text-xs font-semibold rounded-lg transition-colors bg-indigo-600 text-white";
+        } else {
+          btn.className = "px-3 py-1.5 text-xs font-semibold rounded-lg transition-colors text-slate-400 hover:text-white";
+        }
+      });
+
+      const customBox = document.getElementById('customDateContainer');
+      if (preset === 'CUSTOM') { customBox.classList.remove('hidden'); customBox.classList.add('flex'); }
+      else { customBox.classList.add('hidden'); customBox.classList.remove('flex'); }
+
+      applyGlobalFilter();
+    }
 
     function toggleGhSettings() {
       const modal = document.getElementById('ghSettingsModal');
@@ -279,7 +288,7 @@
       }
     }
 
-    // PEEK INTERACTION FUNCTIONS
+    // PEEK INTERACTION FUNCTIONS (Fixed for stable desktop hover)
     function showPeek(dateKey) {
       if (!processedState || !processedState.dailyMap[dateKey]) return;
       const data = processedState.dailyMap[dateKey];
@@ -418,11 +427,13 @@
       const monthlyMap = {};
 
       (rawDump.orders || []).forEach(order => {
+        // STRICT VALIDATION: Only process successfully closed options orders to prevent ghost/cancelled counts
         if (order.state !== "closed") return;
-        
         const meta = order.meta_data || {};
         const grossPnl = parseFloat(meta.pnl || 0);
         const commission = parseFloat(order.paid_commission || 0);
+        
+        // Skip orders with zero market movement and zero fees
         if (grossPnl === 0 && commission === 0) return;
 
         const netPnl = grossPnl - commission;
@@ -458,54 +469,20 @@
       });
 
       processedState = { allTrades: allTrades.sort((a, b) => b.rawDate.localeCompare(a.rawDate)), dailyMap, monthlyMap };
-
-      if (allTrades.length > 0) document.getElementById('specificMonthInput').value = allTrades[0].monthKey;
-      else document.getElementById('specificMonthInput').value = new Date().toISOString().slice(0, 7);
-      
-      applyGlobalFilter();
-    }
-
-    function onPresetChange() {
-      const preset = document.getElementById('timeframePreset').value;
-      const specificMonthBox = document.getElementById('specificMonthContainer');
-      const customBox = document.getElementById('customDateContainer');
-
-      specificMonthBox.classList.add('hidden');
-      customBox.classList.add('hidden'); customBox.classList.remove('flex');
-
-      if (preset === 'SPECIFIC_MONTH') specificMonthBox.classList.remove('hidden');
-      else if (preset === 'CUSTOM') { customBox.classList.remove('hidden'); customBox.classList.add('flex'); }
       applyGlobalFilter();
     }
 
     function resolveFilterBounds() {
-      const preset = document.getElementById('timeframePreset').value;
       const now = new Date();
       const curYear = now.getFullYear(), curMonth = now.getMonth();
 
       let startDate = "", endDate = "", isSingleMonth = false, targetMonthStr = "", displayLabel = "";
 
-      if (preset === 'CURRENT_MONTH') {
+      if (currentPreset === 'CURRENT_MONTH') {
         isSingleMonth = true; targetMonthStr = `${curYear}-${String(curMonth + 1).padStart(2, '0')}`;
         startDate = `${targetMonthStr}-01`; endDate = `${targetMonthStr}-${String(new Date(curYear, curMonth + 1, 0).getDate()).padStart(2, '0')}`;
         displayLabel = new Date(curYear, curMonth, 1).toLocaleString('default', { month: 'long', year: 'numeric' });
-      } else if (preset === 'LAST_MONTH') {
-        isSingleMonth = true; const prevDate = new Date(curYear, curMonth - 1, 1);
-        targetMonthStr = `${prevDate.getFullYear()}-${String(prevDate.getMonth() + 1).padStart(2, '0')}`;
-        startDate = `${targetMonthStr}-01`; endDate = `${targetMonthStr}-${String(new Date(prevDate.getFullYear(), prevDate.getMonth() + 1, 0).getDate()).padStart(2, '0')}`;
-        displayLabel = prevDate.toLocaleString('default', { month: 'long', year: 'numeric' });
-      } else if (preset === 'SPECIFIC_MONTH') {
-        isSingleMonth = true; targetMonthStr = document.getElementById('specificMonthInput').value || `${curYear}-${String(curMonth + 1).padStart(2, '0')}`;
-        const parts = targetMonthStr.split('-'); const sYear = parseInt(parts[0]), sMonth = parseInt(parts[1]) - 1;
-        startDate = `${targetMonthStr}-01`; endDate = `${targetMonthStr}-${String(new Date(sYear, sMonth + 1, 0).getDate()).padStart(2, '0')}`;
-        displayLabel = new Date(sYear, sMonth, 1).toLocaleString('default', { month: 'long', year: 'numeric' });
-      } else if (preset === 'THIS_FY') {
-        const fyStart = curMonth >= 3 ? curYear : curYear - 1;
-        startDate = `${fyStart}-04-01`; endDate = `${fyStart + 1}-03-31`; displayLabel = `FY ${fyStart}-${String(fyStart + 1).slice(2)}`;
-      } else if (preset === 'LAST_FY') {
-        const fyStart = (curMonth >= 3 ? curYear : curYear - 1) - 1;
-        startDate = `${fyStart}-04-01`; endDate = `${fyStart + 1}-03-31`; displayLabel = `FY ${fyStart}-${String(fyStart + 1).slice(2)}`;
-      } else if (preset === 'CUSTOM') {
+      } else if (currentPreset === 'CUSTOM') {
         startDate = document.getElementById('customStartDate').value || "2024-01-01";
         endDate = document.getElementById('customEndDate').value || "2030-12-31"; displayLabel = `${startDate} to ${endDate}`;
         const diffDays = Math.ceil(Math.abs(new Date(endDate) - new Date(startDate)) / (1000 * 60 * 60 * 24));
@@ -591,7 +568,7 @@
 
       if (isSingleMonth && targetMonthStr) {
         document.getElementById('middleSectionTitle').innerText = `Daily Journal Calendar`;
-        document.getElementById('middleSectionSubtitle').innerText = `Hover or hold on any day to peek at full details`;
+        document.getElementById('middleSectionSubtitle').innerText = `Hover over any day to view details`;
         const parts = targetMonthStr.split('-');
         const year = parseInt(parts[0]), month = parseInt(parts[1]) - 1;
         const firstDayOfWeek = new Date(year, month, 1).getDay();
@@ -610,7 +587,7 @@
             
             calHTML += `
               <div class="relative aspect-square rounded-lg sm:rounded-xl border ${cardBorder} flex flex-col justify-center items-center cursor-pointer transition-transform active:scale-90 no-select" 
-                   oncontextmenu="return false;" onmouseenter="showPeek('${fullDateKey}')" onmouseleave="hidePeek()" ontouchstart="showPeek('${fullDateKey}')" ontouchend="hidePeek()" ontouchcancel="hidePeek()">
+                   onmouseenter="showPeek('${fullDateKey}')" onmouseleave="hidePeek()" ontouchstart="showPeek('${fullDateKey}')" ontouchend="hidePeek()">
                 <span class="absolute top-1 sm:top-1.5 left-1.5 sm:left-2 text-[9px] sm:text-xs font-bold text-white">${day}</span>
                 <span class="absolute top-1 sm:top-1.5 right-1 sm:right-1.5 px-1 py-0.5 rounded-full bg-brandDark/60 text-[7px] sm:text-[9px] font-mono text-slate-300 hidden sm:block">${dayData.trades}t</span>
                 <div class="text-[9px] sm:text-sm font-bold font-mono mt-2 sm:mt-3">${isWin ? '+' : ''}${compactUSD(dayData.net_pnl)}</div>
