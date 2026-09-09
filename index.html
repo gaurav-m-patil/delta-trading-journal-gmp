@@ -54,7 +54,6 @@
       </div>
     </div>
 
-    <!-- GLOBAL TIMEFRAME SELECTOR -->
     <div class="flex flex-wrap items-center gap-2 w-full xl:w-auto">
       <div class="flex items-center bg-cardDark border border-borderDark rounded-xl p-1.5 shadow-sm gap-2">
         <i class="fa-regular fa-calendar-days pl-2 text-slate-400 text-xs"></i>
@@ -85,7 +84,7 @@
     </div>
   </header>
 
-  <!-- 1. KPI SCORECARD RIBBON -->
+  <!-- 1. KPI SCORECARD -->
   <section class="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-3 mb-6">
     <div class="bg-cardDark border border-borderDark p-3 rounded-xl">
       <span class="text-slate-400 text-[10px] font-medium uppercase tracking-wider block mb-1">Gross Inflows</span>
@@ -137,11 +136,10 @@
         <p class="text-[11px] text-slate-400" id="chartSubtitle">Cumulative Net Take-Home vs Gross Outcome</p>
       </div>
     </div>
-    <!-- w-full and overflow-hidden ensures it stays within screen bounds on mobile -->
     <div id="equityChart" class="h-[260px] w-full overflow-hidden"></div>
   </section>
 
-  <!-- 3. ADAPTIVE SECTION -->
+  <!-- 3. ADAPTIVE SECTION (Calendar or Compact Grid) -->
   <section class="bg-cardDark border border-borderDark p-4 md:p-5 rounded-2xl mb-6">
     <div class="flex justify-between items-center mb-4">
       <div>
@@ -193,7 +191,6 @@
       return (num < 0 ? "-$" : "$") + Math.abs(num).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
     };
 
-    // Converts large numbers like 15000 to 15.0k for the chart Y-axis so it doesn't squish mobile views
     const compactUSD = (val) => {
       const num = Number(val) || 0;
       const absNum = Math.abs(num);
@@ -215,9 +212,7 @@
     }
 
     function processRawData(rawDump) {
-      let total_deposits = 0;
-      let total_withdrawals = 0;
-      let raw_wallet_taxes = 0;
+      let total_deposits = 0, total_withdrawals = 0, raw_wallet_taxes = 0;
 
       (rawDump.wallet_txs || []).forEach(tx => {
         const type = (tx.transaction_type || "").toLowerCase();
@@ -261,20 +256,11 @@
         const monthKey = `${y}-${m}`;
 
         if (!dailyMap[dayKey]) dailyMap[dayKey] = { gross_pnl: 0, brokerage: 0, taxes: 0, net_pnl: 0, trades: 0, wins: 0, losses: 0 };
-        dailyMap[dayKey].gross_pnl += grossPnl;
-        dailyMap[dayKey].brokerage += fee;
-        dailyMap[dayKey].taxes += gst;
-        dailyMap[dayKey].net_pnl += netPnl;
-        dailyMap[dayKey].trades += 1;
-        if (netPnl > 0) dailyMap[dayKey].wins += 1;
-        else if (netPnl < 0) dailyMap[dayKey].losses += 1;
+        dailyMap[dayKey].gross_pnl += grossPnl; dailyMap[dayKey].brokerage += fee; dailyMap[dayKey].taxes += gst; dailyMap[dayKey].net_pnl += netPnl; dailyMap[dayKey].trades += 1;
+        if (netPnl > 0) dailyMap[dayKey].wins += 1; else if (netPnl < 0) dailyMap[dayKey].losses += 1;
 
         if (!monthlyMap[monthKey]) monthlyMap[monthKey] = { month: monthKey, gross_pnl: 0, brokerage: 0, taxes: 0, net_pnl: 0, trades: 0 };
-        monthlyMap[monthKey].gross_pnl += grossPnl;
-        monthlyMap[monthKey].brokerage += fee;
-        monthlyMap[monthKey].taxes += gst;
-        monthlyMap[monthKey].net_pnl += netPnl;
-        monthlyMap[monthKey].trades += 1;
+        monthlyMap[monthKey].gross_pnl += grossPnl; monthlyMap[monthKey].brokerage += fee; monthlyMap[monthKey].taxes += gst; monthlyMap[monthKey].net_pnl += netPnl; monthlyMap[monthKey].trades += 1;
 
         allTrades.push({
           timestamp: dateObj.toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' }),
@@ -294,18 +280,12 @@
 
       processedState = {
         allTrades: allTrades.sort((a, b) => b.rawDate.localeCompare(a.rawDate)),
-        dailyMap,
-        monthlyMap,
-        total_deposits,
-        total_withdrawals,
-        raw_wallet_taxes
+        dailyMap, monthlyMap, total_deposits, total_withdrawals, raw_wallet_taxes
       };
 
-      if (allTrades.length > 0) {
-        document.getElementById('specificMonthInput').value = allTrades[0].monthKey;
-      } else {
-        document.getElementById('specificMonthInput').value = new Date().toISOString().slice(0, 7);
-      }
+      if (allTrades.length > 0) document.getElementById('specificMonthInput').value = allTrades[0].monthKey;
+      else document.getElementById('specificMonthInput').value = new Date().toISOString().slice(0, 7);
+      
       applyGlobalFilter();
     }
 
@@ -315,22 +295,18 @@
       const customBox = document.getElementById('customDateContainer');
 
       specificMonthBox.classList.add('hidden');
-      customBox.classList.add('hidden');
-      customBox.classList.remove('flex');
+      customBox.classList.add('hidden'); customBox.classList.remove('flex');
 
       if (preset === 'SPECIFIC_MONTH') specificMonthBox.classList.remove('hidden');
-      else if (preset === 'CUSTOM') {
-        customBox.classList.remove('hidden');
-        customBox.classList.add('flex');
-      }
+      else if (preset === 'CUSTOM') { customBox.classList.remove('hidden'); customBox.classList.add('flex'); }
+      
       applyGlobalFilter();
     }
 
     function resolveFilterBounds() {
       const preset = document.getElementById('timeframePreset').value;
       const now = new Date();
-      const curYear = now.getFullYear();
-      const curMonth = now.getMonth();
+      const curYear = now.getFullYear(), curMonth = now.getMonth();
 
       let startDate = "", endDate = "", isSingleMonth = false, targetMonthStr = "", displayLabel = "";
 
@@ -387,8 +363,7 @@
       
       let periodGross = 0, periodBrokerage = 0, periodTaxes = 0, periodNet = 0;
       filteredTrades.forEach(t => {
-        periodGross += t.gross_pnl; periodBrokerage += t.brokerage;
-        periodTaxes += t.taxes; periodNet += t.net_pnl;
+        periodGross += t.gross_pnl; periodBrokerage += t.brokerage; periodTaxes += t.taxes; periodNet += t.net_pnl;
       });
 
       const totalCombinedTaxes = periodTaxes + (document.getElementById('timeframePreset').value === 'ALL_TIME' ? processedState.raw_wallet_taxes : 0);
@@ -396,7 +371,6 @@
       document.getElementById('kpiDeposits').innerText = formatUSD(processedState.total_deposits);
       document.getElementById('kpiWithdrawals').innerText = formatUSD(processedState.total_withdrawals);
       document.getElementById('kpiCoreCapital').innerText = formatUSD(processedState.total_deposits - processedState.total_withdrawals);
-      
       document.getElementById('kpiGross').innerText = formatUSD(periodGross);
       document.getElementById('kpiGross').className = `text-sm md:text-base font-bold font-mono ${periodGross >= 0 ? 'text-winGreen' : 'text-lossRed'}`;
       document.getElementById('kpiBrokerage').innerText = formatUSD(periodBrokerage);
@@ -412,12 +386,8 @@
       renderMiddleSection(isSingleMonth, targetMonthStr, startDate, endDate, displayLabel);
 
       const tableSection = document.getElementById('tradeTableSection');
-      if (isSingleMonth) {
-        tableSection.classList.remove('hidden');
-        renderTable(filteredTrades);
-      } else {
-        tableSection.classList.add('hidden');
-      }
+      if (isSingleMonth) { tableSection.classList.remove('hidden'); renderTable(filteredTrades); } 
+      else { tableSection.classList.add('hidden'); }
     }
 
     function renderMiddleSection(isSingleMonth, targetMonthStr, startDate, endDate, displayLabel) {
@@ -432,7 +402,6 @@
         const firstDayOfWeek = new Date(year, month, 1).getDay();
         const daysInMonth = new Date(year, month + 1, 0).getDate();
 
-        // Wrap the calendar in a horizontal scrollable container to prevent mobile squishing
         let calHTML = `
           <div class="overflow-x-auto custom-scroll pb-3">
             <div class="min-w-[550px] w-full">
@@ -441,9 +410,7 @@
               </div>
               <div class="grid grid-cols-7 gap-1.5 sm:gap-2">`;
               
-        for (let i = 0; i < firstDayOfWeek; i++) {
-          calHTML += `<div class="min-h-[70px] sm:min-h-[80px] rounded-xl border border-borderDark/40 bg-brandDark/20"></div>`;
-        }
+        for (let i = 0; i < firstDayOfWeek; i++) calHTML += `<div class="min-h-[70px] sm:min-h-[80px] rounded-xl border border-borderDark/40 bg-brandDark/20"></div>`;
 
         for (let day = 1; day <= daysInMonth; day++) {
           const fullDateKey = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
@@ -468,14 +435,24 @@
         const matchingMonths = Object.keys(processedState.monthlyMap).filter(m => `${m}-01` >= startDate.slice(0, 7) && `${m}-01` <= endDate.slice(0, 7)).sort().reverse();
         if (matchingMonths.length === 0) return container.innerHTML = `<div class="p-8 text-center text-slate-500 text-xs">No trade history found.</div>`;
 
-        let gridHTML = `<div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">`;
+        // COMPACT MOBILE GRID FIX: 2 columns on mobile, scaling up on larger screens
+        let gridHTML = `<div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-2 sm:gap-3">`;
         matchingMonths.forEach(mKey => {
           const mData = processedState.monthlyMap[mKey];
           gridHTML += `
-            <div class="border border-borderDark bg-panelDark/40 p-4 rounded-xl flex flex-col justify-between">
-              <div class="flex justify-between items-center mb-2"><span class="font-bold text-sm text-white">${new Date(mKey + "-01").toLocaleString('default', { month: 'short', year: 'numeric' })}</span><span class="text-[10px] px-2 py-0.5 rounded bg-cardDark text-slate-400 border border-borderDark">${mData.trades} trades</span></div>
-              <div class="my-2"><span class="text-[10px] text-slate-400 block uppercase">Net Profit</span><h4 class="text-base font-bold font-mono ${mData.net_pnl >= 0 ? 'text-winGreen' : 'text-lossRed'}">${mData.net_pnl >= 0 ? '+' : ''}${formatUSD(mData.net_pnl)}</h4></div>
-              <div class="flex justify-between items-center pt-2 border-t border-borderDark/60 text-[10px] text-slate-400 font-mono"><span>Gross: ${formatUSD(mData.gross_pnl)}</span><span class="text-lossRed">Fees: ${formatUSD(mData.brokerage + mData.taxes)}</span></div>
+            <div class="border border-borderDark bg-panelDark/40 p-2.5 sm:p-3.5 rounded-xl flex flex-col justify-between">
+              <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-1.5 sm:mb-2 gap-1 sm:gap-0">
+                <span class="font-bold text-xs sm:text-sm text-white">${new Date(mKey + "-01").toLocaleString('default', { month: 'short', year: '2-digit' })}</span>
+                <span class="text-[8px] sm:text-[9px] px-1.5 py-0.5 rounded bg-cardDark text-slate-400 border border-borderDark">${mData.trades} trades</span>
+              </div>
+              <div class="my-1 sm:my-2">
+                <span class="text-[8px] sm:text-[9px] text-slate-400 block uppercase">Net Profit</span>
+                <h4 class="text-sm sm:text-base font-bold font-mono ${mData.net_pnl >= 0 ? 'text-winGreen' : 'text-lossRed'}">${mData.net_pnl >= 0 ? '+' : ''}${formatUSD(mData.net_pnl)}</h4>
+              </div>
+              <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center pt-1.5 sm:pt-2 border-t border-borderDark/60 text-[8px] sm:text-[10px] text-slate-400 font-mono gap-0.5 sm:gap-0">
+                <span>Gross: ${formatUSD(mData.gross_pnl)}</span>
+                <span class="text-lossRed">Fees: ${formatUSD(mData.brokerage + mData.taxes)}</span>
+              </div>
             </div>`;
         });
         container.innerHTML = gridHTML + `</div>`;
@@ -491,8 +468,7 @@
         const dailyAgg = {};
         chronological.forEach(t => {
           if (!dailyAgg[t.rawDate]) dailyAgg[t.rawDate] = { net: 0, gross: 0 };
-          dailyAgg[t.rawDate].net += t.net_pnl;
-          dailyAgg[t.rawDate].gross += t.gross_pnl;
+          dailyAgg[t.rawDate].net += t.net_pnl; dailyAgg[t.rawDate].gross += t.gross_pnl;
         });
         Object.keys(dailyAgg).sort().forEach(day => {
           runningNet += dailyAgg[day].net; runningGross += dailyAgg[day].gross;
@@ -503,8 +479,7 @@
         const monthlyAgg = {};
         chronological.forEach(t => {
           if (!monthlyAgg[t.monthKey]) monthlyAgg[t.monthKey] = { net: 0, gross: 0 };
-          monthlyAgg[t.monthKey].net += t.net_pnl;
-          monthlyAgg[t.monthKey].gross += t.gross_pnl;
+          monthlyAgg[t.monthKey].net += t.net_pnl; monthlyAgg[t.monthKey].gross += t.gross_pnl;
         });
         Object.keys(monthlyAgg).sort().forEach(month => {
           runningNet += monthlyAgg[month].net; runningGross += monthlyAgg[month].gross;
@@ -521,24 +496,20 @@
           height: 260, 
           width: '100%',
           background: 'transparent', 
-          toolbar: { show: false } 
+          toolbar: { show: false },  // REMOVES DOWNLOAD/PAN ICONS
+          zoom: { enabled: false }   // LOCKS CHART - NO ZOOMING OR PANNING
+        },
+        dataLabels: { enabled: false }, // REMOVES MESSY TEXT NUMBERS ON THE LINE
+        markers: { 
+          size: 3,                   // ADDS CLEAN DOTS ON THE DATA POINTS
+          strokeWidth: 0,
+          hover: { size: 5 }
         },
         colors: ['#10b981', '#6366f1'], 
         stroke: { curve: 'smooth', width: 2 },
         fill: { type: 'gradient', gradient: { shadeIntensity: 1, opacityFrom: 0.25, opacityTo: 0.0 } },
-        xaxis: { 
-          categories: cat, 
-          labels: { 
-            style: { colors: '#64748b', fontSize: '9px' },
-            hideOverlappingLabels: true
-          } 
-        },
-        yaxis: { 
-          labels: { 
-            style: { colors: '#64748b', fontSize: '10px' }, 
-            formatter: (v) => compactUSD(v) // Implemented compact formatting to save horizontal space
-          } 
-        },
+        xaxis: { categories: cat, labels: { style: { colors: '#64748b', fontSize: '9px' }, hideOverlappingLabels: true } },
+        yaxis: { labels: { style: { colors: '#64748b', fontSize: '10px' }, formatter: (v) => compactUSD(v) } },
         grid: { padding: { left: 10, right: 10 }, borderColor: '#1e293b', strokeDashArray: 3 }, 
         tooltip: { theme: 'dark' }
       });
