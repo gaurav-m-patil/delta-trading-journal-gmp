@@ -8,8 +8,11 @@ from datetime import datetime, timezone
 
 API_KEY = os.environ.get("DELTA_API_KEY", "").strip()
 API_SECRET = os.environ.get("DELTA_API_SECRET", "").strip()
+PROXY_URL = os.environ.get("PROXY_URL", "").strip()
 BASE_URL = "https://api.india.delta.exchange"
 CACHE_FILE = "data/raw_cache.json"
+
+PROXIES = {"http": PROXY_URL, "https": PROXY_URL} if PROXY_URL else None
 
 def get_signature(secret, method, path, query=""):
     timestamp = str(int(time.time()))
@@ -21,13 +24,13 @@ def get_signature(secret, method, path, query=""):
 def fetch_new_records(path, existing_records):
     """
     Utilizes Delta's Cursor-Based Pagination (`after` metadata)
-    to accurately pull new data without looping.
+    routed through PROXY_URL to bypass IP whitelisting restrictions.
     """
     existing_ids = {str(r.get("id")) for r in existing_records if r.get("id")}
     new_results = []
     after_cursor = ""
     
-    print(f"Syncing {path}...")
+    print(f"Syncing {path} via proxy...")
     
     while True:
         query = "page_size=100"
@@ -39,7 +42,7 @@ def fetch_new_records(path, existing_records):
         headers = {"api-key": API_KEY, "signature": sig, "timestamp": ts}
         
         try:
-            res = requests.get(url, headers=headers, timeout=15)
+            res = requests.get(url, headers=headers, proxies=PROXIES, timeout=20)
             if res.status_code != 200:
                 print(f"API Error {res.status_code}: {res.text}")
                 break
@@ -72,7 +75,6 @@ def fetch_new_records(path, existing_records):
             print(f"  -> Error: {str(e)}")
             break
             
-    # Return newest data first, followed by older cached data
     return new_results + existing_records
 
 def parse_date(ts_val):
@@ -99,7 +101,6 @@ def main():
         except:
             pass
 
-    # Update cache with only brand new records from API
     cache["wallet_txs"] = fetch_new_records("/v2/wallet/transactions", cache.get("wallet_txs", []))
     cache["orders"] = fetch_new_records("/v2/orders/history", cache.get("orders", []))
     
@@ -202,6 +203,3 @@ def main():
 
     with open("data/trade_journal.json", "w") as f:
         json.dump(payload, f, indent=2)
-
-if __name__ == "__main__":
-    main()
