@@ -104,7 +104,7 @@
   </header>
 
   <!-- KPI SCORECARD -->
-  <section class="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-3 mb-3">
+  <section class="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-3 mb-6">
     <div class="bg-cardDark border border-borderDark p-3 rounded-xl"><span class="text-slate-400 text-[10px] font-medium uppercase tracking-wider block mb-1">Gross Inflows</span><h3 class="text-sm md:text-base font-bold text-white font-mono" id="kpiDeposits">$0.00</h3><span class="text-[9px] text-slate-500">Period Inflow</span></div>
     <div class="bg-cardDark border border-borderDark p-3 rounded-xl"><span class="text-slate-400 text-[10px] font-medium uppercase tracking-wider block mb-1">Withdrawals</span><h3 class="text-sm md:text-base font-bold text-white font-mono" id="kpiWithdrawals">$0.00</h3><span class="text-[9px] text-slate-500">Period Payout</span></div>
     <div class="bg-cardDark border border-borderDark p-3 rounded-xl border-l-4 border-l-indigo-500"><span class="text-indigo-300 text-[10px] font-medium uppercase tracking-wider block mb-1">Net Flow</span><h3 class="text-sm md:text-base font-bold text-white font-mono" id="kpiCoreCapital">$0.00</h3><span class="text-[9px] text-indigo-400">Inflows minus Outflows</span></div>
@@ -113,15 +113,6 @@
     <div class="bg-cardDark border border-borderDark p-3 rounded-xl"><span class="text-slate-400 text-[10px] font-medium uppercase tracking-wider block mb-1">Taxes (GST/TDS)</span><h3 class="text-sm md:text-base font-bold text-lossRed font-mono" id="kpiTaxes">$0.00</h3><span class="text-[9px] text-slate-500">18% GST + TDS</span></div>
     <div class="bg-cardDark border border-borderDark p-3 rounded-xl border-l-4 border-l-emerald-500"><span class="text-emerald-300 text-[10px] font-medium uppercase tracking-wider block mb-1">Net PnL</span><h3 class="text-sm md:text-base font-bold font-mono" id="kpiNet">$0.00</h3><span class="text-[9px] text-emerald-400">Net Take-Home</span></div>
     <div class="bg-cardDark border border-borderDark p-3 rounded-xl"><span class="text-slate-400 text-[10px] font-medium uppercase tracking-wider block mb-1">Win Rate</span><h3 class="text-sm md:text-base font-bold text-white font-mono" id="kpiWinRate">0%</h3><span class="text-[9px] text-slate-500" id="kpiTradeCount">0 trades</span></div>
-  </section>
-
-  <!-- ADVANCED KPI RIBBON -->
-  <section class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-3 mb-6">
-    <div class="bg-panelDark/40 border border-borderDark px-4 py-2.5 rounded-lg flex justify-between items-center"><span class="text-[10px] text-slate-400 uppercase tracking-wide">Profit Factor</span><span class="text-sm font-bold font-mono text-white" id="advPF">0.00</span></div>
-    <div class="bg-panelDark/40 border border-borderDark px-4 py-2.5 rounded-lg flex justify-between items-center"><span class="text-[10px] text-slate-400 uppercase tracking-wide">Avg Win</span><span class="text-sm font-bold font-mono text-winGreen" id="advAvgWin">$0.00</span></div>
-    <div class="bg-panelDark/40 border border-borderDark px-4 py-2.5 rounded-lg flex justify-between items-center"><span class="text-[10px] text-slate-400 uppercase tracking-wide">Avg Loss</span><span class="text-sm font-bold font-mono text-lossRed" id="advAvgLoss">$0.00</span></div>
-    <div class="bg-panelDark/40 border border-borderDark px-4 py-2.5 rounded-lg flex justify-between items-center"><span class="text-[10px] text-slate-400 uppercase tracking-wide">Max Drawdown</span><span class="text-sm font-bold font-mono text-lossRed" id="advMaxDD">$0.00</span></div>
-    <div class="bg-panelDark/40 border border-borderDark px-4 py-2.5 rounded-lg flex justify-between items-center"><span class="text-[10px] text-slate-400 uppercase tracking-wide">Avg Hold Time</span><span class="text-sm font-bold font-mono text-indigo-300" id="advAvgHold">0m</span></div>
   </section>
 
   <!-- TRAJECTORY & INSTRUMENT ANALYSIS -->
@@ -280,11 +271,8 @@
           <p class="text-sm text-slate-400 animate-pulse">Coach is analyzing ${currentFilteredTrades.length} trades...</p>
         </div>`;
 
-      const pf = document.getElementById('advPF').innerText;
       const winRate = document.getElementById('kpiWinRate').innerText;
       const netPnl = document.getElementById('kpiNet').innerText;
-      const avgHold = document.getElementById('advAvgHold').innerText;
-      const maxDd = document.getElementById('advMaxDD').innerText;
 
       let callPnl = 0, putPnl = 0, callTrades = 0, putTrades = 0;
       currentFilteredTrades.forEach(t => {
@@ -297,17 +285,14 @@
         Total Trades: ${currentFilteredTrades.length}
         Net PnL: ${netPnl}
         Win Rate: ${winRate}
-        Profit Factor: ${pf}
-        Max Drawdown: ${maxDd}
-        Avg Hold Time: ${avgHold}
         Instrument PnL - Calls: $${callPnl.toFixed(2)}, Puts: $${putPnl.toFixed(2)}
         Trade Count - Calls: ${callTrades}, Puts: ${putTrades}
       `;
 
       const systemPrompt = `You are an elite crypto options trading coach. The user trades BTC/USD options primarily using 15-minute and 1-hour charts, looking for volume divergence and EMA crossovers. Review the performance metrics for their selected timeframe. Provide a direct, unvarnished analysis. Format strictly using markdown with three bulleted sections:
       **What's Working:** (Highlight their edge based on PnL skew, hold times, and instrument preference).
-      **Critical Mistakes:** (Identify mathematical vulnerabilities like poor PF, heavy drawdowns, or side bias).
-      **Actionable Adjustments:** (Give 2 specific rules they must follow tomorrow regarding their 15m/1H crossover strategy and hold times).
+      **Critical Mistakes:** (Identify mathematical vulnerabilities like heavy drawdowns, or side bias).
+      **Actionable Adjustments:** (Give 2 specific rules they must follow tomorrow regarding their 15m/1H crossover strategy).
       Do not use introductory fluff.`;
 
       let attempts = 0;
@@ -514,23 +499,14 @@
       currentFilteredTrades = filteredTrades; 
       
       let periodGross = 0, periodBrokerage = 0, periodTaxes = 0, periodNet = 0;
-      let grossWins = 0, grossLosses = 0, winCount = 0, lossCount = 0, totalHoldMs = 0;
+      let winCount = 0;
       let callPnl = 0, putPnl = 0, callTrades = 0, putTrades = 0;
 
       const chronologicalTrades = [...filteredTrades].sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
-      let peak = 0, running = 0, maxDD = 0;
 
       chronologicalTrades.forEach(t => {
         periodGross += t.gross_pnl; periodBrokerage += t.brokerage; periodTaxes += t.taxes; periodNet += t.net_pnl;
-        totalHoldMs += t.holdTimeMs;
-        
-        running += t.net_pnl;
-        if (running > peak) peak = running;
-        const dd = peak - running;
-        if (dd > maxDD) maxDD = dd;
-
-        if (t.net_pnl > 0) { grossWins += t.net_pnl; winCount++; }
-        else if (t.net_pnl < 0) { grossLosses += Math.abs(t.net_pnl); lossCount++; }
+        if (t.net_pnl > 0) { winCount++; }
         
         if(t.isCall) { callPnl += t.net_pnl; callTrades++; } 
         else { putPnl += t.net_pnl; putTrades++; }
@@ -545,17 +521,6 @@
       });
 
       const totalCombinedTaxes = periodTaxes + periodWalletTaxes;
-
-      const pf = grossLosses === 0 ? (grossWins > 0 ? "MAX" : "0.00") : (grossWins / grossLosses).toFixed(2);
-      const avgWin = winCount > 0 ? (grossWins / winCount) : 0;
-      const avgLoss = lossCount > 0 ? (grossLosses / lossCount) : 0;
-      const avgHold = filteredTrades.length > 0 ? (totalHoldMs / filteredTrades.length) : 0;
-      
-      document.getElementById('advPF').innerText = pf;
-      document.getElementById('advAvgWin').innerText = formatUSD(avgWin);
-      document.getElementById('advAvgLoss').innerText = formatUSD(-avgLoss);
-      document.getElementById('advMaxDD').innerText = formatUSD(-maxDD);
-      document.getElementById('advAvgHold').innerText = formatHoldTime(avgHold);
 
       document.getElementById('kpiDeposits').innerText = formatUSD(periodDeposits);
       document.getElementById('kpiWithdrawals').innerText = formatUSD(periodWithdrawals);
