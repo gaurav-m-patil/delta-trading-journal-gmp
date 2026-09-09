@@ -25,7 +25,7 @@
     .custom-scroll::-webkit-scrollbar-track { background: transparent; }
     option { background-color: #0f172a; color: #f8fafc; }
     .no-select { user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; }
-    #aiSidebar { transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1); }
+    #aiSidebar, #ghSettingsModal { transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1); }
     .prose p { margin-bottom: 0.75em; }
     .prose strong { color: #f8fafc; }
   </style>
@@ -35,6 +35,23 @@
   <!-- PEEK OVERLAY -->
   <div id="peekOverlay" class="fixed inset-0 z-40 flex items-center justify-center bg-brandDark/80 backdrop-blur-sm opacity-0 pointer-events-none transition-opacity duration-200 no-select">
     <div id="peekCard" class="bg-cardDark border border-borderDark rounded-2xl p-5 w-[280px] sm:w-[320px] shadow-2xl scale-95 transition-transform duration-200"></div>
+  </div>
+
+  <!-- GITHUB TOKEN SETTINGS MODAL -->
+  <div id="ghSettingsModal" class="fixed inset-0 z-50 flex items-center justify-center bg-brandDark/80 backdrop-blur-sm opacity-0 pointer-events-none transition-opacity duration-200">
+    <div class="bg-cardDark border border-borderDark rounded-2xl p-5 w-[320px] sm:w-[380px] shadow-2xl">
+      <h3 class="font-bold text-base text-white mb-2"><i class="fa-solid fa-key text-indigo-400 mr-1.5"></i> GitHub Workflow Token</h3>
+      <p class="text-xs text-slate-400 mb-4">Enter a GitHub Personal Access Token (PAT) with repo/workflow scope to remotely trigger updates from this page.</p>
+      <input type="password" id="ghTokenInput" placeholder="ghp_..." class="w-full bg-brandDark border border-borderDark rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-indigo-500 font-mono mb-3">
+      <div id="ghRepoConfig" class="space-y-2 mb-4">
+        <input type="text" id="ghOwnerInput" placeholder="GitHub Username (e.g., gaurav)" class="w-full bg-brandDark border border-borderDark rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-indigo-500 font-mono">
+        <input type="text" id="ghRepoInput" placeholder="Repo Name (e.g., delta-journal)" class="w-full bg-brandDark border border-borderDark rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-indigo-500 font-mono">
+      </div>
+      <div class="flex gap-2">
+        <button onclick="saveGitHubSettings()" class="flex-1 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold py-2 rounded-xl transition-colors">Save Settings</button>
+        <button onclick="toggleGhSettings()" class="bg-panelDark hover:bg-borderDark text-slate-300 text-xs px-4 py-2 rounded-xl transition-colors">Cancel</button>
+      </div>
+    </div>
   </div>
 
   <!-- AI COACH SLIDE-OUT PANEL -->
@@ -95,6 +112,16 @@
         <input type="date" id="customStartDate" onchange="applyGlobalFilter()" class="bg-transparent text-[11px] text-white focus:outline-none font-mono">
         <span class="text-slate-500 text-xs">to</span>
         <input type="date" id="customEndDate" onchange="applyGlobalFilter()" class="bg-transparent text-[11px] text-white focus:outline-none font-mono">
+      </div>
+
+      <!-- WORKFLOW TRIGGER BUTTON & SETTINGS -->
+      <div class="flex items-center gap-1">
+        <button onclick="triggerGitHubWorkflow()" id="syncWorkflowBtn" class="px-3.5 py-2 text-xs font-medium bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl transition-colors flex items-center gap-1.5 shadow-lg shadow-indigo-600/20">
+          <i class="fa-solid fa-play"></i> Run Sync
+        </button>
+        <button onclick="toggleGhSettings()" class="p-2 text-xs bg-cardDark border border-borderDark hover:bg-panelDark rounded-xl text-slate-400 hover:text-white transition-colors">
+          <i class="fa-solid fa-gear"></i>
+        </button>
       </div>
 
       <button onclick="fetchRawData()" class="px-3.5 py-2 text-xs font-medium bg-cardDark border border-borderDark hover:bg-panelDark rounded-xl transition-colors flex items-center gap-1.5 text-slate-300">
@@ -180,7 +207,15 @@
     let callPutChart = null;
     let buySellChart = null;
 
-    document.addEventListener("DOMContentLoaded", () => { fetchRawData(); });
+    document.addEventListener("DOMContentLoaded", () => { 
+      const savedToken = localStorage.getItem("gh_pat_token");
+      const savedOwner = localStorage.getItem("gh_owner");
+      const savedRepo = localStorage.getItem("gh_repo");
+      if(savedToken) document.getElementById('ghTokenInput').value = savedToken;
+      if(savedOwner) document.getElementById('ghOwnerInput').value = savedOwner;
+      if(savedRepo) document.getElementById('ghRepoInput').value = savedRepo;
+      fetchRawData(); 
+    });
 
     const formatUSD = (val) => { const num = Number(val) || 0; return (num < 0 ? "-$" : "$") + Math.abs(num).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }); };
     const compactUSD = (val) => { const num = Number(val) || 0; const absNum = Math.abs(num); if (absNum >= 1000) return (num < 0 ? "-$" : "$") + (absNum / 1000).toFixed(1) + "k"; return (num < 0 ? "-$" : "$") + absNum.toFixed(0); };
@@ -194,6 +229,72 @@
       if (hrs < 24) return `${hrs}h ${remMins}m`;
       const days = Math.floor(hrs / 24);
       return `${days}d ${hrs % 24}h`;
+    }
+
+    function toggleGhSettings() {
+      const modal = document.getElementById('ghSettingsModal');
+      if (modal.classList.contains('opacity-0')) {
+        modal.classList.remove('opacity-0', 'pointer-events-none');
+        modal.classList.add('opacity-100');
+      } else {
+        modal.classList.remove('opacity-100');
+        modal.classList.add('opacity-0', 'pointer-events-none');
+      }
+    }
+
+    function saveGitHubSettings() {
+      const token = document.getElementById('ghTokenInput').value.trim();
+      const owner = document.getElementById('ghOwnerInput').value.trim();
+      const repo = document.getElementById('ghRepoInput').value.trim();
+      if(token && owner && repo) {
+        localStorage.setItem("gh_pat_token", token);
+        localStorage.setItem("gh_owner", owner);
+        localStorage.setItem("gh_repo", repo);
+        toggleGhSettings();
+        alert("GitHub settings saved securely to browser!");
+      } else {
+        alert("Please fill in all fields.");
+      }
+    }
+
+    async function triggerGitHubWorkflow() {
+      const token = localStorage.getItem("gh_pat_token");
+      const owner = localStorage.getItem("gh_owner");
+      const repo = localStorage.getItem("gh_repo");
+      
+      if(!token || !owner || !repo) {
+        toggleGhSettings();
+        alert("Please configure your GitHub token and repository details first.");
+        return;
+      }
+
+      const btn = document.getElementById('syncWorkflowBtn');
+      btn.innerHTML = `<i class="fa-solid fa-circle-notch fa-spin"></i> Triggering...`;
+      btn.disabled = true;
+
+      try {
+        const res = await fetch(`https://api.github.com/repos/${owner}/${repo}/actions/workflows/daily_sync.yml/dispatches`, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Accept': 'application/vnd.github+json',
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({ ref: 'main' })
+        });
+
+        if(!res.ok) {
+          const errText = await res.text();
+          throw new Error(`GitHub API Error: ${res.status} - ${errText}`);
+        }
+
+        alert("Workflow successfully triggered! Give it 30-60 seconds to pull data from Delta, then hit Refresh.");
+      } catch(err) {
+        alert(`Failed to trigger workflow: ${err.message}`);
+      } finally {
+        btn.innerHTML = `<i class="fa-solid fa-play"></i> Run Sync`;
+        btn.disabled = false;
+      }
     }
 
     function showPeek(dateKey) {
@@ -256,7 +357,7 @@
       const apiKey = rawDumpCache && rawDumpCache.gemini_api_key ? rawDumpCache.gemini_api_key.trim() : null;
       
       if (!apiKey || apiKey === "") {
-        chatArea.innerHTML = `<div class="bg-lossRed/10 border border-lossRed/30 text-lossRed p-4 rounded-xl text-sm"><i class="fa-solid fa-triangle-exclamation mr-2"></i><strong>API Key Missing:</strong> Please add GEMINI_API_KEY to your GitHub Secrets and ensure your Python script bundles it into raw_data.json.</div>`;
+        chatArea.innerHTML = `<div class="bg-lossRed/10 border border-lossRed/30 text-lossRed p-4 rounded-xl text-sm"><i class="fa-solid fa-triangle-exclamation mr-2"></i><strong>API Key Missing:</strong> Please add GEMINI_API_KEY to your GitHub Secrets.</div>`;
         return;
       }
 
@@ -364,7 +465,7 @@
         const type = (tx.transaction_type || "").toLowerCase();
         const amt = parseFloat(tx.amount || 0);
         const absAmt = Math.abs(amt);
-        // FIX: Check multiple possible timestamp fields provided by Delta's API
+        // Robust timestamp recovery for wallet transactions
         const rawTimeStr = tx.created_at || tx.updated_at || tx.timestamp || Date.now();
         const dateObj = new Date(rawTimeStr);
         const parts = istFormatter.formatToParts(dateObj);
