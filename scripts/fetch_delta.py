@@ -68,13 +68,24 @@ def main():
     os.makedirs("data", exist_ok=True)
     raw_dump = {"generated_at": datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC")}
     
-    # Extract everything raw
+    # Extract raw data
     wallet_txs = extract_api_data("/v2/wallet/transactions")
     
-    # FIX: Ensure every wallet tx has a reliable 'created_at' string for the frontend date filter
+    # NORMALIZATION FIX: Ensure every transaction has a clean ISO 'created_at' string
     for tx in wallet_txs:
-        if not tx.get("created_at") and tx.get("updated_at"):
-            tx["created_at"] = tx["updated_at"]
+        raw_ts = tx.get("created_at") or tx.get("updated_at") or tx.get("timestamp")
+        if raw_ts:
+            try:
+                if isinstance(raw_ts, (int, float)):
+                    # Handle microsecond or millisecond timestamps
+                    sec = raw_ts / 1000000 if raw_ts > 10**12 else raw_ts / 1000 if raw_ts > 10**10 else raw_ts
+                    tx["created_at"] = datetime.fromtimestamp(sec, tz=timezone.utc).isoformat()
+                else:
+                    tx["created_at"] = str(raw_ts)
+            except Exception:
+                tx["created_at"] = datetime.now(timezone.utc).isoformat()
+        else:
+            tx["created_at"] = datetime.now(timezone.utc).isoformat()
 
     raw_dump["wallet_txs"] = wallet_txs
     raw_dump["orders"] = extract_api_data("/v2/orders/history")
