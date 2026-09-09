@@ -364,7 +364,9 @@
         const type = (tx.transaction_type || "").toLowerCase();
         const amt = parseFloat(tx.amount || 0);
         const absAmt = Math.abs(amt);
-        const dateObj = new Date(tx.created_at || tx.updated_at);
+        // FIX: Check multiple possible timestamp fields provided by Delta's API
+        const rawTimeStr = tx.created_at || tx.updated_at || tx.timestamp || Date.now();
+        const dateObj = new Date(rawTimeStr);
         const parts = istFormatter.formatToParts(dateObj);
         const y = parts.find(p => p.type === 'year').value;
         const m = parts.find(p => p.type === 'month').value;
