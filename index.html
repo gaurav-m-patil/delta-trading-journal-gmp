@@ -128,7 +128,7 @@
     </div>
   </header>
 
-  <!-- STREAMLINED KPI SCORECARD (PnL & Performance Focus) -->
+  <!-- KPI SCORECARD -->
   <section class="grid grid-cols-2 sm:grid-cols-5 gap-3 mb-6">
     <div class="bg-cardDark border border-borderDark p-3.5 rounded-xl"><span class="text-slate-400 text-[10px] font-medium uppercase tracking-wider block mb-1">Gross PnL</span><h3 class="text-base font-bold font-mono" id="kpiGross">$0.00</h3><span class="text-[9px] text-slate-500">Market outcome</span></div>
     <div class="bg-cardDark border border-borderDark p-3.5 rounded-xl"><span class="text-slate-400 text-[10px] font-medium uppercase tracking-wider block mb-1">Brokerage & Fees</span><h3 class="text-base font-bold text-lossRed font-mono" id="kpiBrokerage">$0.00</h3><span class="text-[9px] text-slate-500">Exchange charges</span></div>
@@ -277,6 +277,48 @@
         btn.innerHTML = `<i class="fa-solid fa-play"></i> Run Sync`;
         btn.disabled = false;
       }
+    }
+
+    // PEEK INTERACTION FUNCTIONS
+    function showPeek(dateKey) {
+      if (!processedState || !processedState.dailyMap[dateKey]) return;
+      const data = processedState.dailyMap[dateKey];
+      if (data.trades === 0) return;
+      const dObj = new Date(dateKey);
+      const displayDate = dObj.toLocaleDateString('en-IN', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' });
+      const isWin = data.net_pnl >= 0;
+
+      const html = `
+        <div class="text-center mb-4">
+          <p class="text-slate-400 text-[11px] font-semibold uppercase tracking-wider">${displayDate}</p>
+          <h2 class="text-3xl font-bold font-mono mt-1.5 ${isWin ? 'text-winGreen' : 'text-lossRed'}">${isWin ? '+' : ''}${formatUSD(data.net_pnl)}</h2>
+          <div class="flex justify-center gap-2 mt-3 text-xs font-mono">
+            <span class="px-2 py-0.5 rounded bg-brandDark border border-borderDark text-slate-300">${data.trades} Trades</span>
+            <span class="px-2 py-0.5 rounded bg-winGreen/10 border border-winGreen/20 text-winGreen">${data.wins}W</span>
+            <span class="px-2 py-0.5 rounded bg-lossRed/10 border border-lossRed/20 text-lossRed">${data.losses}L</span>
+          </div>
+        </div>
+        <div class="bg-brandDark rounded-xl p-3.5 border border-borderDark/50 space-y-2.5 text-xs font-mono text-slate-300">
+          <div class="flex justify-between items-center"><span>Gross PnL</span><span class="font-bold ${data.gross_pnl >= 0 ? 'text-winGreen' : 'text-lossRed'}">${formatUSD(data.gross_pnl)}</span></div>
+          <div class="flex justify-between items-center"><span>Brokerage & Fees</span><span class="text-lossRed font-bold">${formatUSD(data.brokerage)}</span></div>
+          <div class="flex justify-between items-center"><span>Net PnL</span><span class="font-bold ${data.net_pnl >= 0 ? 'text-winGreen' : 'text-lossRed'}">${formatUSD(data.net_pnl)}</span></div>
+        </div>`;
+      document.getElementById('peekCard').innerHTML = html;
+      const overlay = document.getElementById('peekOverlay');
+      const card = document.getElementById('peekCard');
+      overlay.classList.remove('opacity-0', 'pointer-events-none');
+      overlay.classList.add('opacity-100');
+      card.classList.remove('scale-95');
+      card.classList.add('scale-100');
+    }
+
+    function hidePeek() {
+      const overlay = document.getElementById('peekOverlay');
+      const card = document.getElementById('peekCard');
+      overlay.classList.remove('opacity-100');
+      overlay.classList.add('opacity-0', 'pointer-events-none');
+      card.classList.remove('scale-100');
+      card.classList.add('scale-95');
     }
 
     function toggleAICoach() {
