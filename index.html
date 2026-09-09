@@ -160,7 +160,7 @@
   <!-- BOTTOM EXECUTION AUDIT LOG TABLE -->
   <section id="tradeTableSection" class="bg-cardDark border border-borderDark p-4 md:p-5 rounded-2xl">
     <div class="flex justify-between items-center mb-4">
-      <div><h2 class="font-bold text-sm md:text-base text-white">Trade Log</h2><p class="text-[11px] text-slate-400" id="tableSubtitle">Direct execution audit log matching Delta app</p></div>
+      <div><h2 class="font-bold text-sm md:text-base text-white">Trade Log</h2><p class="text-[11px] text-slate-400" id="tableSubtitle">Grouped positions matching Delta app trade counts</p></div>
       <span class="text-xs font-mono text-slate-400" id="tradeCountBadge">Showing 0 trades</span>
     </div>
     <div class="overflow-x-auto custom-scroll pb-2">
@@ -170,7 +170,7 @@
             <th class="py-2.5 px-3">Date (IST)</th>
             <th class="py-2.5 px-3">Symbol</th>
             <th class="py-2.5 px-3 text-center">Side</th>
-            <th class="py-2.5 px-3 text-right">Size</th>
+            <th class="py-2.5 px-3 text-right">Total Size</th>
             <th class="py-2.5 px-3 text-right">Gross PnL</th>
             <th class="py-2.5 px-3 text-right">Commission</th>
             <th class="py-2.5 px-3 text-right">Net PnL</th>
@@ -288,7 +288,6 @@
       }
     }
 
-    // PEEK INTERACTION FUNCTIONS (Fixed for stable desktop hover)
     function showPeek(dateKey) {
       if (!processedState || !processedState.dailyMap[dateKey]) return;
       const data = processedState.dailyMap[dateKey];
@@ -422,48 +421,81 @@
     function processRawData(rawDump) {
       const istFormatter = new Intl.DateTimeFormat('en-US', { timeZone: 'Asia/Kolkata', year: 'numeric', month: '2-digit', day: '2-digit' });
       
-      const allTrades = [];
-      const dailyMap = {};
-      const monthlyMap = {};
+      // SMART POSITION GROUPING: Merge multiple fills/scale-ins of the same contract into single parent trades
+      const productMap = {};
 
       (rawDump.orders || []).forEach(order => {
-        // STRICT VALIDATION: Only process successfully closed options orders to prevent ghost/cancelled counts
         if (order.state !== "closed") return;
         const meta = order.meta_data || {};
         const grossPnl = parseFloat(meta.pnl || 0);
         const commission = parseFloat(order.paid_commission || 0);
-        
-        // Skip orders with zero market movement and zero fees
         if (grossPnl === 0 && commission === 0) return;
 
-        const netPnl = grossPnl - commission;
+        const symbol = order.product_symbol || order.product?.symbol || "OPTION";
+        
+        // Group by product symbol and calendar day to merge scale-ins into a single trade entry
         const orderDate = new Date(order.updated_at || order.created_at);
         const parts = istFormatter.formatToParts(orderDate);
         const y = parts.find(p => p.type === 'year').value;
         const m = parts.find(p => p.type === 'month').value;
         const d = parts.find(p => p.type === 'day').value;
         const dayKey = `${y}-${m}-${d}`;
-        const monthKey = `${y}-${m}`;
-        const symbol = order.product_symbol || order.product?.symbol || "OPTION";
-        const isCall = symbol.includes('C-BTC');
+        const groupKey = `${symbol}_${dayKey}`;
+
+        if (!productMap[groupKey]) {
+          productMap[groupKey] = {
+            timestamp: orderDate.toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' }),
+            rawDate: dayKey,
+            monthKey: `${y}-${m}`,
+            symbol: symbol,
+            side: (order.side || "").toUpperCase(),
+            isCall: symbol.includes('C-BTC'),
+            size: 0,
+            gross_pnl: 0,
+            brokerage: 0,
+            net_pnl: 0
+          };
+        }
+
+        productMap[groupKey].size += parseFloat(order.size || 0);
+        productMap[groupKey].gross_pnl += grossPnl;
+        productMap[groupKey].brokerage += commission;
+        productMap[groupKey].net_pnl += (grossPnl - commission);
+      });
+
+      const allTrades = [];
+      const dailyMap = {};
+      const monthlyMap = {};
+
+      Object.values(productMap).forEach(trade => {
+        const dayKey = trade.rawDate;
+        const monthKey = trade.monthKey;
+        const netPnl = trade.net_pnl;
 
         if (!dailyMap[dayKey]) dailyMap[dayKey] = { gross_pnl: 0, brokerage: 0, net_pnl: 0, trades: 0, wins: 0, losses: 0 };
-        dailyMap[dayKey].gross_pnl += grossPnl; 
-        dailyMap[dayKey].brokerage += commission; 
+        dailyMap[dayKey].gross_pnl += trade.gross_pnl; 
+        dailyMap[dayKey].brokerage += trade.brokerage; 
         dailyMap[dayKey].net_pnl += netPnl; 
         dailyMap[dayKey].trades += 1;
         if (netPnl > 0) dailyMap[dayKey].wins += 1; else if (netPnl < 0) dailyMap[dayKey].losses += 1;
 
         if (!monthlyMap[monthKey]) monthlyMap[monthKey] = { month: monthKey, gross_pnl: 0, brokerage: 0, net_pnl: 0, trades: 0 };
-        monthlyMap[monthKey].gross_pnl += grossPnl; 
-        monthlyMap[monthKey].brokerage += commission; 
+        monthlyMap[monthKey].gross_pnl += trade.gross_pnl; 
+        monthlyMap[monthKey].brokerage += trade.brokerage; 
         monthlyMap[monthKey].net_pnl += netPnl; 
         monthlyMap[monthKey].trades += 1;
 
         allTrades.push({
-          timestamp: orderDate.toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' }),
-          rawDate: dayKey, monthKey: monthKey, symbol: symbol, side: (order.side || "").toUpperCase(), isCall: isCall,
-          size: parseFloat(order.size || 0), gross_pnl: grossPnl, brokerage: commission, net_pnl: netPnl,
+          timestamp: trade.timestamp,
+          rawDate: dayKey, 
+          monthKey: monthKey, 
+          symbol: trade.symbol, 
+          side: trade.side, 
+          isCall: trade.isCall,
+          size: trade.size, 
+          gross_pnl: trade.gross_pnl, 
+          brokerage: trade.brokerage, 
+          net_pnl: netPnl,
           status: netPnl > 0 ? 'WIN' : (netPnl < 0 ? 'LOSS' : 'BE')
         });
       });
