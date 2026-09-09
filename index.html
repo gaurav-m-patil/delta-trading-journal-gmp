@@ -32,9 +32,9 @@
 </head>
 <body class="min-h-screen p-3 md:p-6 lg:p-8 relative">
 
-  <!-- PEEK OVERLAY (Fixed pointer-events for stable desktop hover) -->
-  <div id="peekOverlay" class="fixed inset-0 z-40 flex items-center justify-center bg-brandDark/80 backdrop-blur-sm opacity-0 pointer-events-none transition-opacity duration-200 no-select">
-    <div id="peekCard" class="bg-cardDark border border-borderDark rounded-2xl p-5 w-[280px] sm:w-[320px] shadow-2xl scale-95 transition-transform duration-200 pointer-events-none"></div>
+  <!-- PEEK OVERLAY (Pointer events disabled on parent to ensure stable desktop hover) -->
+  <div id="peekOverlay" class="fixed inset-0 z-40 flex items-center justify-center bg-brandDark/80 backdrop-blur-sm opacity-0 pointer-events-none transition-opacity duration-150 no-select">
+    <div id="peekCard" class="bg-cardDark border border-borderDark rounded-2xl p-5 w-[280px] sm:w-[320px] shadow-2xl scale-95 transition-transform duration-150"></div>
   </div>
 
   <!-- GITHUB TOKEN SETTINGS MODAL -->
@@ -287,6 +287,7 @@
       }
     }
 
+    // PEEK INTERACTION FUNCTIONS (Robust mouse stability fix)
     function showPeek(dateKey) {
       if (!processedState || !processedState.dailyMap[dateKey]) return;
       const data = processedState.dailyMap[dateKey];
@@ -312,20 +313,14 @@
         </div>`;
       document.getElementById('peekCard').innerHTML = html;
       const overlay = document.getElementById('peekOverlay');
-      const card = document.getElementById('peekCard');
       overlay.classList.remove('opacity-0', 'pointer-events-none');
       overlay.classList.add('opacity-100');
-      card.classList.remove('scale-95');
-      card.classList.add('scale-100');
     }
 
     function hidePeek() {
       const overlay = document.getElementById('peekOverlay');
-      const card = document.getElementById('peekCard');
       overlay.classList.remove('opacity-100');
       overlay.classList.add('opacity-0', 'pointer-events-none');
-      card.classList.remove('scale-100');
-      card.classList.add('scale-95');
     }
 
     function toggleAICoach() {
@@ -420,7 +415,6 @@
     function processRawData(rawDump) {
       const istFormatter = new Intl.DateTimeFormat('en-US', { timeZone: 'Asia/Kolkata', year: 'numeric', month: '2-digit', day: '2-digit' });
       
-      // PROPER DE-DUPLICATION: Separate buy and sell order legs so sizes don't double
       const productMap = {};
 
       (rawDump.orders || []).forEach(order => {
@@ -428,7 +422,8 @@
         const meta = order.meta_data || {};
         const grossPnl = parseFloat(meta.pnl || 0);
         const commission = parseFloat(order.paid_commission || 0);
-        
+        if (grossPnl === 0 && commission === 0) return;
+
         const symbol = order.product_symbol || order.product?.symbol || "OPTION";
         const orderDate = new Date(order.updated_at || order.created_at);
         const parts = istFormatter.formatToParts(orderDate);
@@ -452,7 +447,6 @@
           };
         }
 
-        // Track the max contract size per trade lifecycle (avoiding buy + sell doubling)
         const orderSize = parseFloat(order.size || 0);
         if (orderSize > productMap[groupKey].maxSize) {
           productMap[groupKey].maxSize = orderSize;
@@ -605,8 +599,9 @@
         const firstDayOfWeek = new Date(year, month, 1).getDay();
         const daysInMonth = new Date(year, month + 1, 0).getDate();
 
-        let calHTML = `<div class="w-full max-w-4xl mx-auto"><div class="grid grid-cols-7 gap-1.5 sm:gap-3 mb-1.5 sm:mb-2 text-center text-[10px] sm:text-xs font-semibold text-slate-400 uppercase tracking-wider"><div>Sun</div><div>Mon</div><div>Tue</div><div>Wed</div><div>Thu</div><div>Fri</div><div>Sat</div></div><div class="grid grid-cols-7 gap-1.5 sm:gap-3">`;
-        for (let i = 0; i < firstDayOfWeek; i++) calHTML += `<div class="aspect-square rounded-lg sm:rounded-xl border border-borderDark/40 bg-brandDark/20"></div>`;
+        // Optimized desktop width container so boxes look perfectly sized and proportioned
+        let calHTML = `<div class="w-full max-w-2xl mx-auto"><div class="grid grid-cols-7 gap-1.5 sm:gap-2 mb-1.5 text-center text-[10px] sm:text-xs font-semibold text-slate-400 uppercase tracking-wider"><div>Sun</div><div>Mon</div><div>Tue</div><div>Wed</div><div>Thu</div><div>Fri</div><div>Sat</div></div><div class="grid grid-cols-7 gap-1.5 sm:gap-2">`;
+        for (let i = 0; i < firstDayOfWeek; i++) calHTML += `<div class="aspect-square rounded-lg border border-borderDark/40 bg-brandDark/25"></div>`;
 
         for (let day = 1; day <= daysInMonth; day++) {
           const fullDateKey = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
@@ -617,14 +612,14 @@
             const cardBorder = isWin ? 'bg-winGreen/10 border-winGreen/40 text-winGreen' : 'bg-lossRed/10 border-lossRed/40 text-lossRed';
             
             calHTML += `
-              <div class="relative aspect-square rounded-lg sm:rounded-xl border ${cardBorder} flex flex-col justify-center items-center cursor-pointer transition-transform active:scale-90 no-select" 
+              <div class="relative aspect-square rounded-lg border ${cardBorder} flex flex-col justify-center items-center cursor-pointer transition-transform active:scale-95 no-select" 
                    onmouseenter="showPeek('${fullDateKey}')" onmouseleave="hidePeek()" ontouchstart="showPeek('${fullDateKey}')" ontouchend="hidePeek()">
-                <span class="absolute top-1 sm:top-1.5 left-1.5 sm:left-2 text-[9px] sm:text-xs font-bold text-white">${day}</span>
-                <span class="absolute top-1 sm:top-1.5 right-1 sm:right-1.5 px-1 py-0.5 rounded-full bg-brandDark/60 text-[7px] sm:text-[9px] font-mono text-slate-300 hidden sm:block">${dayData.trades}t</span>
-                <div class="text-[9px] sm:text-sm font-bold font-mono mt-2 sm:mt-3">${isWin ? '+' : ''}${compactUSD(dayData.net_pnl)}</div>
+                <span class="absolute top-1 left-1.5 text-[9px] font-bold text-white/80">${day}</span>
+                <span class="absolute top-1 right-1.5 px-1 rounded bg-brandDark/60 text-[7px] font-mono text-slate-300 hidden sm:block">${dayData.trades}t</span>
+                <div class="text-[10px] sm:text-xs font-bold font-mono mt-2">${isWin ? '+' : ''}${compactUSD(dayData.net_pnl)}</div>
               </div>`;
           } else {
-            calHTML += `<div class="relative aspect-square rounded-lg sm:rounded-xl border border-borderDark/40 bg-panelDark/20 flex flex-col justify-center items-center"><span class="absolute top-1 sm:top-1.5 left-1.5 sm:left-2 text-[9px] sm:text-xs font-bold text-slate-600">${day}</span></div>`;
+            calHTML += `<div class="relative aspect-square rounded-lg border border-borderDark/40 bg-panelDark/25 flex flex-col justify-center items-center"><span class="absolute top-1 left-1.5 text-[9px] font-bold text-slate-600">${day}</span></div>`;
           }
         }
         container.innerHTML = calHTML + `</div></div>`;
