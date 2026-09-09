@@ -71,6 +71,9 @@ def main():
     # Extract everything raw. The HTML/JavaScript will do the math later.
     raw_dump["wallet_txs"] = extract_api_data("/v2/wallet/transactions")
     raw_dump["orders"] = extract_api_data("/v2/orders/history")
+
+    # Bundle the Gemini API key silently into the JSON
+    raw_dump["gemini_api_key"] = os.environ.get("GEMINI_API_KEY", "").strip()
     
     with open(RAW_DATA_FILE, "w") as f:
         json.dump(raw_dump, f, indent=2)
