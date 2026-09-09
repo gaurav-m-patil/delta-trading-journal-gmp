@@ -37,7 +37,7 @@
 </head>
 <body class="min-h-screen p-3 md:p-6 lg:p-8">
 
-  <!-- TOP BAR & CONTROLS -->
+  <!-- TOP BAR & GLOBAL TIMEFRAME CONTROLLER -->
   <header class="flex flex-col xl:flex-row justify-between items-start xl:items-center pb-6 border-b border-borderDark mb-6 gap-4">
     <div>
       <div class="flex items-center gap-3">
@@ -47,20 +47,21 @@
         <div>
           <h1 class="text-xl md:text-2xl font-bold tracking-tight text-white flex items-center gap-2">
             Delta Trading Journal
-            <span class="px-2 py-0.5 rounded text-[10px] font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">Sync Active</span>
+            <span class="px-2 py-0.5 rounded text-[10px] font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">Live</span>
           </h1>
           <p class="text-xs text-slate-400 mt-0.5" id="lastUpdated">Loading raw database...</p>
         </div>
       </div>
     </div>
 
-    <!-- TIMEFRAME CONTROLS -->
+    <!-- GLOBAL TIMEFRAME SELECTOR -->
     <div class="flex flex-wrap items-center gap-2 w-full xl:w-auto">
       <div class="flex items-center bg-cardDark border border-borderDark rounded-xl p-1.5 shadow-sm gap-2">
         <i class="fa-regular fa-calendar-days pl-2 text-slate-400 text-xs"></i>
         <select id="timeframePreset" onchange="onPresetChange()" class="bg-transparent text-white text-xs font-semibold pr-2 focus:outline-none cursor-pointer">
           <option value="CURRENT_MONTH" selected>Current Month</option>
           <option value="LAST_MONTH">Last Month</option>
+          <option value="SPECIFIC_MONTH">Specific Month...</option>
           <option value="THIS_FY">This FY (2026-27)</option>
           <option value="LAST_FY">Last FY (2025-26)</option>
           <option value="ALL_TIME">All-Time</option>
@@ -68,11 +69,16 @@
         </select>
       </div>
 
-      <!-- CUSTOM DATE RANGE INPUTS -->
-      <div id="customDateContainer" class="hidden items-center gap-1.5 bg-cardDark border border-borderDark rounded-xl px-2 py-1">
-        <input type="date" id="customStartDate" onchange="applyFilters()" class="bg-transparent text-[11px] text-white focus:outline-none font-mono">
+      <!-- SPECIFIC MONTH PICKER -->
+      <div id="specificMonthContainer" class="hidden items-center bg-cardDark border border-borderDark rounded-xl px-2.5 py-1">
+        <input type="month" id="specificMonthInput" onchange="applyGlobalFilter()" class="bg-transparent text-xs text-white focus:outline-none font-mono cursor-pointer">
+      </div>
+
+      <!-- CUSTOM DATE RANGE PICKER -->
+      <div id="customDateContainer" class="hidden items-center gap-1.5 bg-cardDark border border-borderDark rounded-xl px-2.5 py-1">
+        <input type="date" id="customStartDate" onchange="applyGlobalFilter()" class="bg-transparent text-[11px] text-white focus:outline-none font-mono">
         <span class="text-slate-500 text-xs">to</span>
-        <input type="date" id="customEndDate" onchange="applyFilters()" class="bg-transparent text-[11px] text-white focus:outline-none font-mono">
+        <input type="date" id="customEndDate" onchange="applyGlobalFilter()" class="bg-transparent text-[11px] text-white focus:outline-none font-mono">
       </div>
 
       <button onclick="fetchRawData()" class="px-3.5 py-2 text-xs font-medium bg-cardDark border border-borderDark hover:bg-panelDark rounded-xl transition-colors flex items-center gap-1.5 text-slate-300">
@@ -86,17 +92,17 @@
     <div class="bg-cardDark border border-borderDark p-3 rounded-xl">
       <span class="text-slate-400 text-[10px] font-medium uppercase tracking-wider block mb-1">Gross Inflows</span>
       <h3 class="text-sm md:text-base font-bold text-white font-mono" id="kpiDeposits">$0.00</h3>
-      <span class="text-[9px] text-slate-500">All-Time Deposited</span>
+      <span class="text-[9px] text-slate-500">All-Time Inflow</span>
     </div>
     <div class="bg-cardDark border border-borderDark p-3 rounded-xl">
       <span class="text-slate-400 text-[10px] font-medium uppercase tracking-wider block mb-1">Withdrawals</span>
       <h3 class="text-sm md:text-base font-bold text-white font-mono" id="kpiWithdrawals">$0.00</h3>
-      <span class="text-[9px] text-slate-500">All-Time Withdrawn</span>
+      <span class="text-[9px] text-slate-500">All-Time Payout</span>
     </div>
     <div class="bg-cardDark border border-borderDark p-3 rounded-xl border-l-4 border-l-indigo-500">
       <span class="text-indigo-300 text-[10px] font-medium uppercase tracking-wider block mb-1">Net Invested</span>
       <h3 class="text-sm md:text-base font-bold text-white font-mono" id="kpiCoreCapital">$0.00</h3>
-      <span class="text-[9px] text-indigo-400">Total Core Capital</span>
+      <span class="text-[9px] text-indigo-400">Core Capital</span>
     </div>
     <div class="bg-cardDark border border-borderDark p-3 rounded-xl">
       <span class="text-slate-400 text-[10px] font-medium uppercase tracking-wider block mb-1">Gross PnL</span>
@@ -129,48 +135,31 @@
   <section class="bg-cardDark border border-borderDark p-4 md:p-5 rounded-2xl mb-6">
     <div class="flex justify-between items-center mb-3">
       <div>
-        <h2 class="font-bold text-sm md:text-base text-white">Cumulative Equity Curve</h2>
-        <p class="text-[11px] text-slate-400">Net Take-Home PnL vs Gross Trading Outcome (USD)</p>
+        <h2 class="font-bold text-sm md:text-base text-white">Performance Trajectory</h2>
+        <p class="text-[11px] text-slate-400" id="chartSubtitle">Cumulative Net Take-Home vs Gross Outcome</p>
       </div>
     </div>
     <div id="equityChart" class="h-[260px] w-full"></div>
   </section>
 
-  <!-- 3. TRADEZELLA-STYLE DAILY JOURNAL CALENDAR -->
+  <!-- 3. ADAPTIVE SECTION: DAILY CALENDAR (FOR MONTH) OR MONTHLY BREAKDOWN (FOR YEAR/MULTI-MONTH) -->
   <section class="bg-cardDark border border-borderDark p-4 md:p-5 rounded-2xl mb-6">
-    <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-4 gap-2">
+    <div class="flex justify-between items-center mb-4">
       <div>
-        <h2 class="font-bold text-sm md:text-base text-white flex items-center gap-2">
-          Daily Journal Calendar
-          <span class="text-xs font-normal text-slate-400" id="calendarMonthLabel"></span>
-        </h2>
-        <p class="text-[11px] text-slate-400">Day-by-day realized results, trade counts, and fees</p>
+        <h2 class="font-bold text-sm md:text-base text-white" id="middleSectionTitle">Journal Overview</h2>
+        <p class="text-[11px] text-slate-400" id="middleSectionSubtitle">Performance breakdown</p>
       </div>
-      <!-- CALENDAR MONTH NAVIGATION BUTTONS -->
-      <div class="flex items-center gap-1.5 bg-panelDark border border-borderDark rounded-xl p-1">
-        <button onclick="shiftCalendarMonth(-1)" class="px-2.5 py-1 text-xs text-slate-300 hover:text-white hover:bg-cardDark rounded-lg transition-colors">
-          <i class="fa-solid fa-chevron-left"></i>
-        </button>
-        <span class="text-xs font-mono font-semibold px-2 text-indigo-300" id="calendarCurrentMonthDisplay"></span>
-        <button onclick="shiftCalendarMonth(1)" class="px-2.5 py-1 text-xs text-slate-300 hover:text-white hover:bg-cardDark rounded-lg transition-colors">
-          <i class="fa-solid fa-chevron-right"></i>
-        </button>
-      </div>
+      <div id="calendarBadge" class="text-xs font-mono text-indigo-300"></div>
     </div>
-
-    <!-- CALENDAR GRID -->
-    <div class="grid grid-cols-7 gap-1.5 sm:gap-2 mb-2 text-center text-[10px] sm:text-[11px] font-semibold text-slate-400 uppercase tracking-wider">
-      <div>Sun</div><div>Mon</div><div>Tue</div><div>Wed</div><div>Thu</div><div>Fri</div><div>Sat</div>
-    </div>
-    <div id="calendarGrid" class="grid grid-cols-7 gap-1.5 sm:gap-2"></div>
+    <div id="middleSectionContainer"></div>
   </section>
 
-  <!-- 4. EXECUTION AUDIT LOG TABLE -->
-  <section class="bg-cardDark border border-borderDark p-4 md:p-5 rounded-2xl">
+  <!-- 4. BOTTOM EXECUTION AUDIT LOG TABLE (VISIBLE ONLY FOR <= 1 MONTH DURATIONS) -->
+  <section id="tradeTableSection" class="bg-cardDark border border-borderDark p-4 md:p-5 rounded-2xl">
     <div class="flex justify-between items-center mb-4">
       <div>
         <h2 class="font-bold text-sm md:text-base text-white">Execution Audit Log</h2>
-        <p class="text-[11px] text-slate-400">Filtered trades for the selected timeframe</p>
+        <p class="text-[11px] text-slate-400" id="tableSubtitle">All trades executed during selected period</p>
       </div>
       <span class="text-xs font-mono text-slate-400" id="tradeCountBadge">Showing 0 trades</span>
     </div>
@@ -196,11 +185,9 @@
   </section>
 
   <script>
-    let globalRawDump = null;
+    let rawDumpCache = null;
     let processedState = null;
     let apexChartInstance = null;
-    let activeCalendarYear = new Date().getFullYear();
-    let activeCalendarMonth = new Date().getMonth(); // 0-indexed
 
     const formatUSD = (val) => {
       const num = Number(val) || 0;
@@ -211,16 +198,16 @@
       try {
         const res = await fetch('./data/raw_data.json?t=' + Date.now());
         if (!res.ok) throw new Error("Could not find data/raw_data.json");
-        globalRawDump = await res.json();
-        document.getElementById('lastUpdated').innerText = `Synced Data As Of: ${globalRawDump.generated_at}`;
-        computeEngine(globalRawDump);
+        rawDumpCache = await res.json();
+        document.getElementById('lastUpdated').innerText = `Synced Data As Of: ${rawDumpCache.generated_at}`;
+        processRawData(rawDumpCache);
       } catch (err) {
         console.error(err);
-        document.getElementById('lastUpdated').innerText = "Status: Waiting for GitHub Action to generate raw_data.json...";
+        document.getElementById('lastUpdated').innerText = "Status: Waiting for GitHub Action data...";
       }
     }
 
-    function computeEngine(rawDump) {
+    function processRawData(rawDump) {
       let total_deposits = 0;
       let total_withdrawals = 0;
       let raw_wallet_taxes = 0;
@@ -242,9 +229,10 @@
         }
       });
 
-      // 2. Process All Executions
+      // 2. Process Orders
       const allTrades = [];
       const dailyMap = {};
+      const monthlyMap = {};
 
       (rawDump.orders || []).forEach(order => {
         if (order.state !== "closed" && order.state !== "filled") return;
@@ -254,17 +242,17 @@
 
         if (grossPnl === 0 && fee === 0) return;
 
-        // Delta India 18% GST calculation
         const gst = fee * 0.18;
         const netPnl = grossPnl - fee - gst;
 
         const dateObj = new Date(order.created_at || order.updated_at);
         const dayKey = dateObj.toISOString().slice(0, 10); // YYYY-MM-DD
+        const monthKey = dayKey.slice(0, 7);              // YYYY-MM
 
+        // Daily aggregation
         if (!dailyMap[dayKey]) {
           dailyMap[dayKey] = { gross_pnl: 0, brokerage: 0, taxes: 0, net_pnl: 0, trades: 0, wins: 0, losses: 0 };
         }
-
         dailyMap[dayKey].gross_pnl += grossPnl;
         dailyMap[dayKey].brokerage += fee;
         dailyMap[dayKey].taxes += gst;
@@ -273,9 +261,20 @@
         if (netPnl > 0) dailyMap[dayKey].wins += 1;
         else if (netPnl < 0) dailyMap[dayKey].losses += 1;
 
+        // Monthly aggregation
+        if (!monthlyMap[monthKey]) {
+          monthlyMap[monthKey] = { month: monthKey, gross_pnl: 0, brokerage: 0, taxes: 0, net_pnl: 0, trades: 0 };
+        }
+        monthlyMap[monthKey].gross_pnl += grossPnl;
+        monthlyMap[monthKey].brokerage += fee;
+        monthlyMap[monthKey].taxes += gst;
+        monthlyMap[monthKey].net_pnl += netPnl;
+        monthlyMap[monthKey].trades += 1;
+
         allTrades.push({
           timestamp: dateObj.toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' }),
           rawDate: dayKey,
+          monthKey: monthKey,
           symbol: order.product_symbol || order.symbol || "OPTION",
           side: (order.side || "").toUpperCase(),
           size: parseFloat(order.size || 0),
@@ -291,105 +290,146 @@
       processedState = {
         allTrades: allTrades.sort((a, b) => b.rawDate.localeCompare(a.rawDate)),
         dailyMap,
+        monthlyMap,
         total_deposits,
         total_withdrawals,
         raw_wallet_taxes
       };
 
-      // Set default calendar to latest available trade month
+      // Set default Specific Month input to latest active month
       if (allTrades.length > 0) {
-        const latest = new Date(allTrades[0].rawDate);
-        activeCalendarYear = latest.getFullYear();
-        activeCalendarMonth = latest.getMonth();
+        document.getElementById('specificMonthInput').value = allTrades[0].monthKey;
+      } else {
+        document.getElementById('specificMonthInput').value = new Date().toISOString().slice(0, 7);
       }
 
-      applyFilters();
+      applyGlobalFilter();
     }
 
     function onPresetChange() {
       const preset = document.getElementById('timeframePreset').value;
+      const specificMonthBox = document.getElementById('specificMonthContainer');
       const customBox = document.getElementById('customDateContainer');
-      if (preset === 'CUSTOM') {
+
+      specificMonthBox.classList.add('hidden');
+      customBox.classList.add('hidden');
+      customBox.classList.remove('flex');
+
+      if (preset === 'SPECIFIC_MONTH') {
+        specificMonthBox.classList.remove('hidden');
+      } else if (preset === 'CUSTOM') {
         customBox.classList.remove('hidden');
         customBox.classList.add('flex');
-      } else {
-        customBox.classList.add('hidden');
-        customBox.classList.remove('flex');
-        applyFilters();
       }
+
+      applyGlobalFilter();
     }
 
-    function getDateRangeForPreset(preset) {
+    function resolveFilterBounds() {
+      const preset = document.getElementById('timeframePreset').value;
       const now = new Date();
-      const currentYear = now.getFullYear();
-      const currentMonth = now.getMonth();
+      const curYear = now.getFullYear();
+      const curMonth = now.getMonth();
 
       let startDate = "";
       let endDate = "";
+      let isSingleMonth = false;
+      let targetMonthStr = ""; // YYYY-MM
+      let displayLabel = "";
 
       if (preset === 'CURRENT_MONTH') {
-        startDate = new Date(currentYear, currentMonth, 1).toISOString().slice(0, 10);
-        endDate = new Date(currentYear, currentMonth + 1, 0).toISOString().slice(0, 10);
+        isSingleMonth = true;
+        targetMonthStr = `${curYear}-${String(curMonth + 1).padStart(2, '0')}`;
+        startDate = new Date(curYear, curMonth, 1).toISOString().slice(0, 10);
+        endDate = new Date(curYear, curMonth + 1, 0).toISOString().slice(0, 10);
+        displayLabel = new Date(curYear, curMonth, 1).toLocaleString('default', { month: 'long', year: 'numeric' });
       } else if (preset === 'LAST_MONTH') {
-        startDate = new Date(currentYear, currentMonth - 1, 1).toISOString().slice(0, 10);
-        endDate = new Date(currentYear, currentMonth, 0).toISOString().slice(0, 10);
+        isSingleMonth = true;
+        const prevDate = new Date(curYear, curMonth - 1, 1);
+        const pYear = prevDate.getFullYear();
+        const pMonth = prevDate.getMonth();
+        targetMonthStr = `${pYear}-${String(pMonth + 1).padStart(2, '0')}`;
+        startDate = new Date(pYear, pMonth, 1).toISOString().slice(0, 10);
+        endDate = new Date(pYear, pMonth + 1, 0).toISOString().slice(0, 10);
+        displayLabel = prevDate.toLocaleString('default', { month: 'long', year: 'numeric' });
+      } else if (preset === 'SPECIFIC_MONTH') {
+        isSingleMonth = true;
+        targetMonthStr = document.getElementById('specificMonthInput').value || `${curYear}-${String(curMonth + 1).padStart(2, '0')}`;
+        const parts = targetMonthStr.split('-');
+        const sYear = parseInt(parts[0]);
+        const sMonth = parseInt(parts[1]) - 1;
+        startDate = new Date(sYear, sMonth, 1).toISOString().slice(0, 10);
+        endDate = new Date(sYear, sMonth + 1, 0).toISOString().slice(0, 10);
+        displayLabel = new Date(sYear, sMonth, 1).toLocaleString('default', { month: 'long', year: 'numeric' });
       } else if (preset === 'THIS_FY') {
-        // Indian Financial Year: April 1 to March 31
-        const fyStartYear = currentMonth >= 3 ? currentYear : currentYear - 1;
-        startDate = `${fyStartYear}-04-01`;
-        endDate = `${fyStartYear + 1}-03-31`;
+        isSingleMonth = false;
+        const fyStart = curMonth >= 3 ? curYear : curYear - 1;
+        startDate = `${fyStart}-04-01`;
+        endDate = `${fyStart + 1}-03-31`;
+        displayLabel = `FY ${fyStart}-${String(fyStart + 1).slice(2)}`;
       } else if (preset === 'LAST_FY') {
-        const fyStartYear = (currentMonth >= 3 ? currentYear : currentYear - 1) - 1;
-        startDate = `${fyStartYear}-04-01`;
-        endDate = `${fyStartYear + 1}-03-31`;
+        isSingleMonth = false;
+        const fyStart = (curMonth >= 3 ? curYear : curYear - 1) - 1;
+        startDate = `${fyStart}-04-01`;
+        endDate = `${fyStart + 1}-03-31`;
+        displayLabel = `FY ${fyStart}-${String(fyStart + 1).slice(2)}`;
       } else if (preset === 'CUSTOM') {
         startDate = document.getElementById('customStartDate').value || "2024-01-01";
         endDate = document.getElementById('customEndDate').value || "2030-12-31";
+        displayLabel = `${startDate} to ${endDate}`;
+        
+        // If custom range spans <= 31 days within the same month, treat as single month
+        const d1 = new Date(startDate);
+        const d2 = new Date(endDate);
+        const diffDays = Math.ceil(Math.abs(d2 - d1) / (1000 * 60 * 60 * 24));
+        if (diffDays <= 31 && startDate.slice(0, 7) === endDate.slice(0, 7)) {
+          isSingleMonth = true;
+          targetMonthStr = startDate.slice(0, 7);
+        } else {
+          isSingleMonth = false;
+        }
       } else {
         // ALL_TIME
+        isSingleMonth = false;
         startDate = "2020-01-01";
         endDate = "2030-12-31";
+        displayLabel = "All-Time";
       }
 
-      return { startDate, endDate };
+      return { startDate, endDate, isSingleMonth, targetMonthStr, displayLabel };
     }
 
-    function applyFilters() {
+    function applyGlobalFilter() {
       if (!processedState) return;
 
-      const preset = document.getElementById('timeframePreset').value;
-      const { startDate, endDate } = getDateRangeForPreset(preset);
+      const { startDate, endDate, isSingleMonth, targetMonthStr, displayLabel } = resolveFilterBounds();
 
       // Filter trades within date range
       const filteredTrades = processedState.allTrades.filter(t => t.rawDate >= startDate && t.rawDate <= endDate);
 
       let periodGross = 0;
       let periodBrokerage = 0;
-      let periodTradeTaxes = 0;
+      let periodTaxes = 0;
       let periodNet = 0;
 
       filteredTrades.forEach(t => {
         periodGross += t.gross_pnl;
         periodBrokerage += t.brokerage;
-        periodTradeTaxes += t.taxes;
+        periodTaxes += t.taxes;
         periodNet += t.net_pnl;
       });
 
-      // Total Statutory Taxes = 18% Trade GST + Any direct TDS/tax in wallet
-      const totalCombinedTaxes = periodTradeTaxes + (preset === 'ALL_TIME' ? processedState.raw_wallet_taxes : 0);
-
-      // Render Static Core Balances
+      // 1. Render Scorecard
       document.getElementById('kpiDeposits').innerText = formatUSD(processedState.total_deposits);
       document.getElementById('kpiWithdrawals').innerText = formatUSD(processedState.total_withdrawals);
       document.getElementById('kpiCoreCapital').innerText = formatUSD(processedState.total_deposits - processedState.total_withdrawals);
 
-      // Render Dynamic Performance Metrics
       const elGross = document.getElementById('kpiGross');
       elGross.innerText = formatUSD(periodGross);
       elGross.className = `text-sm md:text-base font-bold font-mono ${periodGross >= 0 ? 'text-winGreen' : 'text-lossRed'}`;
 
       document.getElementById('kpiBrokerage').innerText = formatUSD(periodBrokerage);
-      document.getElementById('kpiTaxes').innerText = formatUSD(totalCombinedTaxes);
+      document.getElementById('kpiTaxes').innerText = formatUSD(periodTaxes);
 
       const elNet = document.getElementById('kpiNet');
       elNet.innerText = formatUSD(periodNet);
@@ -400,87 +440,144 @@
       document.getElementById('kpiWinRate').innerText = totalCount ? `${Math.round((winCount / totalCount) * 100)}%` : '0%';
       document.getElementById('kpiTradeCount').innerText = `${totalCount} trades`;
 
-      renderCalendar();
+      // 2. Render Chart
       renderTrajectoryChart(filteredTrades);
-      renderTable(filteredTrades);
-    }
 
-    // --- TRADEZELLA CALENDAR ENGINE ---
-    function shiftCalendarMonth(offset) {
-      activeCalendarMonth += offset;
-      if (activeCalendarMonth < 0) {
-        activeCalendarMonth = 11;
-        activeCalendarYear -= 1;
-      } else if (activeCalendarMonth > 11) {
-        activeCalendarMonth = 0;
-        activeCalendarYear += 1;
+      // 3. Render Middle Section (Calendar vs Monthly Grid)
+      renderMiddleSection(isSingleMonth, targetMonthStr, startDate, endDate, displayLabel);
+
+      // 4. Handle Bottom Audit Log Visibility (Rule: Visible ONLY if duration is <= 1 month)
+      const tableSection = document.getElementById('tradeTableSection');
+      if (isSingleMonth) {
+        tableSection.classList.remove('hidden');
+        renderTable(filteredTrades);
+      } else {
+        tableSection.classList.add('hidden'); // Omit completely when viewing Year / Multi-month
       }
-      renderCalendar();
     }
 
-    function renderCalendar() {
-      if (!processedState) return;
+    function renderMiddleSection(isSingleMonth, targetMonthStr, startDate, endDate, displayLabel) {
+      const container = document.getElementById('middleSectionContainer');
+      const title = document.getElementById('middleSectionTitle');
+      const subtitle = document.getElementById('middleSectionSubtitle');
+      const badge = document.getElementById('calendarBadge');
 
-      const container = document.getElementById('calendarGrid');
       container.innerHTML = '';
 
-      const monthName = new Date(activeCalendarYear, activeCalendarMonth, 1).toLocaleString('default', { month: 'long', year: 'numeric' });
-      document.getElementById('calendarMonthLabel').innerText = `(${monthName})`;
-      document.getElementById('calendarCurrentMonthDisplay').innerText = monthName;
+      if (isSingleMonth && targetMonthStr) {
+        // RENDER SINGLE-MONTH TRADEZELLA CALENDAR
+        title.innerText = `Daily Journal Calendar`;
+        subtitle.innerText = `Day-by-day realized PnL and trade activity`;
+        badge.innerText = displayLabel;
 
-      const firstDayOfWeek = new Date(activeCalendarYear, activeCalendarMonth, 1).getDay();
-      const daysInMonth = new Date(activeCalendarYear, activeCalendarMonth + 1, 0).getDate();
+        const parts = targetMonthStr.split('-');
+        const year = parseInt(parts[0]);
+        const month = parseInt(parts[1]) - 1;
 
-      // Empty leading days
-      for (let i = 0; i < firstDayOfWeek; i++) {
-        container.innerHTML += `<div class="min-h-[85px] rounded-xl border border-borderDark/40 bg-brandDark/20"></div>`;
-      }
+        const firstDayOfWeek = new Date(year, month, 1).getDay();
+        const daysInMonth = new Date(year, month + 1, 0).getDate();
 
-      for (let day = 1; day <= daysInMonth; day++) {
-        const monthStr = String(activeCalendarMonth + 1).padStart(2, '0');
-        const dayStr = String(day).padStart(2, '0');
-        const fullDateKey = `${activeCalendarYear}-${monthStr}-${dayStr}`;
+        let calHTML = `
+          <div class="grid grid-cols-7 gap-1.5 sm:gap-2 mb-2 text-center text-[10px] sm:text-[11px] font-semibold text-slate-400 uppercase tracking-wider">
+            <div>Sun</div><div>Mon</div><div>Tue</div><div>Wed</div><div>Thu</div><div>Fri</div><div>Sat</div>
+          </div>
+          <div class="grid grid-cols-7 gap-1.5 sm:gap-2">`;
 
-        const dayData = processedState.dailyMap[fullDateKey];
-
-        if (dayData && dayData.trades > 0) {
-          const isWin = dayData.net_pnl > 0;
-          const isLoss = dayData.net_pnl < 0;
-          const cardBorder = isWin ? 'bg-winGreen/10 border-winGreen/40' : (isLoss ? 'bg-lossRed/10 border-lossRed/40' : 'bg-slate-800/30 border-slate-700');
-          const pnlColor = isWin ? 'text-winGreen' : (isLoss ? 'text-lossRed' : 'text-slate-300');
-
-          container.innerHTML += `
-            <div class="min-h-[85px] p-2 rounded-xl border ${cardBorder} flex flex-col justify-between transition-all hover:scale-[1.02]">
-              <div class="flex justify-between items-center text-[10px]">
-                <span class="font-bold text-white">${day}</span>
-                <span class="px-1 py-0.2 rounded bg-cardDark/80 text-[9px] font-mono text-slate-300">${dayData.trades}t</span>
-              </div>
-              <div class="my-1">
-                <div class="text-xs sm:text-sm font-bold font-mono ${pnlColor}">
-                  ${dayData.net_pnl >= 0 ? '+' : ''}${formatUSD(dayData.net_pnl)}
-                </div>
-                <div class="text-[9px] font-mono text-slate-400">
-                  <span class="text-winGreen">${dayData.wins}W</span> - <span class="text-lossRed">${dayData.losses}L</span>
-                </div>
-              </div>
-              <div class="text-[9px] text-slate-500 font-mono">
-                Fees: ${formatUSD(dayData.brokerage + dayData.taxes)}
-              </div>
-            </div>`;
-        } else {
-          container.innerHTML += `
-            <div class="min-h-[85px] p-2 rounded-xl border border-borderDark/40 bg-panelDark/20 flex flex-col justify-between">
-              <span class="text-[10px] text-slate-600 font-bold">${day}</span>
-              <span class="text-[10px] text-slate-700 font-mono text-center">-</span>
-              <span></span>
-            </div>`;
+        // Empty leading days
+        for (let i = 0; i < firstDayOfWeek; i++) {
+          calHTML += `<div class="min-h-[80px] rounded-xl border border-borderDark/40 bg-brandDark/20"></div>`;
         }
+
+        for (let day = 1; day <= daysInMonth; day++) {
+          const dayStr = String(day).padStart(2, '0');
+          const fullDateKey = `${year}-${String(month + 1).padStart(2, '0')}-${dayStr}`;
+          const dayData = processedState.dailyMap[fullDateKey];
+
+          if (dayData && dayData.trades > 0) {
+            const isWin = dayData.net_pnl > 0;
+            const isLoss = dayData.net_pnl < 0;
+            const cardBorder = isWin ? 'bg-winGreen/10 border-winGreen/40' : (isLoss ? 'bg-lossRed/10 border-lossRed/40' : 'bg-slate-800/30 border-slate-700');
+            const pnlColor = isWin ? 'text-winGreen' : (isLoss ? 'text-lossRed' : 'text-slate-300');
+
+            calHTML += `
+              <div class="min-h-[80px] p-2 rounded-xl border ${cardBorder} flex flex-col justify-between transition-all hover:scale-[1.02]">
+                <div class="flex justify-between items-center text-[10px]">
+                  <span class="font-bold text-white">${day}</span>
+                  <span class="px-1 py-0.2 rounded bg-cardDark/80 text-[9px] font-mono text-slate-300">${dayData.trades}t</span>
+                </div>
+                <div class="my-1">
+                  <div class="text-xs sm:text-sm font-bold font-mono ${pnlColor}">
+                    ${dayData.net_pnl >= 0 ? '+' : ''}${formatUSD(dayData.net_pnl)}
+                  </div>
+                  <div class="text-[9px] font-mono text-slate-400">
+                    <span class="text-winGreen">${dayData.wins}W</span> - <span class="text-lossRed">${dayData.losses}L</span>
+                  </div>
+                </div>
+                <div class="text-[9px] text-slate-500 font-mono">
+                  Fees: ${formatUSD(dayData.brokerage + dayData.taxes)}
+                </div>
+              </div>`;
+          } else {
+            calHTML += `
+              <div class="min-h-[80px] p-2 rounded-xl border border-borderDark/40 bg-panelDark/20 flex flex-col justify-between">
+                <span class="text-[10px] text-slate-600 font-bold">${day}</span>
+                <span class="text-[10px] text-slate-700 font-mono text-center">-</span>
+                <span></span>
+              </div>`;
+          }
+        }
+        calHTML += `</div>`;
+        container.innerHTML = calHTML;
+
+      } else {
+        // RENDER MULTI-MONTH PERFORMANCE GRID (TRADEZELLA YEAR VIEW)
+        title.innerText = `${displayLabel} Monthly Trajectory`;
+        subtitle.innerText = `Aggregated monthly cashflows, brokerage, and net performance`;
+        badge.innerText = `${displayLabel} Overview`;
+
+        const matchingMonths = Object.keys(processedState.monthlyMap)
+          .filter(m => {
+            const mStart = `${m}-01`;
+            return mStart >= startDate.slice(0, 7) && mStart <= endDate.slice(0, 7);
+          })
+          .sort().reverse();
+
+        if (matchingMonths.length === 0) {
+          container.innerHTML = `<div class="p-8 text-center text-slate-500 text-xs">No trade history found for ${displayLabel}.</div>`;
+          return;
+        }
+
+        let gridHTML = `<div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">`;
+        matchingMonths.forEach(mKey => {
+          const mData = processedState.monthlyMap[mKey];
+          const dObj = new Date(mKey + "-01");
+          const mName = dObj.toLocaleString('default', { month: 'short', year: 'numeric' });
+          const isWin = mData.net_pnl >= 0;
+
+          gridHTML += `
+            <div class="border border-borderDark bg-panelDark/40 p-4 rounded-xl flex flex-col justify-between">
+              <div class="flex justify-between items-center mb-2">
+                <span class="font-bold text-sm text-white">${mName}</span>
+                <span class="text-[10px] px-2 py-0.5 rounded bg-cardDark text-slate-400 border border-borderDark">${mData.trades} trades</span>
+              </div>
+              <div class="my-2">
+                <span class="text-[10px] text-slate-400 block uppercase">Net Profit</span>
+                <h4 class="text-base font-bold font-mono ${isWin ? 'text-winGreen' : 'text-lossRed'}">
+                  ${mData.net_pnl >= 0 ? '+' : ''}${formatUSD(mData.net_pnl)}
+                </h4>
+              </div>
+              <div class="flex justify-between items-center pt-2 border-t border-borderDark/60 text-[10px] text-slate-400 font-mono">
+                <span>Gross: ${formatUSD(mData.gross_pnl)}</span>
+                <span class="text-lossRed">Fees: ${formatUSD(mData.brokerage + mData.taxes)}</span>
+              </div>
+            </div>`;
+        });
+        gridHTML += `</div>`;
+        container.innerHTML = gridHTML;
       }
     }
 
-    // --- CHART ENGINE ---
     function renderTrajectoryChart(trades) {
-      // Aggregate in chronological order for equity curve
       const chronological = [...trades].reverse();
       const cat = [];
       const netSeries = [];
@@ -500,7 +597,7 @@
       apexChartInstance = new ApexCharts(document.querySelector("#equityChart"), {
         series: [
           { name: 'Net Take-Home', data: netSeries },
-          { name: 'Gross Market PnL', data: grossSeries }
+          { name: 'Gross Outcome', data: grossSeries }
         ],
         chart: { type: 'area', height: 260, background: 'transparent', toolbar: { show: false } },
         colors: ['#10b981', '#6366f1'],
@@ -514,18 +611,17 @@
       apexChartInstance.render();
     }
 
-    // --- AUDIT LOG TABLE ---
     function renderTable(trades) {
       const tbody = document.getElementById('tradeLogBody');
       tbody.innerHTML = '';
-      document.getElementById('tradeCountBadge').innerText = `Showing ${trades.length} trades`;
+      document.getElementById('tradeCountBadge').innerText = `Showing all ${trades.length} trades`;
 
       if (trades.length === 0) {
-        tbody.innerHTML = `<tr><td colspan="10" class="text-center py-6 text-slate-500 font-sans">No trades found for this period.</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="10" class="text-center py-6 text-slate-500 font-sans">No trades recorded for this month.</td></tr>`;
         return;
       }
 
-      trades.slice(0, 300).forEach(t => {
+      trades.forEach(t => {
         tbody.innerHTML += `
           <tr class="hover:bg-panelDark/40">
             <td class="py-2.5 px-3 text-slate-400">${t.timestamp}</td>
