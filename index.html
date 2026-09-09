@@ -25,7 +25,6 @@
     .custom-scroll::-webkit-scrollbar-track { background: transparent; }
     option { background-color: #0f172a; color: #f8fafc; }
     .no-select { user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; }
-    /* AI Sidebar transition */
     #aiSidebar { transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1); }
     .prose p { margin-bottom: 0.75em; }
     .prose strong { color: #f8fafc; }
@@ -33,7 +32,7 @@
 </head>
 <body class="min-h-screen p-3 md:p-6 lg:p-8 relative">
 
-  <!-- INSTAGRAM-STYLE PEEK OVERLAY -->
+  <!-- PEEK OVERLAY -->
   <div id="peekOverlay" class="fixed inset-0 z-40 flex items-center justify-center bg-brandDark/80 backdrop-blur-sm opacity-0 pointer-events-none transition-opacity duration-200 no-select">
     <div id="peekCard" class="bg-cardDark border border-borderDark rounded-2xl p-5 w-[280px] sm:w-[320px] shadow-2xl scale-95 transition-transform duration-200"></div>
   </div>
@@ -43,23 +42,12 @@
   <div id="aiSidebar" class="fixed top-0 right-0 h-full w-full sm:w-[400px] bg-cardDark border-l border-borderDark z-50 transform translate-x-full shadow-2xl flex flex-col">
     <div class="flex justify-between items-center p-5 border-b border-borderDark bg-panelDark">
       <h2 class="font-bold text-lg text-white flex items-center gap-2"><i class="fa-solid fa-wand-magic-sparkles text-indigo-400"></i> AI Trading Coach</h2>
-      <div class="flex gap-3">
-        <button onclick="toggleAISettings()" class="text-slate-400 hover:text-white transition-colors"><i class="fa-solid fa-gear"></i></button>
-        <button onclick="toggleAICoach()" class="text-slate-400 hover:text-white transition-colors"><i class="fa-solid fa-xmark text-lg"></i></button>
-      </div>
+      <button onclick="toggleAICoach()" class="text-slate-400 hover:text-white transition-colors"><i class="fa-solid fa-xmark text-lg"></i></button>
     </div>
     
-    <!-- API Settings Panel (Hidden by default) -->
-    <div id="aiSettingsPanel" class="hidden p-5 border-b border-borderDark bg-brandDark/50">
-      <label class="block text-xs font-semibold text-slate-400 mb-2">Gemini API Key (Stored Locally)</label>
-      <input type="password" id="apiKeyInput" placeholder="AIzaSy..." class="w-full bg-cardDark border border-borderDark rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-indigo-500 mb-3">
-      <button onclick="saveAPIKey()" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold py-2 rounded-lg transition-colors">Save Key</button>
-    </div>
-
-    <!-- AI Chat/Analysis Area -->
     <div class="flex-1 overflow-y-auto custom-scroll p-5 flex flex-col gap-4" id="aiChatArea">
       <div class="bg-brandDark border border-borderDark rounded-xl p-4 text-sm text-slate-300">
-        Generate AI insights for the currently selected timeframe. The coach will analyze your win rate, profit factor, max drawdown, and hold times to identify your edge and mistakes.
+        Click analyze below to generate an automated review of your currently selected timeframe.
       </div>
     </div>
     <div class="p-5 border-t border-borderDark bg-panelDark">
@@ -69,6 +57,7 @@
     </div>
   </div>
 
+  <!-- HEADER -->
   <header class="flex flex-col xl:flex-row justify-between items-start xl:items-center pb-6 border-b border-borderDark mb-6 gap-4">
     <div>
       <div class="flex items-center gap-3">
@@ -114,7 +103,7 @@
     </div>
   </header>
 
-  <!-- 1. KPI SCORECARD -->
+  <!-- KPI SCORECARD -->
   <section class="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-3 mb-3">
     <div class="bg-cardDark border border-borderDark p-3 rounded-xl"><span class="text-slate-400 text-[10px] font-medium uppercase tracking-wider block mb-1">Gross Inflows</span><h3 class="text-sm md:text-base font-bold text-white font-mono" id="kpiDeposits">$0.00</h3><span class="text-[9px] text-slate-500">All-Time Inflow</span></div>
     <div class="bg-cardDark border border-borderDark p-3 rounded-xl"><span class="text-slate-400 text-[10px] font-medium uppercase tracking-wider block mb-1">Withdrawals</span><h3 class="text-sm md:text-base font-bold text-white font-mono" id="kpiWithdrawals">$0.00</h3><span class="text-[9px] text-slate-500">All-Time Payout</span></div>
@@ -126,7 +115,7 @@
     <div class="bg-cardDark border border-borderDark p-3 rounded-xl"><span class="text-slate-400 text-[10px] font-medium uppercase tracking-wider block mb-1">Win Rate</span><h3 class="text-sm md:text-base font-bold text-white font-mono" id="kpiWinRate">0%</h3><span class="text-[9px] text-slate-500" id="kpiTradeCount">0 trades</span></div>
   </section>
 
-  <!-- 1.5 ADVANCED KPI RIBBON -->
+  <!-- ADVANCED KPI RIBBON -->
   <section class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-3 mb-6">
     <div class="bg-panelDark/40 border border-borderDark px-4 py-2.5 rounded-lg flex justify-between items-center"><span class="text-[10px] text-slate-400 uppercase tracking-wide">Profit Factor</span><span class="text-sm font-bold font-mono text-white" id="advPF">0.00</span></div>
     <div class="bg-panelDark/40 border border-borderDark px-4 py-2.5 rounded-lg flex justify-between items-center"><span class="text-[10px] text-slate-400 uppercase tracking-wide">Avg Win</span><span class="text-sm font-bold font-mono text-winGreen" id="advAvgWin">$0.00</span></div>
@@ -135,9 +124,8 @@
     <div class="bg-panelDark/40 border border-borderDark px-4 py-2.5 rounded-lg flex justify-between items-center"><span class="text-[10px] text-slate-400 uppercase tracking-wide">Avg Hold Time</span><span class="text-sm font-bold font-mono text-indigo-300" id="advAvgHold">0m</span></div>
   </section>
 
-  <!-- 2. TRAJECTORY & INSTRUMENT ANALYSIS -->
+  <!-- TRAJECTORY & INSTRUMENT ANALYSIS -->
   <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
-    <!-- Chart -->
     <section class="lg:col-span-2 bg-cardDark border border-borderDark p-4 md:p-5 rounded-2xl flex flex-col">
       <div class="flex justify-between items-center mb-3">
         <div><h2 class="font-bold text-sm md:text-base text-white">Performance Trajectory</h2><p class="text-[11px] text-slate-400">Net Take-Home vs Gross Outcome</p></div>
@@ -145,26 +133,19 @@
       <div id="equityChart" class="flex-1 w-full overflow-hidden min-h-[260px]"></div>
     </section>
     
-    <!-- Instrument Analytics -->
     <section class="bg-cardDark border border-borderDark p-4 md:p-5 rounded-2xl flex flex-col gap-4">
       <div>
         <h2 class="font-bold text-sm md:text-base text-white">Instrument Analysis</h2>
         <p class="text-[11px] text-slate-400">Profitability by side and contract type</p>
       </div>
       <div class="flex-1 grid grid-cols-2 lg:grid-cols-1 xl:grid-cols-2 gap-4 items-center">
-        <div class="flex flex-col items-center">
-          <div id="callPutChart"></div>
-          <p class="text-[10px] text-slate-400 uppercase tracking-wide mt-2">Calls vs Puts (PnL)</p>
-        </div>
-        <div class="flex flex-col items-center">
-          <div id="buySellChart"></div>
-          <p class="text-[10px] text-slate-400 uppercase tracking-wide mt-2">Buy vs Sell (PnL)</p>
-        </div>
+        <div class="flex flex-col items-center"><div id="callPutChart"></div><p class="text-[10px] text-slate-400 uppercase tracking-wide mt-2">Calls vs Puts (PnL)</p></div>
+        <div class="flex flex-col items-center"><div id="buySellChart"></div><p class="text-[10px] text-slate-400 uppercase tracking-wide mt-2">Buy vs Sell (PnL)</p></div>
       </div>
     </section>
   </div>
 
-  <!-- 3. ADAPTIVE SECTION (Calendar or Compact Grid) -->
+  <!-- ADAPTIVE SECTION (Calendar or Compact Grid) -->
   <section class="bg-cardDark border border-borderDark p-4 md:p-5 rounded-2xl mb-6">
     <div class="flex justify-between items-center mb-4">
       <div><h2 class="font-bold text-sm md:text-base text-white" id="middleSectionTitle">Journal Overview</h2><p class="text-[11px] text-slate-400" id="middleSectionSubtitle">Performance breakdown</p></div>
@@ -173,7 +154,7 @@
     <div id="middleSectionContainer" class="w-full"></div>
   </section>
 
-  <!-- 4. BOTTOM EXECUTION AUDIT LOG TABLE -->
+  <!-- BOTTOM EXECUTION AUDIT LOG TABLE -->
   <section id="tradeTableSection" class="bg-cardDark border border-borderDark p-4 md:p-5 rounded-2xl">
     <div class="flex justify-between items-center mb-4">
       <div><h2 class="font-bold text-sm md:text-base text-white">Grouped Trade Log</h2><p class="text-[11px] text-slate-400" id="tableSubtitle">Scale-ins and scale-outs merged into single positions</p></div>
@@ -208,12 +189,7 @@
     let callPutChart = null;
     let buySellChart = null;
 
-    // Load API Key on start
-    document.addEventListener("DOMContentLoaded", () => { 
-      const savedKey = localStorage.getItem("delta_gemini_key");
-      if(savedKey) document.getElementById('apiKeyInput').value = savedKey;
-      fetchRawData(); 
-    });
+    document.addEventListener("DOMContentLoaded", () => { fetchRawData(); });
 
     const formatUSD = (val) => { const num = Number(val) || 0; return (num < 0 ? "-$" : "$") + Math.abs(num).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }); };
     const compactUSD = (val) => { const num = Number(val) || 0; const absNum = Math.abs(num); if (absNum >= 1000) return (num < 0 ? "-$" : "$") + (absNum / 1000).toFixed(1) + "k"; return (num < 0 ? "-$" : "$") + absNum.toFixed(0); };
@@ -286,27 +262,14 @@
       }
     }
 
-    function toggleAISettings() {
-      const panel = document.getElementById('aiSettingsPanel');
-      panel.classList.toggle('hidden');
-    }
-
-    function saveAPIKey() {
-      const key = document.getElementById('apiKeyInput').value.trim();
-      if(key) {
-        localStorage.setItem("delta_gemini_key", key);
-        alert("API Key saved securely to your browser.");
-        toggleAISettings();
-      }
-    }
-
     async function generateAIAnalysis() {
-      const apiKey = localStorage.getItem("delta_gemini_key");
       const chatArea = document.getElementById('aiChatArea');
       
-      if (!apiKey) {
-        toggleAISettings();
-        chatArea.innerHTML = `<div class="bg-lossRed/10 border border-lossRed/30 text-lossRed p-4 rounded-xl text-sm">Please save your Gemini API Key in settings first.</div>`;
+      // Pull the Gemini key directly from the downloaded raw_data.json
+      const apiKey = rawDumpCache && rawDumpCache.gemini_api_key ? rawDumpCache.gemini_api_key.trim() : null;
+      
+      if (!apiKey || apiKey === "") {
+        chatArea.innerHTML = `<div class="bg-lossRed/10 border border-lossRed/30 text-lossRed p-4 rounded-xl text-sm"><i class="fa-solid fa-triangle-exclamation mr-2"></i><strong>API Key Missing:</strong> Please add GEMINI_API_KEY to your GitHub Secrets and ensure your Python script bundles it into raw_data.json.</div>`;
         return;
       }
 
@@ -321,7 +284,6 @@
           <p class="text-sm text-slate-400 animate-pulse">Coach is analyzing ${currentFilteredTrades.length} trades...</p>
         </div>`;
 
-      // Build data payload for the AI
       const pf = document.getElementById('advPF').innerText;
       const winRate = document.getElementById('kpiWinRate').innerText;
       const netPnl = document.getElementById('kpiNet').innerText;
@@ -346,8 +308,8 @@
         Side PnL - Buying: $${buyPnl.toFixed(2)}, Selling/Writing: $${sellPnl.toFixed(2)}
       `;
 
-      const systemPrompt = `You are an elite, highly analytical crypto options trading coach. The user trades BTC/USD options primarily using 15-minute and 1-hour charts, looking for volume divergence and EMA crossovers. Review the following performance metrics for their selected timeframe. Provide a direct, unvarnished, professional analysis. Format your response strictly using markdown with three bulleted sections:
-      **What's Working:** (Highlight the edge based on their PnL skew, hold times, and instrument preference).
+      const systemPrompt = `You are an elite crypto options trading coach. The user trades BTC/USD options primarily using 15-minute and 1-hour charts, looking for volume divergence and EMA crossovers. Review the performance metrics for their selected timeframe. Provide a direct, unvarnished analysis. Format strictly using markdown with three bulleted sections:
+      **What's Working:** (Highlight their edge based on PnL skew, hold times, and instrument preference).
       **Critical Mistakes:** (Identify mathematical vulnerabilities like poor PF, heavy drawdowns, or side bias).
       **Actionable Adjustments:** (Give 2 specific rules they must follow tomorrow regarding their 15m/1H crossover strategy and hold times).
       Do not use introductory fluff.`;
@@ -362,7 +324,7 @@
           })
         });
 
-        if (!response.ok) throw new Error("API request failed. Check your API key.");
+        if (!response.ok) throw new Error("API request failed. Check your API key or usage limits.");
         const data = await response.json();
         const mdText = data.candidates[0].content.parts[0].text;
         
@@ -403,7 +365,9 @@
 
       const tradesBySymbol = {};
       
-      (rawDump.orders || []).forEach(order => {
+      const sortedOrders = [...(rawDump.orders || [])].sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
+
+      sortedOrders.forEach(order => {
         if (order.state !== "closed" && order.state !== "filled") return;
 
         const grossPnl = parseFloat((order.meta_data && order.meta_data.pnl) ? order.meta_data.pnl : 0);
@@ -414,11 +378,13 @@
         const orderDate = new Date(order.created_at);
 
         if (!tradesBySymbol[sym]) {
-          tradesBySymbol[sym] = { symbol: sym, openDate: orderDate, closeDate: orderDate, side: (order.side || "").toUpperCase(), maxSize: 0, grossPnl: 0, fee: 0, executions: 0 };
+          tradesBySymbol[sym] = { 
+            symbol: sym, openDate: orderDate, closeDate: orderDate, 
+            side: (order.side || "").toUpperCase(), maxSize: 0, grossPnl: 0, fee: 0, executions: 0 
+          };
+        } else {
+          tradesBySymbol[sym].closeDate = orderDate;
         }
-
-        if (orderDate < tradesBySymbol[sym].openDate) { tradesBySymbol[sym].openDate = orderDate; tradesBySymbol[sym].side = (order.side || "").toUpperCase(); }
-        if (orderDate > tradesBySymbol[sym].closeDate) { tradesBySymbol[sym].closeDate = orderDate; }
 
         tradesBySymbol[sym].grossPnl += grossPnl; tradesBySymbol[sym].fee += fee; tradesBySymbol[sym].executions += 1;
 
@@ -435,7 +401,7 @@
       Object.values(tradesBySymbol).forEach(trade => {
         const gst = trade.fee * 0.18;
         const netPnl = trade.grossPnl - trade.fee - gst;
-        const isCall = trade.symbol.includes('-C-');
+        const isCall = trade.symbol.startsWith('C-');
         const holdTimeMs = trade.closeDate - trade.openDate;
 
         const parts = istFormatter.formatToParts(trade.openDate);
@@ -525,15 +491,24 @@
       const { startDate, endDate, isSingleMonth, targetMonthStr, displayLabel } = resolveFilterBounds();
 
       const filteredTrades = processedState.allTrades.filter(t => t.rawDate >= startDate && t.rawDate <= endDate);
-      currentFilteredTrades = filteredTrades; // Save for AI Coach
+      currentFilteredTrades = filteredTrades; 
       
       let periodGross = 0, periodBrokerage = 0, periodTaxes = 0, periodNet = 0;
       let grossWins = 0, grossLosses = 0, winCount = 0, lossCount = 0, totalHoldMs = 0;
       let callPnl = 0, putPnl = 0, buyPnl = 0, sellPnl = 0;
 
-      filteredTrades.forEach(t => {
+      const chronologicalTrades = [...filteredTrades].sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
+      let peak = 0, running = 0, maxDD = 0;
+
+      chronologicalTrades.forEach(t => {
         periodGross += t.gross_pnl; periodBrokerage += t.brokerage; periodTaxes += t.taxes; periodNet += t.net_pnl;
         totalHoldMs += t.holdTimeMs;
+        
+        running += t.net_pnl;
+        if (running > peak) peak = running;
+        const dd = peak - running;
+        if (dd > maxDD) maxDD = dd;
+
         if (t.net_pnl > 0) { grossWins += t.net_pnl; winCount++; }
         else if (t.net_pnl < 0) { grossLosses += Math.abs(t.net_pnl); lossCount++; }
         
@@ -543,7 +518,6 @@
 
       const totalCombinedTaxes = periodTaxes + (document.getElementById('timeframePreset').value === 'ALL_TIME' ? processedState.raw_wallet_taxes : 0);
 
-      // ADVANCED KPIS
       const pf = grossLosses === 0 ? (grossWins > 0 ? "MAX" : "0.00") : (grossWins / grossLosses).toFixed(2);
       const avgWin = winCount > 0 ? (grossWins / winCount) : 0;
       const avgLoss = lossCount > 0 ? (grossLosses / lossCount) : 0;
@@ -552,6 +526,7 @@
       document.getElementById('advPF').innerText = pf;
       document.getElementById('advAvgWin').innerText = formatUSD(avgWin);
       document.getElementById('advAvgLoss').innerText = formatUSD(-avgLoss);
+      document.getElementById('advMaxDD').innerText = formatUSD(-maxDD);
       document.getElementById('advAvgHold').innerText = formatHoldTime(avgHold);
 
       document.getElementById('kpiDeposits').innerText = formatUSD(processedState.total_deposits);
@@ -566,7 +541,7 @@
       document.getElementById('kpiWinRate').innerText = filteredTrades.length ? `${Math.round((winCount / filteredTrades.length) * 100)}%` : '0%';
       document.getElementById('kpiTradeCount').innerText = `${filteredTrades.length} trades`;
 
-      renderTrajectoryChart(filteredTrades, isSingleMonth); // Also calculates Max Drawdown
+      renderTrajectoryChart(filteredTrades, isSingleMonth);
       renderInstrumentCharts(callPnl, putPnl, buyPnl, sellPnl);
       renderMiddleSection(isSingleMonth, targetMonthStr, startDate, endDate, displayLabel);
 
@@ -574,8 +549,7 @@
       if (isSingleMonth) { tableSection.classList.remove('hidden'); renderTable(filteredTrades); } 
       else { tableSection.classList.add('hidden'); }
       
-      // Reset AI UI
-      document.getElementById('aiChatArea').innerHTML = `<div class="bg-brandDark border border-borderDark rounded-xl p-4 text-sm text-slate-300">Generate AI insights for the currently selected timeframe...</div>`;
+      document.getElementById('aiChatArea').innerHTML = `<div class="bg-brandDark border border-borderDark rounded-xl p-4 text-sm text-slate-300">Click analyze below to generate an automated review of your currently selected timeframe.</div>`;
     }
 
     function renderInstrumentCharts(callPnl, putPnl, buyPnl, sellPnl) {
@@ -612,9 +586,11 @@
         for (let day = 1; day <= daysInMonth; day++) {
           const fullDateKey = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
           const dayData = processedState.dailyMap[fullDateKey];
+          
           if (dayData && dayData.trades > 0) {
             const isWin = dayData.net_pnl >= 0;
             const cardBorder = isWin ? 'bg-winGreen/10 border-winGreen/40 text-winGreen' : 'bg-lossRed/10 border-lossRed/40 text-lossRed';
+            
             calHTML += `
               <div class="relative aspect-square rounded-lg sm:rounded-xl border ${cardBorder} flex flex-col justify-center items-center cursor-pointer transition-transform active:scale-90 no-select" 
                    oncontextmenu="return false;" onmouseenter="showPeek('${fullDateKey}')" onmouseleave="hidePeek()" ontouchstart="showPeek('${fullDateKey}')" ontouchend="hidePeek()" ontouchcancel="hidePeek()">
@@ -651,7 +627,6 @@
       const chronological = [...trades].sort((a, b) => a.rawDate.localeCompare(b.rawDate) || new Date(a.timestamp) - new Date(b.timestamp));
       const cat = [], netSeries = [], grossSeries = [];
       let runningNet = 0, runningGross = 0;
-      let peak = 0, maxDD = 0;
 
       if (isSingleMonth) {
         const dailyAgg = {};
@@ -661,9 +636,8 @@
         });
         Object.keys(dailyAgg).sort().forEach(day => {
           runningNet += dailyAgg[day].net; runningGross += dailyAgg[day].gross;
-          if (runningNet > peak) peak = runningNet;
-          const dd = peak - runningNet; if (dd > maxDD) maxDD = dd;
-          cat.push(day.slice(8)); netSeries.push(Number(runningNet.toFixed(2))); grossSeries.push(Number(runningGross.toFixed(2)));
+          cat.push(day.slice(8));
+          netSeries.push(Number(runningNet.toFixed(2))); grossSeries.push(Number(runningGross.toFixed(2)));
         });
       } else {
         const monthlyAgg = {};
@@ -673,14 +647,10 @@
         });
         Object.keys(monthlyAgg).sort().forEach(month => {
           runningNet += monthlyAgg[month].net; runningGross += monthlyAgg[month].gross;
-          if (runningNet > peak) peak = runningNet;
-          const dd = peak - runningNet; if (dd > maxDD) maxDD = dd;
           cat.push(new Date(month + "-01").toLocaleString('default', { month: 'short', year: '2-digit' }));
           netSeries.push(Number(runningNet.toFixed(2))); grossSeries.push(Number(runningGross.toFixed(2)));
         });
       }
-
-      document.getElementById('advMaxDD').innerText = formatUSD(-maxDD);
 
       if (apexChartInstance) apexChartInstance.destroy();
       apexChartInstance = new ApexCharts(document.querySelector("#equityChart"), {
