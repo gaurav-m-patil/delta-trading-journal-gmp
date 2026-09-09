@@ -8,29 +8,21 @@ from datetime import datetime, timezone
 
 API_KEY = os.environ.get("DELTA_API_KEY", "").strip()
 API_SECRET = os.environ.get("DELTA_API_SECRET", "").strip()
-PROXY_URL = os.environ.get("PROXY_URL", "").strip()
+PROXY = os.environ.get("PROXY_URL", "").strip()
 BASE_URL = "https://api.india.delta.exchange"
-CACHE_FILE = "data/raw_cache.json"
-
-PROXIES = {"http": PROXY_URL, "https": PROXY_URL} if PROXY_URL else None
+PROXIES = {"http": PROXY, "https": PROXY} if PROXY else None
 
 def get_signature(secret, method, path, query=""):
     timestamp = str(int(time.time()))
     query_str = f"?{query}" if query else ""
     message = method + timestamp + path + query_str
-    sig = hmac.new(secret.encode('utf-8'), message.encode('utf-8'), hashlib.sha256).hexdigest()
-    return sig, timestamp
+    return hmac.new(secret.encode('utf-8'), message.encode('utf-8'), hashlib.sha256).hexdigest(), timestamp
 
-def fetch_new_records(path, existing_records):
-    """
-    Utilizes Delta's Cursor-Based Pagination (`after` metadata)
-    routed through PROXY_URL to bypass IP whitelisting restrictions.
-    """
-    existing_ids = {str(r.get("id")) for r in existing_records if r.get("id")}
-    new_results = []
+def fetch_full_dump(path):
+    print(f"Executing full data extraction for {path}...")
+    results = []
     after_cursor = ""
-    
-    print(f"Syncing {path} via proxy...")
+    seen_ids = set()
     
     while True:
         query = "page_size=100"
@@ -52,122 +44,92 @@ def fetch_new_records(path, existing_records):
             if not batch:
                 break
                 
-            new_in_batch = []
-            hit_existing = False
-            for item in batch:
-                if str(item.get("id")) in existing_ids:
-                    hit_existing = True
-                    break
-                new_in_batch.append(item)
+            new_records = [item for item in batch if str(item.get("id")) not in seen_ids]
+            results.extend(new_records)
+            for item in new_records:
+                seen_ids.add(str(item.get("id")))
                 
-            new_results.extend(new_in_batch)
-            print(f"  -> Downloaded {len(new_in_batch)} new unique records.")
+            print(f"  -> Pulled {len(new_records)} records (Total: {len(results)})")
             
-            if hit_existing or len(batch) < 100:
-                break
-                
             after_cursor = data.get("meta", {}).get("after")
-            if not after_cursor:
+            if not after_cursor or len(batch) < 100:
                 break
-                
-            time.sleep(0.15)
+            time.sleep(0.2)
         except Exception as e:
-            print(f"  -> Error: {str(e)}")
+            print(f"Request failed: {str(e)}")
             break
             
-    return new_results + existing_records
+    return results
 
 def parse_date(ts_val):
     if not ts_val: return datetime.now(timezone.utc)
     ts_str = str(ts_val)
     if "T" in ts_str: return datetime.fromisoformat(ts_str.replace("Z", "+00:00"))
     try:
-        raw_num = int(ts_str)
-        if raw_num > 10**12: return datetime.fromtimestamp(raw_num / 1000000, tz=timezone.utc)
-        return datetime.fromtimestamp(raw_num, tz=timezone.utc)
+        num = int(ts_str)
+        return datetime.fromtimestamp(num / 1000000 if num > 10**12 else num, tz=timezone.utc)
     except:
         return datetime.now(timezone.utc)
 
 def main():
     os.makedirs("data", exist_ok=True)
     
-    # 1. INDEPENDENT DATA EXTRACTION
-    cache = {"wallet_txs": [], "orders": []}
-    if os.path.exists(CACHE_FILE):
-        try:
-            with open(CACHE_FILE, "r") as f:
-                cache = json.load(f)
-            print(f"Loaded existing cache: {len(cache.get('wallet_txs', []))} wallet txs, {len(cache.get('orders', []))} orders.")
-        except:
-            pass
-
-    cache["wallet_txs"] = fetch_new_records("/v2/wallet/transactions", cache.get("wallet_txs", []))
-    cache["orders"] = fetch_new_records("/v2/orders/history", cache.get("orders", []))
+    wallet_txs = fetch_full_dump("/v2/wallet/transactions")
+    orders = fetch_full_dump("/v2/orders/history")
     
-    with open(CACHE_FILE, "w") as f:
-        json.dump(cache, f)
-
-    # 2. COMPUTATION LOGIC (Runs strictly off the cache)
     total_deposits, total_withdrawals, total_brokerage = 0.0, 0.0, 0.0
     total_taxes_tds, total_taxes_gst, total_gross_pnl, total_net_pnl = 0.0, 0.0, 0.0, 0.0
     daily_rollup, monthly_rollup, trade_list = {}, {}, []
 
-    for tx in cache["wallet_txs"]:
+    for tx in wallet_txs:
         tx_type = str(tx.get("transaction_type", "")).lower()
         amount = float(tx.get("amount", 0.0) or 0.0)
-        abs_amount = abs(amount)
-        dt = parse_date(tx.get("created_at"))
-        m_key = dt.strftime("%Y-%m")
+        abs_amt = abs(amount)
+        m_key = parse_date(tx.get("created_at")).strftime("%Y-%m")
 
         if m_key not in monthly_rollup:
             monthly_rollup[m_key] = {"month": m_key, "deposits": 0.0, "withdrawals": 0.0, "gross_pnl": 0.0, "brokerage": 0.0, "taxes": 0.0, "net_pnl": 0.0, "trades_count": 0}
 
-        if any(k in tx_type for k in ["deposit", "credit", "fund_transfer", "fiat_in"]) or (amount > 0 and "pnl" not in tx_type and "fee" not in tx_type):
-            total_deposits += abs_amount
-            monthly_rollup[m_key]["deposits"] += abs_amount
-        elif any(k in tx_type for k in ["withdrawal", "debit", "fiat_out"]) or (amount < 0 and "pnl" not in tx_type and "fee" not in tx_type and "tax" not in tx_type and "tds" not in tx_type and "gst" not in tx_type):
-            total_withdrawals += abs_amount
-            monthly_rollup[m_key]["withdrawals"] += abs_amount
+        if any(k in tx_type for k in ["deposit", "credit", "fiat_in"]) or (amount > 0 and "pnl" not in tx_type and "fee" not in tx_type):
+            total_deposits += abs_amt
+            monthly_rollup[m_key]["deposits"] += abs_amt
+        elif any(k in tx_type for k in ["withdrawal", "debit", "fiat_out"]) or (amount < 0 and "pnl" not in tx_type and "fee" not in tx_type and "tax" not in tx_type):
+            total_withdrawals += abs_amt
+            monthly_rollup[m_key]["withdrawals"] += abs_amt
 
-        if "tds" in tx_type: total_taxes_tds += abs_amount
-        if "gst" in tx_type: total_taxes_gst += abs_amount
+        if "tds" in tx_type: total_taxes_tds += abs_amt
+        if "gst" in tx_type: total_taxes_gst += abs_amt
 
-    for order in cache["orders"]:
+    for order in orders:
         if str(order.get("state")).lower() not in ["closed", "filled"]:
             continue
             
         realized_pnl = float(order.get("realized_pnl", 0.0) or 0.0)
         fee = abs(float(order.get("fee", 0.0) or order.get("commission", 0.0) or 0.0))
-        
         if realized_pnl == 0 and fee == 0:
             continue
 
-        gst_portion = fee * 0.18
-        net_trade_pnl = realized_pnl - fee - gst_portion
+        gst = fee * 0.18
+        net = realized_pnl - fee - gst
         
         total_gross_pnl += realized_pnl
         total_brokerage += fee
-        total_net_pnl += net_trade_pnl
+        total_net_pnl += net
 
         dt = parse_date(order.get("created_at") or order.get("updated_at"))
-        d_key = dt.strftime("%Y-%m-%d")
-        m_key = dt.strftime("%Y-%m")
+        d_key, m_key = dt.strftime("%Y-%m-%d"), dt.strftime("%Y-%m")
 
-        if d_key not in daily_rollup:
-            daily_rollup[d_key] = {"date": d_key, "trades": 0, "gross_pnl": 0.0, "brokerage": 0.0, "taxes": 0.0, "net_pnl": 0.0}
-        if m_key not in monthly_rollup:
-            monthly_rollup[m_key] = {"month": m_key, "deposits": 0.0, "withdrawals": 0.0, "gross_pnl": 0.0, "brokerage": 0.0, "taxes": 0.0, "net_pnl": 0.0, "trades_count": 0}
+        if d_key not in daily_rollup: daily_rollup[d_key] = {"date": d_key, "trades": 0, "gross_pnl": 0.0, "brokerage": 0.0, "taxes": 0.0, "net_pnl": 0.0}
+        if m_key not in monthly_rollup: monthly_rollup[m_key] = {"month": m_key, "deposits": 0.0, "withdrawals": 0.0, "gross_pnl": 0.0, "brokerage": 0.0, "taxes": 0.0, "net_pnl": 0.0, "trades_count": 0}
 
+        for rollup in [daily_rollup[d_key], monthly_rollup[m_key]]:
+            rollup["gross_pnl"] += realized_pnl
+            rollup["brokerage"] += fee
+            rollup["taxes"] += gst
+            rollup["net_pnl"] += net
+        
         daily_rollup[d_key]["trades"] += 1
-        daily_rollup[d_key]["gross_pnl"] += realized_pnl
-        daily_rollup[d_key]["brokerage"] += fee
-        daily_rollup[d_key]["taxes"] += gst_portion
-        daily_rollup[d_key]["net_pnl"] += net_trade_pnl
         monthly_rollup[m_key]["trades_count"] += 1
-        monthly_rollup[m_key]["gross_pnl"] += realized_pnl
-        monthly_rollup[m_key]["brokerage"] += fee
-        monthly_rollup[m_key]["taxes"] += gst_portion
-        monthly_rollup[m_key]["net_pnl"] += net_trade_pnl
 
         trade_list.append({
             "timestamp": dt.strftime("%Y-%m-%d %H:%M:%S"),
@@ -178,18 +140,17 @@ def main():
             "price": float(order.get("average_fill_price", 0.0) or order.get("price", 0.0) or 0.0),
             "gross_pnl": round(realized_pnl, 2),
             "brokerage": round(fee, 2),
-            "taxes": round(gst_portion, 2),
-            "net_pnl": round(net_trade_pnl, 2),
-            "status": "WIN" if net_trade_pnl > 0 else ("LOSS" if net_trade_pnl < 0 else "BE")
+            "taxes": round(gst, 2),
+            "net_pnl": round(net, 2),
+            "status": "WIN" if net > 0 else ("LOSS" if net < 0 else "BE")
         })
 
-    core_capital = total_deposits - total_withdrawals
     payload = {
         "generated_at": datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC"),
         "kpis": {
             "total_deposits": round(total_deposits, 2),
             "total_withdrawals": round(total_withdrawals, 2),
-            "net_core_capital": round(core_capital, 2),
+            "net_core_capital": round(total_deposits - total_withdrawals, 2),
             "total_gross_pnl": round(total_gross_pnl, 2),
             "total_brokerage": round(total_brokerage, 2),
             "total_taxes": round(total_taxes_tds + total_taxes_gst, 2),
@@ -203,3 +164,6 @@ def main():
 
     with open("data/trade_journal.json", "w") as f:
         json.dump(payload, f, indent=2)
+
+if __name__ == "__main__":
+    main()
