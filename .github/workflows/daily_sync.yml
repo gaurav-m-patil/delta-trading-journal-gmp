@@ -30,6 +30,7 @@ jobs:
           DELTA_API_KEY: ${{ secrets.DELTA_API_KEY }}
           DELTA_API_SECRET: ${{ secrets.DELTA_API_SECRET }}
           PROXY_URL: ${{ secrets.PROXY_URL }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
         run: python scripts/fetch_delta.py
 
       - name: Commit and push updated trading metrics
