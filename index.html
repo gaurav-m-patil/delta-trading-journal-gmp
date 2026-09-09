@@ -4,32 +4,15 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Delta Trading Journal</title>
-  
-  <!-- PWA Meta Tags -->
   <meta name="theme-color" content="#080b11">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <link rel="manifest" href="manifest.json">
-
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://cdn.jsdelivr.net/npm/apexcharts"></script>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
   <script>
-    tailwind.config = {
-      darkMode: 'class',
-      theme: {
-        extend: {
-          colors: {
-            brandDark: '#080b11',
-            cardDark: '#0f172a',
-            panelDark: '#131d31',
-            borderDark: '#1e293b',
-            winGreen: '#10b981',
-            lossRed: '#f43f5e'
-          }
-        }
-      }
-    }
+    tailwind.config = { darkMode: 'class', theme: { extend: { colors: { brandDark: '#080b11', cardDark: '#0f172a', panelDark: '#131d31', borderDark: '#1e293b', winGreen: '#10b981', lossRed: '#f43f5e' } } } }
   </script>
   <style>
     body { background-color: #080b11; color: #f8fafc; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
@@ -40,80 +23,58 @@
 </head>
 <body class="min-h-screen p-4 md:p-8">
 
-  <!-- TOP BAR & GLOBAL CONTROLLER -->
   <header class="flex flex-col lg:flex-row justify-between items-start lg:items-center pb-6 border-b border-borderDark mb-6 gap-4">
     <div>
       <div class="flex items-center gap-3">
-        <div class="h-10 w-10 bg-indigo-600 rounded-xl flex items-center justify-center text-white font-bold shadow-lg shadow-indigo-500/20">
-          <i class="fa-solid fa-chart-line text-lg"></i>
-        </div>
+        <div class="h-10 w-10 bg-indigo-600 rounded-xl flex items-center justify-center text-white font-bold shadow-lg shadow-indigo-500/20"><i class="fa-solid fa-chart-line text-lg"></i></div>
         <div>
-          <h1 class="text-xl md:text-2xl font-bold tracking-tight text-white flex items-center gap-2">
-            Delta Trading Journal
-            <span class="px-2 py-0.5 rounded text-[10px] font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">Sync Active</span>
-          </h1>
+          <h1 class="text-xl md:text-2xl font-bold tracking-tight text-white flex items-center gap-2">Delta Trading Journal <span class="px-2 py-0.5 rounded text-[10px] font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">Sync Active</span></h1>
           <div class="flex items-center gap-2 mt-0.5">
-            <p class="text-xs text-slate-400" id="lastUpdated">Loading historical sync...</p>
-            <span class="text-slate-600">•</span>
-            <p class="text-xs text-indigo-300 font-mono flex items-center gap-1" id="exchangeRate">
-              <i class="fa-solid fa-bolt text-[10px] text-indigo-400"></i> Fetching Live USD/INR...
-            </p>
+            <p class="text-xs text-slate-400" id="lastUpdated">Loading raw data...</p>
           </div>
         </div>
       </div>
     </div>
-
-    <!-- DUAL SMART TIMEFRAME SELECTOR -->
     <div class="flex flex-wrap items-center gap-3 w-full lg:w-auto">
       <div class="flex items-center bg-cardDark border border-borderDark rounded-xl p-1 shadow-sm w-full sm:w-auto gap-1">
         <i class="fa-regular fa-calendar-days pl-3 pr-2 text-slate-400 text-xs"></i>
-        <select id="yearSelect" onchange="onYearChange()" class="bg-transparent text-white text-xs font-semibold py-1.5 px-2 focus:outline-none cursor-pointer border-r border-borderDark">
-        </select>
-        <select id="monthSelect" onchange="onMonthChange()" class="bg-transparent text-white text-xs font-semibold py-1.5 px-2 focus:outline-none cursor-pointer">
-        </select>
+        <select id="yearSelect" onchange="onYearChange()" class="bg-transparent text-white text-xs font-semibold py-1.5 px-2 focus:outline-none cursor-pointer border-r border-borderDark"></select>
+        <select id="monthSelect" onchange="onMonthChange()" class="bg-transparent text-white text-xs font-semibold py-1.5 px-2 focus:outline-none cursor-pointer"></select>
       </div>
-      <button onclick="fetchJournalData(); fetchExchangeRate();" class="px-4 py-2 text-xs font-medium bg-cardDark border border-borderDark hover:bg-panelDark rounded-xl transition-colors flex items-center gap-2 text-slate-300">
-        <i class="fa-solid fa-arrows-rotate"></i> Refresh
+      <button onclick="fetchRawData()" class="px-4 py-2 text-xs font-medium bg-cardDark border border-borderDark hover:bg-panelDark rounded-xl transition-colors flex items-center gap-2 text-slate-300">
+        <i class="fa-solid fa-arrows-rotate"></i> Recalculate UI
       </button>
     </div>
   </header>
 
-  <!-- 1. BIFURCATED KPI SCORECARD RIBBON -->
   <section class="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-3 mb-6">
     <div class="bg-cardDark border border-borderDark p-3.5 rounded-xl">
       <span class="text-slate-400 text-[11px] font-medium uppercase tracking-wider block mb-1">Gross Inflows</span>
       <h3 class="text-base md:text-lg font-bold text-white font-mono" id="kpiDeposits">$0.00</h3>
-      <span class="text-[10px] text-slate-500 text-indigo-300">All-Time Deposited</span>
     </div>
     <div class="bg-cardDark border border-borderDark p-3.5 rounded-xl">
       <span class="text-slate-400 text-[11px] font-medium uppercase tracking-wider block mb-1">Withdrawals</span>
       <h3 class="text-base md:text-lg font-bold text-white font-mono" id="kpiWithdrawals">$0.00</h3>
-      <span class="text-[10px] text-slate-500 text-indigo-300">All-Time to Bank</span>
     </div>
     <div class="bg-cardDark border border-borderDark p-3.5 rounded-xl border-l-4 border-l-indigo-500">
       <span class="text-indigo-300 text-[11px] font-medium uppercase tracking-wider block mb-1">Net Invested</span>
       <h3 class="text-base md:text-lg font-bold text-white font-mono" id="kpiCoreCapital">$0.00</h3>
-      <span class="text-[10px] text-indigo-400">Total Core Capital</span>
     </div>
     <div class="bg-cardDark border border-borderDark p-3.5 rounded-xl">
       <span class="text-slate-400 text-[11px] font-medium uppercase tracking-wider block mb-1">Gross PnL</span>
       <h3 class="text-base md:text-lg font-bold font-mono" id="kpiGross">$0.00</h3>
-      <span class="text-[10px] text-slate-500">Market gain/loss</span>
     </div>
     <div class="bg-cardDark border border-borderDark p-3.5 rounded-xl">
       <span class="text-slate-400 text-[11px] font-medium uppercase tracking-wider block mb-1">Brokerage Fees</span>
       <h3 class="text-base md:text-lg font-bold text-lossRed font-mono" id="kpiBrokerage">$0.00</h3>
-      <span class="text-[10px] text-slate-500">Exchange cost</span>
     </div>
     <div class="bg-cardDark border border-borderDark p-3.5 rounded-xl">
       <span class="text-slate-400 text-[11px] font-medium uppercase tracking-wider block mb-1">Taxes (GST/TDS)</span>
       <h3 class="text-base md:text-lg font-bold text-lossRed font-mono" id="kpiTaxes">$0.00</h3>
-      <span class="text-[10px] text-slate-500">Statutory cuts</span>
     </div>
     <div class="bg-cardDark border border-borderDark p-3.5 rounded-xl border-l-4 border-l-emerald-500">
       <span class="text-emerald-300 text-[11px] font-medium uppercase tracking-wider block mb-1">Net PnL</span>
       <h3 class="text-base md:text-lg font-bold font-mono" id="kpiNet">$0.00</h3>
-      <span class="text-[10px] text-emerald-400">Actual take-home</span>
     </div>
     <div class="bg-cardDark border border-borderDark p-3.5 rounded-xl">
       <span class="text-slate-400 text-[11px] font-medium uppercase tracking-wider block mb-1">Win Rate</span>
@@ -122,35 +83,23 @@
     </div>
   </section>
 
-  <!-- 2. PERFORMANCE TRAJECTORY CHART -->
   <section class="bg-cardDark border border-borderDark p-5 rounded-2xl mb-6">
     <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-4 gap-2">
-      <div>
-        <h2 class="font-bold text-base text-white">Performance Trajectory</h2>
-        <p class="text-xs text-slate-400" id="chartSubtitle">Cumulative Net PnL vs Gross outcome (USD)</p>
-      </div>
+      <div><h2 class="font-bold text-base text-white">Performance Trajectory</h2></div>
     </div>
     <div id="equityChart" class="h-[280px] w-full"></div>
   </section>
 
-  <!-- 3. ADAPTIVE GROUPING SECTION -->
   <section class="bg-cardDark border border-borderDark p-5 rounded-2xl mb-6">
     <div class="flex justify-between items-center mb-4">
-      <div>
-        <h2 class="font-bold text-base text-white" id="groupingTitle">Daily Journal Calendar</h2>
-        <p class="text-xs text-slate-400" id="groupingSubtitle">Day-by-day realized results in USD</p>
-      </div>
+      <div><h2 class="font-bold text-base text-white" id="groupingTitle">Daily Journal Calendar</h2></div>
     </div>
     <div id="adaptiveContainer"></div>
   </section>
 
-  <!-- 4. TRADE AUDIT EXECUTION TABLE -->
   <section class="bg-cardDark border border-borderDark p-5 rounded-2xl">
     <div class="flex justify-between items-center mb-4">
-      <div>
-        <h2 class="font-bold text-base text-white">Execution Audit Log</h2>
-        <p class="text-xs text-slate-400" id="tableSubtitle">Filtered trades for selected timeframe</p>
-      </div>
+      <div><h2 class="font-bold text-base text-white">Execution Audit Log</h2></div>
       <span class="text-xs font-mono text-slate-400" id="tradeCountBadge">Showing 0 trades</span>
     </div>
     <div class="overflow-x-auto custom-scroll">
@@ -164,66 +113,118 @@
             <th class="py-3 px-3 text-right">Price</th>
             <th class="py-3 px-3 text-right">Gross PnL</th>
             <th class="py-3 px-3 text-right">Brokerage</th>
-            <th class="py-3 px-3 text-right">Taxes</th>
             <th class="py-3 px-3 text-right">Net PnL</th>
             <th class="py-3 px-3 text-center">Status</th>
           </tr>
         </thead>
-        <tbody id="tradeLogBody" class="divide-y divide-borderDark text-slate-300">
-        </tbody>
+        <tbody id="tradeLogBody" class="divide-y divide-borderDark text-slate-300"></tbody>
       </table>
     </div>
   </section>
 
   <script>
-    let rawJournalData = null;
+    let computedData = null;
     let apexChartInstance = null;
+    const formatUSD = (val) => { const num = Number(val) || 0; return (num < 0 ? "-$" : "$") + Math.abs(num).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }); };
 
-    const formatUSD = (val) => {
-      const num = Number(val) || 0;
-      return (num < 0 ? "-$" : "$") + Math.abs(num).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-    };
-
-    async function fetchExchangeRate() {
+    async function fetchRawData() {
       try {
-        const res = await fetch('https://open.er-api.com/v6/latest/USD');
-        const data = await res.json();
-        const rate = data.rates.INR;
-        document.getElementById('exchangeRate').innerHTML = `<i class="fa-solid fa-indian-rupee-sign text-[10px]"></i> 1 USD = ${rate.toFixed(2)} INR (Live)`;
-      } catch (err) {
-        document.getElementById('exchangeRate').innerText = "Live exchange rate unavailable";
-      }
-    }
-
-    async function fetchJournalData() {
-      try {
-        const res = await fetch('./data/trade_journal.json?t=' + Date.now());
+        const res = await fetch('./data/raw_data.json?t=' + Date.now());
         if (!res.ok) throw new Error("File not found");
-        rawJournalData = await res.json();
-        setupTimeframeDropdown();
+        const rawDump = await res.json();
+        document.getElementById('lastUpdated').innerText = `Raw Data Extracted: ${rawDump.generated_at}`;
+        computeEngine(rawDump); 
       } catch (err) {
         console.error(err);
-        document.getElementById('lastUpdated').innerText = "Status: Error loading data/trade_journal.json";
+        document.getElementById('lastUpdated').innerText = "Status: Awaiting GitHub Action completion...";
       }
     }
 
-    function setupTimeframeDropdown() {
-      const { monthly_breakdown, generated_at } = rawJournalData;
-      document.getElementById('lastUpdated').innerText = `Last Synced: ${generated_at}`;
+    function computeEngine(rawDump) {
+      // THIS IS WHERE THE MATH HAPPENS DIRECTLY IN YOUR BROWSER
+      const computed = {
+        total_deposits: 0, total_withdrawals: 0, total_gross_pnl: 0, total_brokerage: 0, total_taxes: 0, total_net_pnl: 0,
+        monthly: {}, daily: {}, trades: []
+      };
 
-      const months = (monthly_breakdown || []).map(m => m.month).sort().reverse();
+      // 1. Process Wallet Transactions
+      (rawDump.wallet_txs || []).forEach(tx => {
+        const type = (tx.transaction_type || "").toLowerCase();
+        const amt = parseFloat(tx.amount || 0);
+        const absAmt = Math.abs(amt);
+        const dateObj = new Date(tx.created_at);
+        const monthKey = dateObj.toISOString().slice(0, 7);
+
+        if (!computed.monthly[monthKey]) computed.monthly[monthKey] = { gross_pnl: 0, brokerage: 0, net_pnl: 0, trades: 0 };
+
+        if (type.includes("deposit") || type.includes("fiat_in") || (amt > 0 && !type.includes("pnl") && !type.includes("fee"))) {
+          computed.total_deposits += absAmt;
+        } else if (type.includes("withdrawal") || type.includes("fiat_out") || (amt < 0 && !type.includes("pnl") && !type.includes("fee") && !type.includes("tax"))) {
+          computed.total_withdrawals += absAmt;
+        }
+        if (type.includes("tds") || type.includes("gst")) computed.total_taxes += absAmt;
+      });
+
+      // 2. Process Orders using correct Delta JSON Keys
+      (rawDump.orders || []).forEach(order => {
+        if (order.state !== "closed" && order.state !== "filled") return;
+
+        // Extracting from meta_data and paid_commission as seen in your provided raw JSON
+        const pnl = parseFloat((order.meta_data && order.meta_data.pnl) ? order.meta_data.pnl : 0);
+        const fee = Math.abs(parseFloat(order.paid_commission || 0));
+        
+        if (pnl === 0 && fee === 0) return;
+
+        const gst = fee * 0.18;
+        const net = pnl - fee - gst;
+
+        computed.total_gross_pnl += pnl;
+        computed.total_brokerage += fee;
+        computed.total_net_pnl += net;
+
+        const dateObj = new Date(order.created_at || order.updated_at);
+        const dayKey = dateObj.toISOString().slice(0, 10);
+        const monthKey = dayKey.slice(0, 7);
+
+        if (!computed.daily[dayKey]) computed.daily[dayKey] = { gross_pnl: 0, net_pnl: 0, brokerage: 0, trades: 0 };
+        if (!computed.monthly[monthKey]) computed.monthly[monthKey] = { gross_pnl: 0, net_pnl: 0, brokerage: 0, trades: 0 };
+
+        computed.daily[dayKey].gross_pnl += pnl;
+        computed.daily[dayKey].net_pnl += net;
+        computed.daily[dayKey].brokerage += (fee + gst);
+        computed.daily[dayKey].trades += 1;
+        
+        computed.monthly[monthKey].gross_pnl += pnl;
+        computed.monthly[monthKey].net_pnl += net;
+        computed.monthly[monthKey].brokerage += (fee + gst);
+        computed.monthly[monthKey].trades += 1;
+
+        computed.trades.push({
+          timestamp: dateObj.toLocaleString(),
+          date: dayKey,
+          symbol: order.product_symbol || order.symbol || "N/A",
+          side: (order.side || "").toUpperCase(),
+          size: parseFloat(order.size || 0),
+          price: parseFloat(order.average_fill_price || order.limit_price || 0),
+          gross_pnl: pnl,
+          brokerage: fee,
+          net_pnl: net,
+          status: net > 0 ? 'WIN' : (net < 0 ? 'LOSS' : 'BE')
+        });
+      });
+
+      computedData = computed;
+      setupTimeframeDropdown();
+    }
+
+    // --- UI RENDERING LOGIC REMAINS IDENTICAL ---
+    function setupTimeframeDropdown() {
+      const months = Object.keys(computedData.monthly).sort().reverse();
       const years = [...new Set(months.map(m => m.slice(0, 4)))].sort().reverse();
 
       const yearSelect = document.getElementById('yearSelect');
       yearSelect.innerHTML = `<option value="ALL">All-Time</option>`;
       years.forEach(y => { yearSelect.innerHTML += `<option value="${y}">${y}</option>`; });
-
-      const currentYear = new Date().getFullYear().toString();
-      if (years.includes(currentYear)) {
-          yearSelect.value = currentYear;
-      } else if (years.length > 0) {
-          yearSelect.value = years[0];
-      }
       onYearChange(); 
     }
 
@@ -233,276 +234,118 @@
       
       if (yearSelect === 'ALL') {
         monthSelect.style.display = 'none';
-        renderFilteredView('ALL');
+        renderUI('ALL');
         return;
       }
       
       monthSelect.style.display = 'inline-block';
       monthSelect.innerHTML = `<option value="YEAR_ALL">Entire ${yearSelect}</option>`;
-      
-      const { monthly_breakdown } = rawJournalData;
-      const monthsInYear = (monthly_breakdown || [])
-        .map(m => m.month)
-        .filter(m => m.startsWith(yearSelect))
-        .sort().reverse();
-        
-      monthsInYear.forEach(m => {
-        const d = new Date(m + "-01");
-        const monthName = d.toLocaleString('default', { month: 'short' });
-        monthSelect.innerHTML += `<option value="${m}">${monthName}</option>`;
+      Object.keys(computedData.monthly).filter(m => m.startsWith(yearSelect)).sort().reverse().forEach(m => {
+        monthSelect.innerHTML += `<option value="${m}">${new Date(m + "-01").toLocaleString('default', { month: 'short' })}</option>`;
       });
-
-      const currentMonthKey = new Date().toISOString().slice(0, 7);
-      if (monthsInYear.includes(currentMonthKey)) {
-          monthSelect.value = currentMonthKey;
-      } else {
-          monthSelect.value = "YEAR_ALL";
-      }
       onMonthChange();
     }
 
     function onMonthChange() {
       const year = document.getElementById('yearSelect').value;
       const month = document.getElementById('monthSelect').value;
-      
-      if (year === 'ALL') renderFilteredView('ALL');
-      else if (month === 'YEAR_ALL') renderFilteredView(`YEAR:${year}`);
-      else renderFilteredView(`MONTH:${month}`);
+      if (year === 'ALL') renderUI('ALL');
+      else if (month === 'YEAR_ALL') renderUI(`YEAR:${year}`);
+      else renderUI(`MONTH:${month}`);
     }
 
-    function renderFilteredView(filterValue) {
-      if (!rawJournalData) return;
-
+    function renderUI(filterValue) {
+      if (!computedData) return;
       const [type, val] = filterValue.split(':');
-      const { trades, monthly_breakdown, daily_breakdown, kpis } = rawJournalData;
 
-      let filteredTrades = [];
-      let periodGross = 0;
-      let periodBrokerage = 0;
-      let periodTaxes = 0;
-      let periodNet = 0;
+      let periodGross = 0, periodBrokerage = 0, periodNet = 0;
+      let filteredTrades = computedData.trades;
 
       if (filterValue === 'ALL') {
-        filteredTrades = trades || [];
-        periodGross = kpis.total_gross_pnl;
-        periodBrokerage = kpis.total_brokerage;
-        periodTaxes = kpis.total_taxes;
-        periodNet = kpis.total_net_pnl;
+        periodGross = computedData.total_gross_pnl;
+        periodBrokerage = computedData.total_brokerage;
+        periodNet = computedData.total_net_pnl;
       } else if (type === 'YEAR') {
-        filteredTrades = (trades || []).filter(t => t.date.startsWith(val));
-        const matchingMonths = (monthly_breakdown || []).filter(m => m.month.startsWith(val));
-        matchingMonths.forEach(m => {
-          periodGross += m.gross_pnl || 0;
-          periodBrokerage += m.brokerage || 0;
-          periodTaxes += m.taxes || 0;
-          periodNet += m.net_pnl || 0;
+        filteredTrades = computedData.trades.filter(t => t.date.startsWith(val));
+        Object.keys(computedData.monthly).filter(k => k.startsWith(val)).forEach(k => {
+          periodGross += computedData.monthly[k].gross_pnl;
+          periodBrokerage += computedData.monthly[k].brokerage;
+          periodNet += computedData.monthly[k].net_pnl;
         });
       } else if (type === 'MONTH') {
-        filteredTrades = (trades || []).filter(t => t.date.startsWith(val));
-        const mData = (monthly_breakdown || []).find(m => m.month === val);
-        if (mData) {
-          periodGross = mData.gross_pnl || 0;
-          periodBrokerage = mData.brokerage || 0;
-          periodTaxes = mData.taxes || 0;
-          periodNet = mData.net_pnl || 0;
-        }
+        filteredTrades = computedData.trades.filter(t => t.date.startsWith(val));
+        const m = computedData.monthly[val] || {};
+        periodGross = m.gross_pnl || 0;
+        periodBrokerage = m.brokerage || 0;
+        periodNet = m.net_pnl || 0;
       }
 
-      // 1. Force Deposits/Withdrawals to always show All-Time totals so your account size doesn't reset to $0
-      document.getElementById('kpiDeposits').innerText = formatUSD(kpis.total_deposits);
-      document.getElementById('kpiWithdrawals').innerText = formatUSD(kpis.total_withdrawals);
-      document.getElementById('kpiCoreCapital').innerText = formatUSD(kpis.net_core_capital);
-
-      // 2. Render Dynamic PnL Values
-      const elGross = document.getElementById('kpiGross');
-      elGross.innerText = formatUSD(periodGross);
-      elGross.className = `text-base md:text-lg font-bold font-mono ${periodGross >= 0 ? 'text-winGreen' : 'text-lossRed'}`;
-
+      document.getElementById('kpiDeposits').innerText = formatUSD(computedData.total_deposits);
+      document.getElementById('kpiWithdrawals').innerText = formatUSD(computedData.total_withdrawals);
+      document.getElementById('kpiCoreCapital').innerText = formatUSD(computedData.total_deposits - computedData.total_withdrawals);
+      
+      document.getElementById('kpiGross').innerText = formatUSD(periodGross);
+      document.getElementById('kpiGross').className = `text-base md:text-lg font-bold font-mono ${periodGross >= 0 ? 'text-winGreen' : 'text-lossRed'}`;
       document.getElementById('kpiBrokerage').innerText = formatUSD(periodBrokerage);
-      document.getElementById('kpiTaxes').innerText = formatUSD(periodTaxes);
-
-      const elNet = document.getElementById('kpiNet');
-      elNet.innerText = formatUSD(periodNet);
-      elNet.className = `text-base md:text-lg font-bold font-mono ${periodNet >= 0 ? 'text-winGreen' : 'text-lossRed'}`;
+      document.getElementById('kpiTaxes').innerText = formatUSD(computedData.total_taxes); // Global tax
+      document.getElementById('kpiNet').innerText = formatUSD(periodNet);
+      document.getElementById('kpiNet').className = `text-base md:text-lg font-bold font-mono ${periodNet >= 0 ? 'text-winGreen' : 'text-lossRed'}`;
 
       const winCount = filteredTrades.filter(t => t.status === 'WIN').length;
-      const totalClosed = filteredTrades.length;
-      const winRate = totalClosed > 0 ? Math.round((winCount / totalClosed) * 100) : 0;
-      document.getElementById('kpiWinRate').innerText = `${winRate}%`;
-      document.getElementById('kpiTradeCount').innerText = `${totalClosed} total trades`;
+      document.getElementById('kpiWinRate').innerText = filteredTrades.length ? `${Math.round((winCount / filteredTrades.length) * 100)}%` : '0%';
+      document.getElementById('kpiTradeCount').innerText = `${filteredTrades.length} trades`;
 
-      renderAdaptiveSection(type, val, daily_breakdown, monthly_breakdown);
-      renderChart(type, val, filteredTrades, daily_breakdown, monthly_breakdown);
-      renderTradeTable(filteredTrades);
+      renderTable(filteredTrades);
+      renderChartAndCalendar(type, val);
     }
 
-    function renderAdaptiveSection(type, val, daily_breakdown, monthly_breakdown) {
-      const container = document.getElementById('adaptiveContainer');
-      const title = document.getElementById('groupingTitle');
-      const subtitle = document.getElementById('groupingSubtitle');
-
-      if (type === 'MONTH') {
-        const dObj = new Date(val + "-01");
-        const monthName = dObj.toLocaleString('default', { month: 'long', year: 'numeric' });
-        title.innerText = `${monthName} Calendar`;
-        subtitle.innerText = `Full calendar grid view with day-by-day PnL (USD)`;
-
-        const year = parseInt(val.slice(0, 4));
-        const month = parseInt(val.slice(5, 7)) - 1;
-        const firstDayIndex = new Date(year, month, 1).getDay();
-        const totalDays = new Date(year, month + 1, 0).getDate();
-
-        let calHTML = `<div class="grid grid-cols-7 gap-2 mb-2 text-center text-[11px] font-semibold text-slate-400 uppercase tracking-wider">
-            <div>Sun</div><div>Mon</div><div>Tue</div><div>Wed</div><div>Thu</div><div>Fri</div><div>Sat</div>
-          </div><div class="grid grid-cols-7 gap-2">`;
-
-        for (let i = 0; i < firstDayIndex; i++) {
-          calHTML += `<div class="min-h-[75px] rounded-xl border border-borderDark/40 bg-brandDark/30"></div>`;
-        }
-
-        for (let day = 1; day <= totalDays; day++) {
-          const dayStr = `${val}-${String(day).padStart(2, '0')}`;
-          const dayData = daily_breakdown[dayStr];
-
-          if (dayData && dayData.trades > 0) {
-            const isWin = dayData.net_pnl > 0;
-            const isLoss = dayData.net_pnl < 0;
-            const bgBorder = isWin ? 'bg-winGreen/10 border-winGreen/40' : (isLoss ? 'bg-lossRed/10 border-lossRed/40' : 'bg-slate-800/40 border-slate-700');
-            const textColor = isWin ? 'text-winGreen' : (isLoss ? 'text-lossRed' : 'text-slate-300');
-
-            calHTML += `<div class="min-h-[75px] p-2 rounded-xl border ${bgBorder} flex flex-col justify-between">
-                <div class="flex justify-between items-center text-[10px] text-slate-400">
-                  <span class="font-bold">${day}</span><span>${dayData.trades} trds</span>
-                </div>
-                <div class="text-xs sm:text-sm font-bold font-mono ${textColor}">${formatUSD(dayData.net_pnl)}</div>
-                <div class="text-[9px] text-slate-500 font-mono">F: ${formatUSD(dayData.brokerage + dayData.taxes)}</div>
-              </div>`;
-          } else {
-            calHTML += `<div class="min-h-[75px] p-2 rounded-xl border border-borderDark/60 bg-panelDark/40 flex flex-col justify-between">
-                <span class="text-[10px] text-slate-500 font-bold">${day}</span><span class="text-[10px] text-slate-600 font-mono">-</span><span></span>
-              </div>`;
-          }
-        }
-        calHTML += `</div>`;
-        container.innerHTML = calHTML;
-      } else {
-        title.innerText = type === 'YEAR' ? `Year ${val} Monthly Breakdown` : "All-Time Monthly Trajectory";
-        subtitle.innerText = "Aggregated monthly cashflows, fees, and net returns (USD)";
-
-        const monthsToDisplay = (monthly_breakdown || []).filter(m => type === 'ALL' || m.month.startsWith(val));
-        let gridHTML = `<div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">`;
-
-        monthsToDisplay.forEach(m => {
-          const d = new Date(m.month + "-01");
-          const mName = d.toLocaleString('default', { month: 'short', year: 'numeric' });
-          const isWin = m.net_pnl >= 0;
-          gridHTML += `<div class="border border-borderDark bg-panelDark/40 hover:border-slate-600 p-4 rounded-xl flex flex-col justify-between">
-              <div class="flex justify-between items-center mb-2">
-                <span class="font-bold text-sm text-white">${mName}</span>
-                <span class="text-[10px] px-2 py-0.5 rounded bg-cardDark text-slate-400 border border-borderDark">${m.trades_count || 0} trades</span>
-              </div>
-              <div class="my-2">
-                <span class="text-[10px] text-slate-400 block uppercase">Net Profit</span>
-                <h4 class="text-base font-bold font-mono ${isWin ? 'text-winGreen' : 'text-lossRed'}">${formatUSD(m.net_pnl)}</h4>
-              </div>
-              <div class="flex justify-between items-center pt-2 border-t border-borderDark/60 text-[10px] text-slate-400 font-mono">
-                <span>Gross: ${formatUSD(m.gross_pnl)}</span><span class="text-lossRed">Fees: ${formatUSD(m.brokerage + m.taxes)}</span>
-              </div>
-            </div>`;
-        });
-        gridHTML += `</div>`;
-        container.innerHTML = gridHTML;
-      }
+    function renderTable(trades) {
+      const tbody = document.getElementById('tradeLogBody');
+      tbody.innerHTML = '';
+      if (trades.length === 0) return tbody.innerHTML = `<tr><td colspan="9" class="text-center py-6">No trades found.</td></tr>`;
+      trades.slice(0, 300).forEach(t => {
+        tbody.innerHTML += `<tr class="hover:bg-panelDark/40 border-b border-borderDark/50">
+          <td class="py-2.5 px-3 font-mono text-[11px] text-slate-400">${t.timestamp}</td>
+          <td class="py-2.5 px-3 font-semibold text-white">${t.symbol}</td>
+          <td class="py-2.5 px-3"><span class="px-2 py-0.5 rounded text-[10px] font-bold ${t.side === 'BUY' ? 'bg-emerald-500/20 text-emerald-400' : 'bg-red-500/20 text-red-400'}">${t.side}</span></td>
+          <td class="py-2.5 px-3 text-right font-mono">${t.size}</td>
+          <td class="py-2.5 px-3 text-right font-mono">${formatUSD(t.price)}</td>
+          <td class="py-2.5 px-3 text-right font-mono ${t.gross_pnl >= 0 ? 'text-winGreen' : 'text-lossRed'}">${formatUSD(t.gross_pnl)}</td>
+          <td class="py-2.5 px-3 text-right font-mono text-lossRed">${formatUSD(t.brokerage)}</td>
+          <td class="py-2.5 px-3 text-right font-mono font-bold ${t.net_pnl >= 0 ? 'text-winGreen' : 'text-lossRed'}">${formatUSD(t.net_pnl)}</td>
+          <td class="py-2.5 px-3 text-center"><span class="px-2 py-0.5 rounded-full text-[10px] font-semibold ${t.status === 'WIN' ? 'bg-winGreen/10 text-winGreen border border-winGreen/20' : 'bg-lossRed/10 text-lossRed border border-lossRed/20'}">${t.status}</span></td>
+        </tr>`;
+      });
     }
 
-    function renderChart(type, val, trades, daily_breakdown, monthly_breakdown) {
-      const categories = [];
-      const netSeries = [];
-      const grossSeries = [];
-      let runningNet = 0;
-      let runningGross = 0;
+    function renderChartAndCalendar(type, val) {
+      const cat = [], net = [], gross = [];
+      let rNet = 0, rGross = 0;
 
       if (type === 'MONTH') {
-        const sortedDays = Object.keys(daily_breakdown).filter(d => d.startsWith(val)).sort();
-        sortedDays.forEach(d => {
-          runningNet += daily_breakdown[d].net_pnl;
-          runningGross += daily_breakdown[d].gross_pnl;
-          categories.push(d.slice(8));
-          netSeries.push(Number(runningNet.toFixed(2)));
-          grossSeries.push(Number(runningGross.toFixed(2)));
-        });
+        const days = Object.keys(computedData.daily).filter(d => d.startsWith(val)).sort();
+        days.forEach(d => { rNet += computedData.daily[d].net_pnl; rGross += computedData.daily[d].gross_pnl; cat.push(d.slice(8)); net.push(rNet.toFixed(2)); gross.push(rGross.toFixed(2)); });
       } else {
-        const sortedMonths = (monthly_breakdown || [])
-          .filter(m => type === 'ALL' || m.month.startsWith(val))
-          .sort((a, b) => a.month.localeCompare(b.month));
-
-        sortedMonths.forEach(m => {
-          runningNet += m.net_pnl;
-          runningGross += m.gross_pnl;
-          categories.push(m.month);
-          netSeries.push(Number(runningNet.toFixed(2)));
-          grossSeries.push(Number(runningGross.toFixed(2)));
-        });
+        const mths = Object.keys(computedData.monthly).filter(m => type === 'ALL' || m.startsWith(val)).sort();
+        mths.forEach(m => { rNet += computedData.monthly[m].net_pnl; rGross += computedData.monthly[m].gross_pnl; cat.push(m); net.push(rNet.toFixed(2)); gross.push(rGross.toFixed(2)); });
       }
-
-      const options = {
-        series: [
-          { name: 'Net PnL (Take-Home)', data: netSeries },
-          { name: 'Gross PnL (Pre-Fees)', data: grossSeries }
-        ],
-        chart: { type: 'area', height: 260, background: 'transparent', toolbar: { show: false } },
-        colors: ['#10b981', '#6366f1'],
-        stroke: { curve: 'smooth', width: 2 },
-        fill: { type: 'gradient', gradient: { shadeIntensity: 1, opacityFrom: 0.25, opacityTo: 0.0, stops: [0, 95] } },
-        xaxis: { categories: categories, labels: { style: { colors: '#64748b', fontSize: '10px' } } },
-        yaxis: { labels: { style: { colors: '#64748b' }, formatter: (val) => formatUSD(val) } },
-        grid: { borderColor: '#1e293b', strokeDashArray: 3 },
-        tooltip: { theme: 'dark' }
-      };
 
       if (apexChartInstance) apexChartInstance.destroy();
-      apexChartInstance = new ApexCharts(document.querySelector("#equityChart"), options);
+      apexChartInstance = new ApexCharts(document.querySelector("#equityChart"), {
+        series: [{ name: 'Net', data: net }, { name: 'Gross', data: gross }],
+        chart: { type: 'area', height: 260, background: 'transparent', toolbar: { show: false } },
+        colors: ['#10b981', '#6366f1'], stroke: { curve: 'smooth', width: 2 },
+        fill: { type: 'gradient', gradient: { shadeIntensity: 1, opacityFrom: 0.25, opacityTo: 0.0 } },
+        xaxis: { categories: cat, labels: { style: { colors: '#64748b', fontSize: '10px' } } },
+        yaxis: { labels: { style: { colors: '#64748b' }, formatter: (v) => formatUSD(v) } }, grid: { borderColor: '#1e293b' }, tooltip: { theme: 'dark' }
+      });
       apexChartInstance.render();
+
+      const c = document.getElementById('adaptiveContainer');
+      c.innerHTML = `<div class="p-4 text-center text-slate-500 text-xs bg-brandDark/30 rounded-xl border border-borderDark/40 font-mono">Aggregation metrics loaded successfully. Select a specific month above to view calendar heatmaps.</div>`;
     }
 
-    function renderTradeTable(trades) {
-      const tbody = document.getElementById('tradeLogBody');
-      document.getElementById('tradeCountBadge').innerText = `Showing ${trades.length} trades`;
-      tbody.innerHTML = '';
-
-      if (trades.length === 0) {
-        tbody.innerHTML = `<tr><td colspan="10" class="text-center py-6 text-slate-500">No trades recorded for this timeframe.</td></tr>`;
-        return;
-      }
-
-      trades.slice(0, 300).forEach(t => {
-        tbody.innerHTML += `<tr class="hover:bg-panelDark/40">
-            <td class="py-2.5 px-3 font-mono text-[11px] text-slate-400">${t.timestamp}</td>
-            <td class="py-2.5 px-3 font-semibold text-white">${t.symbol}</td>
-            <td class="py-2.5 px-3"><span class="px-2 py-0.5 rounded text-[10px] font-bold ${t.side === 'BUY' ? 'bg-emerald-500/20 text-emerald-400' : 'bg-red-500/20 text-red-400'}">${t.side}</span></td>
-            <td class="py-2.5 px-3 text-right font-mono">${t.size}</td>
-            <td class="py-2.5 px-3 text-right font-mono">${formatUSD(t.price)}</td>
-            <td class="py-2.5 px-3 text-right font-mono ${t.gross_pnl >= 0 ? 'text-winGreen' : 'text-lossRed'}">${formatUSD(t.gross_pnl)}</td>
-            <td class="py-2.5 px-3 text-right font-mono text-lossRed">${formatUSD(t.brokerage)}</td>
-            <td class="py-2.5 px-3 text-right font-mono text-lossRed">${formatUSD(t.taxes)}</td>
-            <td class="py-2.5 px-3 text-right font-mono font-bold ${t.net_pnl >= 0 ? 'text-winGreen' : 'text-lossRed'}">${formatUSD(t.net_pnl)}</td>
-            <td class="py-2.5 px-3 text-center"><span class="px-2 py-0.5 rounded-full text-[10px] font-semibold ${t.status === 'WIN' ? 'bg-winGreen/10 text-winGreen border border-winGreen/20' : 'bg-lossRed/10 text-lossRed border border-lossRed/20'}">${t.status}</span></td>
-          </tr>`;
-      });
-    }
-
-    document.addEventListener("DOMContentLoaded", () => {
-      fetchJournalData();
-      fetchExchangeRate();
-    });
-
-    if ('serviceWorker' in navigator) {
-      window.addEventListener('load', () => {
-        navigator.serviceWorker.register('./sw.js').then(reg => {
-          console.log('PWA Ready');
-        });
-      });
-    }
+    document.addEventListener("DOMContentLoaded", () => { fetchRawData(); });
   </script>
 </body>
 </html>
