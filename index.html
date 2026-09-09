@@ -35,7 +35,7 @@
     .custom-scroll::-webkit-scrollbar-track { background: transparent; }
     option { background-color: #0f172a; color: #f8fafc; }
     
-    /* Disables text selection and the native mobile context menu during the tap-and-hold interaction */
+    /* Disables text selection and the native mobile context menu during the peek interaction */
     .no-select {
       user-select: none;
       -webkit-user-select: none;
@@ -468,13 +468,12 @@
 
       if (isSingleMonth && targetMonthStr) {
         document.getElementById('middleSectionTitle').innerText = `Daily Journal Calendar`;
-        document.getElementById('middleSectionSubtitle').innerText = `Hold on any day to peek at full details`;
+        document.getElementById('middleSectionSubtitle').innerText = `Hover or hold on any day to peek at full details`;
         const parts = targetMonthStr.split('-');
         const year = parseInt(parts[0]), month = parseInt(parts[1]) - 1;
         const firstDayOfWeek = new Date(year, month, 1).getDay();
         const daysInMonth = new Date(year, month + 1, 0).getDate();
 
-        // Beautiful aspect-square minimal grid
         let calHTML = `
           <div class="w-full max-w-4xl mx-auto">
             <div class="grid grid-cols-7 gap-1.5 sm:gap-3 mb-1.5 sm:mb-2 text-center text-[10px] sm:text-xs font-semibold text-slate-400 uppercase tracking-wider">
@@ -492,12 +491,10 @@
             const isWin = dayData.net_pnl >= 0;
             const cardBorder = isWin ? 'bg-winGreen/10 border-winGreen/40 text-winGreen' : 'bg-lossRed/10 border-lossRed/40 text-lossRed';
             
-            // THE NEW MINIMAL BOX WITH PEEK BINDINGS
             calHTML += `
               <div class="relative aspect-square rounded-lg sm:rounded-xl border ${cardBorder} flex flex-col justify-center items-center cursor-pointer transition-transform active:scale-90 no-select" 
                    oncontextmenu="return false;" 
-                   onmousedown="showPeek('${fullDateKey}')" 
-                   onmouseup="hidePeek()" 
+                   onmouseenter="showPeek('${fullDateKey}')" 
                    onmouseleave="hidePeek()" 
                    ontouchstart="showPeek('${fullDateKey}')" 
                    ontouchend="hidePeek()" 
@@ -602,7 +599,6 @@
             <td class="py-2.5 px-3 font-semibold text-white">${t.symbol} <span class="text-[9px] text-slate-500 ml-1">(${t.executions} fills)</span></td>
             <td class="py-2.5 px-3 text-center"><span class="px-1.5 py-0.5 rounded text-[10px] font-bold ${t.side === 'BUY' ? 'bg-emerald-500/20 text-emerald-400' : 'bg-red-500/20 text-red-400'}">${t.side}</span></td>
             <td class="py-2.5 px-3 text-right">${t.size}</td>
-            <td class="py-2.5 px-3 text-right text-slate-500">Grouped</td>
             <td class="py-2.5 px-3 text-right ${t.gross_pnl >= 0 ? 'text-winGreen' : 'text-lossRed'}">${formatUSD(t.gross_pnl)}</td>
             <td class="py-2.5 px-3 text-right text-lossRed">${formatUSD(t.brokerage)}</td>
             <td class="py-2.5 px-3 text-right text-lossRed">${formatUSD(t.taxes)}</td>
