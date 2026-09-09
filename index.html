@@ -34,9 +34,23 @@
     .custom-scroll::-webkit-scrollbar-thumb { background: #334155; border-radius: 4px; }
     .custom-scroll::-webkit-scrollbar-track { background: transparent; }
     option { background-color: #0f172a; color: #f8fafc; }
+    
+    /* Disables text selection and the native mobile context menu during the tap-and-hold interaction */
+    .no-select {
+      user-select: none;
+      -webkit-user-select: none;
+      -webkit-touch-callout: none;
+    }
   </style>
 </head>
-<body class="min-h-screen p-2 md:p-6 lg:p-8">
+<body class="min-h-screen p-3 md:p-6 lg:p-8 relative">
+
+  <!-- INSTAGRAM-STYLE PEEK OVERLAY -->
+  <div id="peekOverlay" class="fixed inset-0 z-50 flex items-center justify-center bg-brandDark/80 backdrop-blur-sm opacity-0 pointer-events-none transition-opacity duration-200 no-select">
+    <div id="peekCard" class="bg-cardDark border border-borderDark rounded-2xl p-5 w-[280px] sm:w-[320px] shadow-2xl scale-95 transition-transform duration-200">
+      <!-- Injected by JavaScript -->
+    </div>
+  </div>
 
   <header class="flex flex-col xl:flex-row justify-between items-start xl:items-center pb-6 border-b border-borderDark mb-6 gap-4">
     <div>
@@ -84,7 +98,6 @@
     </div>
   </header>
 
-  <!-- 1. KPI SCORECARD -->
   <section class="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-3 mb-6">
     <div class="bg-cardDark border border-borderDark p-3 rounded-xl">
       <span class="text-slate-400 text-[10px] font-medium uppercase tracking-wider block mb-1">Gross Inflows</span>
@@ -128,7 +141,6 @@
     </div>
   </section>
 
-  <!-- 2. PERFORMANCE TRAJECTORY CHART -->
   <section class="bg-cardDark border border-borderDark p-4 md:p-5 rounded-2xl mb-6">
     <div class="flex justify-between items-center mb-3">
       <div>
@@ -139,7 +151,6 @@
     <div id="equityChart" class="h-[260px] w-full overflow-hidden"></div>
   </section>
 
-  <!-- 3. ADAPTIVE SECTION (Calendar or Compact Grid) -->
   <section class="bg-cardDark border border-borderDark p-4 md:p-5 rounded-2xl mb-6">
     <div class="flex justify-between items-center mb-4">
       <div>
@@ -148,10 +159,9 @@
       </div>
       <div id="calendarBadge" class="text-xs font-mono text-indigo-300"></div>
     </div>
-    <div id="middleSectionContainer"></div>
+    <div id="middleSectionContainer" class="w-full"></div>
   </section>
 
-  <!-- 4. BOTTOM EXECUTION AUDIT LOG TABLE -->
   <section id="tradeTableSection" class="bg-cardDark border border-borderDark p-4 md:p-5 rounded-2xl">
     <div class="flex justify-between items-center mb-4">
       <div>
@@ -161,8 +171,7 @@
       <span class="text-xs font-mono text-slate-400" id="tradeCountBadge">Showing 0 trades</span>
     </div>
     <div class="overflow-x-auto custom-scroll pb-2">
-      <!-- Added min width to prevent header crushing on narrow screens -->
-      <table class="w-full text-left text-xs min-w-[700px]">
+      <table class="w-full text-left text-xs min-w-[750px]">
         <thead class="bg-brandDark/80 text-slate-400 border-b border-borderDark uppercase tracking-wider text-[10px]">
           <tr>
             <th class="py-2.5 px-3">Opened At (IST)</th>
@@ -197,6 +206,54 @@
       if (absNum >= 1000) return (num < 0 ? "-$" : "$") + (absNum / 1000).toFixed(1) + "k";
       return (num < 0 ? "-$" : "$") + absNum.toFixed(0);
     };
+
+    // PEEK INTERACTION FUNCTIONS
+    function showPeek(dateKey) {
+      if (!processedState || !processedState.dailyMap[dateKey]) return;
+      const data = processedState.dailyMap[dateKey];
+      if (data.trades === 0) return;
+
+      const dObj = new Date(dateKey);
+      const displayDate = dObj.toLocaleDateString('en-IN', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' });
+      const isWin = data.net_pnl >= 0;
+
+      const html = `
+        <div class="text-center mb-4">
+          <p class="text-slate-400 text-[11px] font-semibold uppercase tracking-wider">${displayDate}</p>
+          <h2 class="text-3xl font-bold font-mono mt-1.5 ${isWin ? 'text-winGreen' : 'text-lossRed'}">${isWin ? '+' : ''}${formatUSD(data.net_pnl)}</h2>
+          <div class="flex justify-center gap-2 mt-3 text-xs font-mono">
+            <span class="px-2 py-0.5 rounded bg-brandDark border border-borderDark text-slate-300">${data.trades} Trades</span>
+            <span class="px-2 py-0.5 rounded bg-winGreen/10 border border-winGreen/20 text-winGreen">${data.wins}W</span>
+            <span class="px-2 py-0.5 rounded bg-lossRed/10 border border-lossRed/20 text-lossRed">${data.losses}L</span>
+          </div>
+        </div>
+        <div class="bg-brandDark rounded-xl p-3.5 border border-borderDark/50 space-y-2.5 text-xs font-mono text-slate-300">
+          <div class="flex justify-between items-center"><span>Gross PnL</span><span class="font-bold ${data.gross_pnl >= 0 ? 'text-winGreen' : 'text-lossRed'}">${formatUSD(data.gross_pnl)}</span></div>
+          <div class="flex justify-between items-center"><span>Brokerage</span><span class="text-lossRed font-bold">${formatUSD(data.brokerage)}</span></div>
+          <div class="flex justify-between items-center"><span>GST (18%)</span><span class="text-lossRed font-bold">${formatUSD(data.taxes)}</span></div>
+        </div>
+      `;
+
+      document.getElementById('peekCard').innerHTML = html;
+      
+      const overlay = document.getElementById('peekOverlay');
+      const card = document.getElementById('peekCard');
+      
+      overlay.classList.remove('opacity-0', 'pointer-events-none');
+      overlay.classList.add('opacity-100');
+      card.classList.remove('scale-95');
+      card.classList.add('scale-100');
+    }
+
+    function hidePeek() {
+      const overlay = document.getElementById('peekOverlay');
+      const card = document.getElementById('peekCard');
+      
+      overlay.classList.remove('opacity-100');
+      overlay.classList.add('opacity-0', 'pointer-events-none');
+      card.classList.remove('scale-100');
+      card.classList.add('scale-95');
+    }
 
     async function fetchRawData() {
       try {
@@ -245,15 +302,7 @@
         const orderDate = new Date(order.created_at);
 
         if (!tradesBySymbol[sym]) {
-          tradesBySymbol[sym] = {
-            symbol: sym,
-            openDate: orderDate,
-            side: (order.side || "").toUpperCase(),
-            maxSize: 0,
-            grossPnl: 0,
-            fee: 0,
-            executions: 0
-          };
+          tradesBySymbol[sym] = { symbol: sym, openDate: orderDate, side: (order.side || "").toUpperCase(), maxSize: 0, grossPnl: 0, fee: 0, executions: 0 };
         }
 
         if (orderDate < tradesBySymbol[sym].openDate) {
@@ -261,9 +310,7 @@
           tradesBySymbol[sym].side = (order.side || "").toUpperCase();
         }
 
-        tradesBySymbol[sym].grossPnl += grossPnl;
-        tradesBySymbol[sym].fee += fee;
-        tradesBySymbol[sym].executions += 1;
+        tradesBySymbol[sym].grossPnl += grossPnl; tradesBySymbol[sym].fee += fee; tradesBySymbol[sym].executions += 1;
 
         if (grossPnl === 0) {
           tradesBySymbol[sym].maxSize += parseFloat(order.size || 0);
@@ -276,9 +323,7 @@
       const dailyMap = {};
       const monthlyMap = {};
 
-      const istFormatter = new Intl.DateTimeFormat('en-US', { 
-        timeZone: 'Asia/Kolkata', year: 'numeric', month: '2-digit', day: '2-digit' 
-      });
+      const istFormatter = new Intl.DateTimeFormat('en-US', { timeZone: 'Asia/Kolkata', year: 'numeric', month: '2-digit', day: '2-digit' });
 
       Object.values(tradesBySymbol).forEach(trade => {
         const gst = trade.fee * 0.18;
@@ -301,17 +346,8 @@
 
         allTrades.push({
           timestamp: trade.openDate.toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' }),
-          rawDate: dayKey,
-          monthKey: monthKey,
-          symbol: trade.symbol,
-          side: trade.side,
-          size: trade.maxSize,
-          gross_pnl: trade.grossPnl,
-          brokerage: trade.fee,
-          taxes: gst,
-          net_pnl: netPnl,
-          executions: trade.executions,
-          status: netPnl > 0 ? 'WIN' : (netPnl < 0 ? 'LOSS' : 'BE')
+          rawDate: dayKey, monthKey: monthKey, symbol: trade.symbol, side: trade.side, size: trade.maxSize, gross_pnl: trade.grossPnl,
+          brokerage: trade.fee, taxes: gst, net_pnl: netPnl, executions: trade.executions, status: netPnl > 0 ? 'WIN' : (netPnl < 0 ? 'LOSS' : 'BE')
         });
       });
 
@@ -432,39 +468,52 @@
 
       if (isSingleMonth && targetMonthStr) {
         document.getElementById('middleSectionTitle').innerText = `Daily Journal Calendar`;
-        document.getElementById('middleSectionSubtitle').innerText = `Day-by-day realized PnL and grouped trade activity`;
+        document.getElementById('middleSectionSubtitle').innerText = `Hold on any day to peek at full details`;
         const parts = targetMonthStr.split('-');
         const year = parseInt(parts[0]), month = parseInt(parts[1]) - 1;
         const firstDayOfWeek = new Date(year, month, 1).getDay();
         const daysInMonth = new Date(year, month + 1, 0).getDate();
 
-        // Fully responsive, no-scroll grid layout
+        // Beautiful aspect-square minimal grid
         let calHTML = `
-          <div class="grid grid-cols-7 gap-1 sm:gap-2 mb-1 sm:mb-2 text-center text-[8px] sm:text-[11px] font-semibold text-slate-400 uppercase tracking-wider">
-            <div>Sun</div><div>Mon</div><div>Tue</div><div>Wed</div><div>Thu</div><div>Fri</div><div>Sat</div>
-          </div>
-          <div class="grid grid-cols-7 gap-1 sm:gap-2">`;
+          <div class="w-full max-w-4xl mx-auto">
+            <div class="grid grid-cols-7 gap-1.5 sm:gap-3 mb-1.5 sm:mb-2 text-center text-[10px] sm:text-xs font-semibold text-slate-400 uppercase tracking-wider">
+              <div>Sun</div><div>Mon</div><div>Tue</div><div>Wed</div><div>Thu</div><div>Fri</div><div>Sat</div>
+            </div>
+            <div class="grid grid-cols-7 gap-1.5 sm:gap-3">`;
               
-        for (let i = 0; i < firstDayOfWeek; i++) calHTML += `<div class="min-h-[55px] sm:min-h-[80px] rounded-md sm:rounded-xl border border-borderDark/40 bg-brandDark/20"></div>`;
+        for (let i = 0; i < firstDayOfWeek; i++) calHTML += `<div class="aspect-square rounded-lg sm:rounded-xl border border-borderDark/40 bg-brandDark/20"></div>`;
 
         for (let day = 1; day <= daysInMonth; day++) {
           const fullDateKey = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
           const dayData = processedState.dailyMap[fullDateKey];
+          
           if (dayData && dayData.trades > 0) {
-            const isWin = dayData.net_pnl > 0, isLoss = dayData.net_pnl < 0;
+            const isWin = dayData.net_pnl >= 0;
+            const cardBorder = isWin ? 'bg-winGreen/10 border-winGreen/40 text-winGreen' : 'bg-lossRed/10 border-lossRed/40 text-lossRed';
+            
+            // THE NEW MINIMAL BOX WITH PEEK BINDINGS
             calHTML += `
-              <div class="min-h-[55px] sm:min-h-[80px] p-1 sm:p-2 rounded-md sm:rounded-xl border ${isWin ? 'bg-winGreen/10 border-winGreen/40' : (isLoss ? 'bg-lossRed/10 border-lossRed/40' : 'bg-slate-800/30 border-slate-700')} flex flex-col justify-between transition-all hover:scale-[1.02]">
-                <div class="flex justify-between items-center text-[8px] sm:text-[10px]"><span class="font-bold text-white">${day}</span><span class="px-0.5 sm:px-1 py-0.2 rounded bg-cardDark/80 text-[7px] sm:text-[9px] font-mono text-slate-300">${dayData.trades}t</span></div>
-                <div class="my-0.5 sm:my-1"><div class="text-[8px] sm:text-sm font-bold font-mono ${isWin ? 'text-winGreen' : (isLoss ? 'text-lossRed' : 'text-slate-300')}">${dayData.net_pnl >= 0 ? '+' : ''}${formatUSD(dayData.net_pnl)}</div>
-                <div class="text-[7px] sm:text-[9px] font-mono text-slate-400"><span class="text-winGreen">${dayData.wins}W</span>-<span class="text-lossRed">${dayData.losses}L</span></div></div>
-                <div class="text-[7px] sm:text-[9px] text-slate-500 font-mono hidden sm:block">Fees: ${formatUSD(dayData.brokerage + dayData.taxes)}</div>
-                <div class="text-[6px] sm:text-[9px] text-slate-500 font-mono sm:hidden">F:${formatUSD(dayData.brokerage + dayData.taxes)}</div>
+              <div class="relative aspect-square rounded-lg sm:rounded-xl border ${cardBorder} flex flex-col justify-center items-center cursor-pointer transition-transform active:scale-90 no-select" 
+                   oncontextmenu="return false;" 
+                   onmousedown="showPeek('${fullDateKey}')" 
+                   onmouseup="hidePeek()" 
+                   onmouseleave="hidePeek()" 
+                   ontouchstart="showPeek('${fullDateKey}')" 
+                   ontouchend="hidePeek()" 
+                   ontouchcancel="hidePeek()">
+                <span class="absolute top-1 sm:top-1.5 left-1.5 sm:left-2 text-[9px] sm:text-xs font-bold text-white">${day}</span>
+                <span class="absolute top-1 sm:top-1.5 right-1 sm:right-1.5 px-1 py-0.5 rounded-full bg-brandDark/60 text-[7px] sm:text-[9px] font-mono text-slate-300 hidden sm:block">${dayData.trades}t</span>
+                <div class="text-[9px] sm:text-sm font-bold font-mono mt-2 sm:mt-3">${isWin ? '+' : ''}${compactUSD(dayData.net_pnl)}</div>
               </div>`;
           } else {
-            calHTML += `<div class="min-h-[55px] sm:min-h-[80px] p-1 sm:p-2 rounded-md sm:rounded-xl border border-borderDark/40 bg-panelDark/20 flex flex-col justify-between"><span class="text-[8px] sm:text-[10px] text-slate-600 font-bold">${day}</span><span class="text-[8px] sm:text-[10px] text-slate-700 font-mono text-center">-</span><span></span></div>`;
+            calHTML += `
+              <div class="relative aspect-square rounded-lg sm:rounded-xl border border-borderDark/40 bg-panelDark/20 flex flex-col justify-center items-center">
+                <span class="absolute top-1 sm:top-1.5 left-1.5 sm:left-2 text-[9px] sm:text-xs font-bold text-slate-600">${day}</span>
+              </div>`;
           }
         }
-        container.innerHTML = calHTML + `</div>`;
+        container.innerHTML = calHTML + `</div></div>`;
       } else {
         document.getElementById('middleSectionTitle').innerText = `Monthly Performance Overview`;
         document.getElementById('middleSectionSubtitle').innerText = `Aggregated monthly cashflows and net trajectory`;
@@ -526,9 +575,7 @@
       if (apexChartInstance) apexChartInstance.destroy();
       apexChartInstance = new ApexCharts(document.querySelector("#equityChart"), {
         series: [{ name: 'Net Take-Home', data: netSeries }, { name: 'Gross Outcome', data: grossSeries }],
-        chart: { 
-          type: 'area', height: 260, width: '100%', background: 'transparent', toolbar: { show: false }, zoom: { enabled: false } 
-        },
+        chart: { type: 'area', height: 260, width: '100%', background: 'transparent', toolbar: { show: false }, zoom: { enabled: false } },
         dataLabels: { enabled: false },
         markers: { size: 3, strokeWidth: 0, hover: { size: 5 } },
         colors: ['#10b981', '#6366f1'], 
@@ -555,6 +602,7 @@
             <td class="py-2.5 px-3 font-semibold text-white">${t.symbol} <span class="text-[9px] text-slate-500 ml-1">(${t.executions} fills)</span></td>
             <td class="py-2.5 px-3 text-center"><span class="px-1.5 py-0.5 rounded text-[10px] font-bold ${t.side === 'BUY' ? 'bg-emerald-500/20 text-emerald-400' : 'bg-red-500/20 text-red-400'}">${t.side}</span></td>
             <td class="py-2.5 px-3 text-right">${t.size}</td>
+            <td class="py-2.5 px-3 text-right text-slate-500">Grouped</td>
             <td class="py-2.5 px-3 text-right ${t.gross_pnl >= 0 ? 'text-winGreen' : 'text-lossRed'}">${formatUSD(t.gross_pnl)}</td>
             <td class="py-2.5 px-3 text-right text-lossRed">${formatUSD(t.brokerage)}</td>
             <td class="py-2.5 px-3 text-right text-lossRed">${formatUSD(t.taxes)}</td>
