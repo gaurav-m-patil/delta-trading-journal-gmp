@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Delta Trading Journal & INR Calculator</title>
+  <title>Delta Trading Journal & Profit Planner</title>
   <meta name="theme-color" content="#080b11">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -103,17 +103,17 @@
   </div>
 
   <!-- TOP HEADER -->
-  <header class="flex flex-col sm:flex-row justify-between items-start sm:items-center pb-4 border-b border-borderDark mb-5 gap-3">
+  <header class="flex flex-col sm:flex-row justify-between items-start sm:items-center pb-4 border-b border-borderDark mb-4 gap-2">
     <div class="flex items-center gap-3">
-      <div class="h-10 w-10 bg-indigo-600 rounded-xl flex items-center justify-center text-white font-bold shadow-lg shadow-indigo-500/20">
-        <i class="fa-solid fa-chart-line text-lg"></i>
+      <div class="h-9 w-9 bg-indigo-600 rounded-xl flex items-center justify-center text-white font-bold shadow-lg shadow-indigo-500/20">
+        <i class="fa-solid fa-chart-line text-base"></i>
       </div>
       <div>
         <div class="flex items-center gap-2">
-          <h1 class="text-lg md:text-2xl font-bold tracking-tight text-white">Delta Trading Journal</h1>
+          <h1 class="text-base md:text-xl font-bold tracking-tight text-white">Delta Trading Journal</h1>
           <span id="syncStatusBadge" class="px-2 py-0.5 rounded text-[10px] font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">Live</span>
         </div>
-        <p class="text-[11px] text-slate-400 mt-0.5" id="lastUpdated">Loading raw database...</p>
+        <p class="text-[10px] text-slate-400 mt-0.5" id="lastUpdated">Loading raw database...</p>
       </div>
     </div>
     <span class="text-[10px] text-slate-500 font-mono hidden sm:inline-block"><i class="fa-solid fa-arrows-left-right mr-1"></i>Swipe or use bottom bar to switch tabs</span>
@@ -281,97 +281,87 @@
   </div>
 
   <!-- ========================================== -->
-  <!-- TAB 2: 100-DAY INR PROFIT CALCULATOR       -->
+  <!-- TAB 2: 3-MONTH STEP-UP PROFIT PLANNER      -->
   <!-- ========================================== -->
-  <div id="view_CALCULATOR" class="hidden max-w-4xl mx-auto">
+  <div id="view_CALCULATOR" class="hidden max-w-3xl mx-auto">
     
-    <!-- CALCULATOR INPUT PANEL -->
-    <section class="bg-cardDark border border-borderDark p-4 sm:p-6 rounded-2xl mb-5 shadow-lg">
-      <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-4 gap-2">
-        <div>
-          <h2 class="font-bold text-base sm:text-lg text-white flex items-center gap-2">
-            <i class="fa-solid fa-calculator text-indigo-400"></i> 100-Day Non-Compounding Profit Planner (INR)
-          </h2>
-          <p class="text-xs text-slate-400">Fixed base capital per trade • Skips Saturdays & Sundays automatically</p>
+    <!-- COMPACT INPUT BAR -->
+    <section class="bg-cardDark border border-borderDark p-3 sm:p-4 rounded-xl mb-3 shadow">
+      <div class="flex justify-between items-center mb-2.5">
+        <div class="flex items-center gap-2">
+          <i class="fa-solid fa-calculator text-indigo-400 text-xs"></i>
+          <h2 class="font-bold text-xs sm:text-sm text-white">Profit Planner</h2>
+          <span class="text-[10px] text-slate-400 font-mono hidden sm:inline">• 3-Month Step-Up (1x → 2x → 3x)</span>
         </div>
-        <button onclick="resetCalculatorInputs()" class="text-xs text-slate-400 hover:text-white bg-panelDark border border-borderDark px-3 py-1.5 rounded-lg transition-colors">
-          <i class="fa-solid fa-rotate-left mr-1"></i> Reset
+        <button onclick="resetCalculatorInputs()" class="text-[10px] text-slate-400 hover:text-white bg-panelDark border border-borderDark px-2 py-1 rounded transition-colors">
+          <i class="fa-solid fa-rotate-left mr-0.5"></i> Reset
         </button>
       </div>
 
-      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5">
+      <div class="grid grid-cols-2 sm:grid-cols-4 gap-2">
         <!-- Start Date -->
-        <div class="bg-brandDark border border-borderDark p-3 rounded-xl">
-          <label class="text-[10px] font-semibold uppercase tracking-wider text-slate-400 block mb-1">Start Date</label>
-          <input type="date" id="calcStartDate" onchange="runInrCalculator()" class="w-full bg-transparent text-sm font-bold text-white focus:outline-none font-mono">
-          <span class="text-[9px] text-slate-500 block mt-1">Mon–Fri trading days</span>
+        <div class="bg-brandDark border border-borderDark px-2.5 py-1.5 rounded-lg">
+          <label class="text-[9px] font-semibold uppercase text-slate-400 block">Start Date</label>
+          <input type="date" id="calcStartDate" onchange="runInrCalculator()" class="w-full bg-transparent text-xs font-bold text-white focus:outline-none font-mono mt-0.5">
         </div>
 
         <!-- Base Capital (INR) -->
-        <div class="bg-brandDark border border-borderDark p-3 rounded-xl">
-          <label class="text-[10px] font-semibold uppercase tracking-wider text-slate-400 block mb-1">Base Capital (₹)</label>
-          <input type="number" id="calcCapital" oninput="runInrCalculator()" placeholder="e.g. 100000" value="100000" class="w-full bg-transparent text-sm font-bold text-white focus:outline-none font-mono">
-          <span class="text-[9px] text-indigo-400 font-mono block mt-1" id="calcCapitalFormatted">₹1,00,000</span>
+        <div class="bg-brandDark border border-borderDark px-2.5 py-1.5 rounded-lg">
+          <div class="flex justify-between items-center">
+            <label class="text-[9px] font-semibold uppercase text-slate-400">M1 Capital (₹)</label>
+            <span class="text-[8px] text-indigo-400 font-mono" id="calcCapitalFormatted">₹1,00,000</span>
+          </div>
+          <input type="number" id="calcCapital" oninput="runInrCalculator()" placeholder="100000" value="100000" class="w-full bg-transparent text-xs font-bold text-white focus:outline-none font-mono mt-0.5">
         </div>
 
-        <!-- Daily Profit Percentage (Mutually Exclusive with Amount) -->
-        <div id="boxCalcPct" class="bg-brandDark border border-borderDark p-3 rounded-xl transition-opacity">
-          <label class="text-[10px] font-semibold uppercase tracking-wider text-emerald-400 block mb-1">Daily Profit (%)</label>
-          <input type="number" step="any" id="calcPct" oninput="onCalcModeInput('PCT')" placeholder="e.g. 5" value="5" class="w-full bg-transparent text-sm font-bold text-white focus:outline-none font-mono">
-          <span class="text-[9px] text-slate-500 block mt-1" id="calcPctHint">Locks Daily ₹ field</span>
+        <!-- Daily Profit Percentage -->
+        <div id="boxCalcPct" class="bg-brandDark border border-borderDark px-2.5 py-1.5 rounded-lg transition-opacity">
+          <label class="text-[9px] font-semibold uppercase text-emerald-400 block">Daily %</label>
+          <input type="number" step="any" id="calcPct" oninput="onCalcModeInput('PCT')" placeholder="e.g. 5" value="5" class="w-full bg-transparent text-xs font-bold text-white focus:outline-none font-mono mt-0.5">
         </div>
 
-        <!-- Daily Profit Amount INR (Mutually Exclusive with Percentage) -->
-        <div id="boxCalcAmt" class="bg-brandDark border border-borderDark p-3 rounded-xl transition-opacity">
-          <label class="text-[10px] font-semibold uppercase tracking-wider text-emerald-400 block mb-1">Daily Profit (₹)</label>
-          <input type="number" step="any" id="calcAmt" oninput="onCalcModeInput('AMT')" placeholder="Blank (Auto)" class="w-full bg-transparent text-sm font-bold text-white focus:outline-none font-mono">
-          <span class="text-[9px] text-slate-500 block mt-1" id="calcAmtHint">Locks Daily % field</span>
+        <!-- Daily Profit Amount INR -->
+        <div id="boxCalcAmt" class="bg-brandDark border border-borderDark px-2.5 py-1.5 rounded-lg transition-opacity">
+          <label class="text-[9px] font-semibold uppercase text-emerald-400 block">M1 Daily (₹)</label>
+          <input type="number" step="any" id="calcAmt" oninput="onCalcModeInput('AMT')" placeholder="Auto" class="w-full bg-transparent text-xs font-bold text-white focus:outline-none font-mono mt-0.5">
         </div>
       </div>
     </section>
 
-    <!-- STATIC SUMMARY BANNER (Replaces repetitive columns so table never scrolls horizontally) -->
-    <section class="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-5">
-      <div class="bg-cardDark border border-borderDark p-3.5 rounded-xl">
-        <span class="text-[10px] text-slate-400 uppercase tracking-wider block mb-1">Fixed Daily Capital</span>
-        <h3 class="text-sm sm:text-base font-bold text-white font-mono" id="sumFixedCap">₹1,00,000</h3>
-        <span class="text-[9px] text-slate-500">Non-compounding base</span>
+    <!-- COMPACT OVERVIEW STRIP + 3 MONTH SUMMARY CARDS -->
+    <section class="bg-cardDark border border-borderDark p-3 rounded-xl mb-3 shadow">
+      <!-- Top Slim Strip -->
+      <div class="flex flex-wrap justify-between items-center gap-2 pb-2.5 mb-2.5 border-b border-borderDark text-xs font-mono">
+        <div class="flex items-center gap-1.5">
+          <span class="text-[10px] text-slate-400 uppercase font-sans">Daily Rate:</span>
+          <span class="font-bold text-emerald-400" id="sumDailyPctBadge">5.00%</span>
+        </div>
+        <div class="flex items-center gap-1.5">
+          <span class="text-[10px] text-slate-400 uppercase font-sans">Trading Days:</span>
+          <span class="font-bold text-white" id="sumTotalDays">0d</span>
+          <span class="text-[10px] text-slate-500" id="sumDateSpan"></span>
+        </div>
+        <div class="flex items-center gap-1.5">
+          <span class="text-[10px] text-emerald-300 uppercase font-sans font-semibold">3M Total Profit:</span>
+          <span class="font-bold text-sm text-winGreen" id="sumTotal3MProfit">₹0</span>
+        </div>
       </div>
-      <div class="bg-cardDark border border-borderDark p-3.5 rounded-xl">
-        <span class="text-[10px] text-slate-400 uppercase tracking-wider block mb-1">Daily Profit Target</span>
-        <h3 class="text-sm sm:text-base font-bold text-winGreen font-mono" id="sumDailyTarget">₹5,000</h3>
-        <span class="text-[9px] text-emerald-400 font-mono" id="sumDailyPctBadge">5.00% / day</span>
-      </div>
-      <div class="bg-cardDark border border-borderDark p-3.5 rounded-xl border-l-4 border-l-emerald-500">
-        <span class="text-[10px] text-emerald-300 uppercase tracking-wider block mb-1">100-Day Total Profit</span>
-        <h3 class="text-sm sm:text-base font-bold text-winGreen font-mono" id="sumTotal100Profit">₹5,00,000</h3>
-        <span class="text-[9px] text-slate-400 font-mono" id="sumTotalWithCap">Cap + Profit: ₹6,00,000</span>
-      </div>
-      <div class="bg-cardDark border border-borderDark p-3.5 rounded-xl">
-        <span class="text-[10px] text-slate-400 uppercase tracking-wider block mb-1">Day 100 Target Date</span>
-        <h3 class="text-sm sm:text-base font-bold text-indigo-300 font-mono" id="sumEndDate">--</h3>
-        <span class="text-[9px] text-slate-500">Excludes Sat & Sun</span>
-      </div>
+
+      <!-- Month 1, Month 2, Month 3 Compact Grid -->
+      <div class="grid grid-cols-3 gap-2 font-mono" id="monthSummaryCards"></div>
     </section>
 
-    <!-- 2-COLUMN VERTICAL PROJECTION TABLE (Zero Horizontal Scroll) -->
-    <section class="bg-cardDark border border-borderDark rounded-2xl overflow-hidden shadow-lg">
-      <div class="p-4 border-b border-borderDark flex justify-between items-center bg-panelDark/50">
-        <h3 class="font-bold text-xs sm:text-sm text-white uppercase tracking-wider">100-Day Weekday Schedule</h3>
-        <span class="text-[11px] font-mono text-slate-400">Mon – Fri Only</span>
+    <!-- COLLAPSIBLE DAY-BY-DAY SCHEDULE (Grouped by Month) -->
+    <section class="space-y-2">
+      <div class="flex justify-between items-center px-1">
+        <span class="text-[10px] text-slate-400 uppercase tracking-wider font-semibold">Daily Schedule (Tap a month to expand/collapse)</span>
+        <button onclick="toggleAllCalcMonths()" id="btnToggleAllMonths" class="text-[10px] text-indigo-400 hover:text-indigo-300 font-semibold">
+          Expand All
+        </button>
       </div>
-      <div class="w-full">
-        <table class="w-full text-left border-collapse">
-          <thead class="bg-brandDark/90 text-slate-400 border-b border-borderDark uppercase tracking-wider text-[10px]">
-            <tr>
-              <th class="py-3 px-4">Date & Trading Day</th>
-              <th class="py-3 px-4 text-right">Cumulative Profit (₹)</th>
-            </tr>
-          </thead>
-          <tbody id="calcTableBody" class="divide-y divide-borderDark/60 font-mono text-xs"></tbody>
-        </table>
-      </div>
+      <div id="calcAccordionContainer" class="space-y-2"></div>
     </section>
+
   </div>
 
   <!-- FLOATING BOTTOM NAVIGATION BAR -->
@@ -380,7 +370,7 @@
       <i class="fa-solid fa-chart-pie"></i> Delta Insights
     </button>
     <button onclick="switchMainTab('CALCULATOR')" id="tabBtn_CALCULATOR" class="flex-1 py-2.5 px-3 text-xs font-bold rounded-xl transition-all text-slate-400 hover:text-white flex items-center justify-center gap-2">
-      <i class="fa-solid fa-indian-rupee-sign"></i> Calculator
+      <i class="fa-solid fa-indian-rupee-sign"></i> Profit Planner
     </button>
   </nav>
 
@@ -395,6 +385,7 @@
     let currentMainTab = 'INSIGHTS';
     let currentTradePage = 1;
     const TRADES_PER_PAGE = 25;
+    let allMonthsExpanded = false;
 
     // Formatters
     const formatUSD = (val) => {
@@ -470,7 +461,6 @@
       document.addEventListener('touchend', (e) => {
         if (e.changedTouches.length !== 1) return;
 
-        // Ignore swipes if AI Sidebar or Settings Modal is open, or if swiping inside an input
         const aiSidebarOpen = !document.getElementById('aiSidebar').classList.contains('translate-x-full');
         const settingsOpen = !document.getElementById('ghSettingsModal').classList.contains('opacity-0');
         const tag = (e.target.tagName || '').toLowerCase();
@@ -479,13 +469,10 @@
         const dx = e.changedTouches[0].clientX - touchStartX;
         const dy = e.changedTouches[0].clientY - touchStartY;
 
-        // Require horizontal swipe > 65px and strictly flatter than vertical scroll
         if (Math.abs(dx) > 65 && Math.abs(dx) > Math.abs(dy) * 1.8) {
           if (dx < 0 && currentMainTab === 'INSIGHTS') {
-            // Swipe Left -> Go to Calculator
             switchMainTab('CALCULATOR');
           } else if (dx > 0 && currentMainTab === 'CALCULATOR') {
-            // Swipe Right -> Go to Delta Insights
             switchMainTab('INSIGHTS');
           }
         }
@@ -493,7 +480,7 @@
     }
 
     // ==========================================
-    // 100-DAY INR PROFIT CALCULATOR LOGIC
+    // 3-MONTH STEP-UP INR PROFIT PLANNER LOGIC
     // ==========================================
     function onCalcModeInput(source) {
       const pctInput = document.getElementById('calcPct');
@@ -536,6 +523,8 @@
       document.getElementById('calcAmt').disabled = true;
       document.getElementById('boxCalcPct').classList.remove('opacity-40');
       document.getElementById('boxCalcAmt').classList.add('opacity-40');
+      allMonthsExpanded = false;
+      document.getElementById('btnToggleAllMonths').innerText = 'Expand All';
       runInrCalculator();
     }
 
@@ -546,76 +535,234 @@
       const mmm = months[d.getMonth()];
       const yy = String(d.getFullYear()).slice(-2);
       const ddd = days[d.getDay()];
-      return { formatted: `${dd}-${mmm}-${yy}`, weekday: ddd };
+      return { formatted: `${dd}-${mmm}-${yy}`, weekday: ddd, mmmYY: `${mmm} '${yy}` };
+    }
+
+    function toggleMonthAccordion(idx) {
+      const body = document.getElementById(`calcMonthBody_${idx}`);
+      const icon = document.getElementById(`calcMonthIcon_${idx}`);
+      if (!body) return;
+      if (body.classList.contains('hidden')) {
+        body.classList.remove('hidden');
+        icon.classList.add('rotate-180');
+      } else {
+        body.classList.add('hidden');
+        icon.classList.remove('rotate-180');
+      }
+    }
+
+    function toggleAllCalcMonths() {
+      allMonthsExpanded = !allMonthsExpanded;
+      document.getElementById('btnToggleAllMonths').innerText = allMonthsExpanded ? 'Collapse All' : 'Expand All';
+      [0, 1, 2].forEach(idx => {
+        const body = document.getElementById(`calcMonthBody_${idx}`);
+        const icon = document.getElementById(`calcMonthIcon_${idx}`);
+        if (!body) return;
+        if (allMonthsExpanded) {
+          body.classList.remove('hidden');
+          icon.classList.add('rotate-180');
+        } else {
+          body.classList.add('hidden');
+          icon.classList.remove('rotate-180');
+        }
+      });
     }
 
     function runInrCalculator() {
-      const capVal = parseFloat(document.getElementById('calcCapital').value) || 0;
+      const baseCap = parseFloat(document.getElementById('calcCapital').value) || 0;
       const pctRaw = document.getElementById('calcPct').value.trim();
       const amtRaw = document.getElementById('calcAmt').value.trim();
       const startStr = document.getElementById('calcStartDate').value;
 
-      document.getElementById('calcCapitalFormatted').innerText = formatINR(capVal, 0);
+      document.getElementById('calcCapitalFormatted').innerText = formatINR(baseCap, 0);
 
-      let dailyProfitINR = 0;
+      let baseDailyProfit = 0;
       let dailyProfitPct = 0;
 
       if (pctRaw !== '') {
         dailyProfitPct = parseFloat(pctRaw) || 0;
-        dailyProfitINR = capVal * (dailyProfitPct / 100);
+        baseDailyProfit = baseCap * (dailyProfitPct / 100);
       } else if (amtRaw !== '') {
-        dailyProfitINR = parseFloat(amtRaw) || 0;
-        dailyProfitPct = capVal > 0 ? (dailyProfitINR / capVal) * 100 : 0;
+        baseDailyProfit = parseFloat(amtRaw) || 0;
+        dailyProfitPct = baseCap > 0 ? (baseDailyProfit / baseCap) * 100 : 0;
       }
 
-      const hasDecimals = (dailyProfitINR % 1 !== 0);
+      const hasDecimals = (baseDailyProfit % 1 !== 0);
       const decPlaces = hasDecimals ? 2 : 0;
 
-      document.getElementById('sumFixedCap').innerText = formatINR(capVal, 0);
-      document.getElementById('sumDailyTarget').innerText = formatINR(dailyProfitINR, decPlaces);
-      document.getElementById('sumDailyPctBadge').innerText = `${dailyProfitPct.toFixed(2)}% / day`;
+      // Determine 3-Month Window:
+      // If user starts near the end of a month (date >= 25), include those remaining days in Month 1
+      // alongside the next full calendar month, followed by Month 2 and Month 3.
+      let startDate = startStr ? new Date(startStr + "T00:00:00") : new Date();
+      if (isNaN(startDate.getTime())) startDate = new Date();
 
-      const total100Profit = dailyProfitINR * 100;
-      document.getElementById('sumTotal100Profit').innerText = formatINR(total100Profit, decPlaces);
-      document.getElementById('sumTotalWithCap').innerText = `Cap + Profit: ${formatINR(capVal + total100Profit, decPlaces)}`;
+      const sYear = startDate.getFullYear();
+      const sMonth = startDate.getMonth();
+      const sDay = startDate.getDate();
 
-      let curDate = startStr ? new Date(startStr + "T00:00:00") : new Date();
-      if (isNaN(curDate.getTime())) curDate = new Date();
+      // Anchor month index for Month 1, Month 2, Month 3
+      const m1Offset = (sDay >= 25) ? 1 : 0;
+      const m1End = new Date(sYear, sMonth + m1Offset + 1, 0);
+      const m2End = new Date(sYear, sMonth + m1Offset + 2, 0);
+      const m3End = new Date(sYear, sMonth + m1Offset + 3, 0);
 
-      const tbody = document.getElementById('calcTableBody');
-      let rowsHTML = '';
-      let lastFormattedDate = '--';
+      const m1LabelDate = new Date(sYear, sMonth + m1Offset, 1);
+      const m2LabelDate = new Date(sYear, sMonth + m1Offset + 1, 1);
+      const m3LabelDate = new Date(sYear, sMonth + m1Offset + 2, 1);
 
-      for (let day = 1; day <= 100; day++) {
-        while (curDate.getDay() === 0 || curDate.getDay() === 6) {
-          curDate.setDate(curDate.getDate() + 1);
+      const monthsMeta = [
+        {
+          index: 0,
+          title: `Month 1 (${formatCalcDate(m1LabelDate).mmmYY})`,
+          shortTitle: `M1 • ${formatCalcDate(m1LabelDate).mmmYY}`,
+          multiplier: 1,
+          capital: baseCap * 1,
+          dailyProfit: baseDailyProfit * 1,
+          endDate: m1End,
+          days: [],
+          monthProfit: 0
+        },
+        {
+          index: 1,
+          title: `Month 2 (${formatCalcDate(m2LabelDate).mmmYY})`,
+          shortTitle: `M2 • ${formatCalcDate(m2LabelDate).mmmYY}`,
+          multiplier: 2,
+          capital: baseCap * 2,
+          dailyProfit: baseDailyProfit * 2,
+          endDate: m2End,
+          days: [],
+          monthProfit: 0
+        },
+        {
+          index: 2,
+          title: `Month 3 (${formatCalcDate(m3LabelDate).mmmYY})`,
+          shortTitle: `M3 • ${formatCalcDate(m3LabelDate).mmmYY}`,
+          multiplier: 3,
+          capital: baseCap * 3,
+          dailyProfit: baseDailyProfit * 3,
+          endDate: m3End,
+          days: [],
+          monthProfit: 0
         }
+      ];
 
-        const { formatted, weekday } = formatCalcDate(curDate);
-        if (day === 100) lastFormattedDate = `${formatted} (${weekday})`;
+      let curDate = new Date(startDate.getTime());
+      let globalDayCount = 0;
+      let runningTotalProfit = 0;
+      let firstTradingDateStr = '--';
+      let lastTradingDateStr = '--';
 
-        const cumulativeProfit = dailyProfitINR * day;
-        const isMilestone = (day % 25 === 0 || day === 1);
-        const rowBg = isMilestone ? 'bg-indigo-500/10' : 'hover:bg-panelDark/40';
+      while (curDate <= m3End) {
+        const dow = curDate.getDay();
+        if (dow !== 0 && dow !== 6) {
+          globalDayCount++;
+          let bucketIdx = 0;
+          if (curDate <= m1End) bucketIdx = 0;
+          else if (curDate <= m2End) bucketIdx = 1;
+          else bucketIdx = 2;
 
-        rowsHTML += `
-          <tr class="${rowBg} transition-colors">
-            <td class="py-2.5 px-4">
-              <div class="flex items-center gap-2">
-                <span class="font-bold text-white">${formatted} | Day ${day}</span>
-                <span class="text-[10px] px-1.5 py-0.5 rounded bg-brandDark border border-borderDark text-slate-400">${weekday}</span>
-              </div>
-            </td>
-            <td class="py-2.5 px-4 text-right">
-              <span class="font-bold ${cumulativeProfit >= 0 ? 'text-winGreen' : 'text-lossRed'} text-xs sm:text-sm">${formatINR(cumulativeProfit, decPlaces)}</span>
-            </td>
-          </tr>`;
+          const bucket = monthsMeta[bucketIdx];
+          bucket.monthProfit += bucket.dailyProfit;
+          runningTotalProfit += bucket.dailyProfit;
 
+          const { formatted, weekday } = formatCalcDate(curDate);
+          if (globalDayCount === 1) firstTradingDateStr = formatted;
+          lastTradingDateStr = formatted;
+
+          bucket.days.push({
+            dayNum: globalDayCount,
+            monthDayNum: bucket.days.length + 1,
+            formattedDate: formatted,
+            weekday,
+            dailyProfit: bucket.dailyProfit,
+            monthCumProfit: bucket.monthProfit,
+            totalCumProfit: runningTotalProfit
+          });
+        }
         curDate.setDate(curDate.getDate() + 1);
       }
 
-      document.getElementById('sumEndDate').innerText = lastFormattedDate;
-      tbody.innerHTML = rowsHTML;
+      // Update Top Overview Strip
+      document.getElementById('sumDailyPctBadge').innerText = `${dailyProfitPct.toFixed(2)}% / day`;
+      document.getElementById('sumTotalDays').innerText = `${globalDayCount} days`;
+      document.getElementById('sumDateSpan').innerText = globalDayCount > 0 ? `(${firstTradingDateStr} → ${lastTradingDateStr})` : '';
+      document.getElementById('sumTotal3MProfit').innerText = formatINR(runningTotalProfit, decPlaces);
+
+      // Render 3 Month Summary Cards
+      let cardsHTML = '';
+      let accordionsHTML = '';
+
+      monthsMeta.forEach((m, idx) => {
+        cardsHTML += `
+          <div onclick="toggleMonthAccordion(${idx})" class="bg-brandDark border border-borderDark hover:border-indigo-500/40 p-2.5 rounded-lg cursor-pointer transition-colors">
+            <div class="flex justify-between items-center mb-1">
+              <span class="text-[10px] font-bold text-indigo-300">${m.shortTitle}</span>
+              <span class="text-[8px] px-1 py-0.5 rounded bg-cardDark text-slate-400">${m.days.length}d</span>
+            </div>
+            <div class="text-xs sm:text-sm font-bold text-winGreen truncate">${formatINR(m.monthProfit, decPlaces)}</div>
+            <div class="text-[9px] text-slate-400 mt-1 flex flex-col sm:flex-row sm:justify-between">
+              <span>Cap: ${formatINR(m.capital, 0)}</span>
+              <span class="text-slate-500">${formatINR(m.dailyProfit, decPlaces)}/d</span>
+            </div>
+          </div>`;
+
+        // Build Collapsible Day-by-Day Table for this Month
+        let rowsHTML = '';
+        m.days.forEach(d => {
+          rowsHTML += `
+            <tr class="hover:bg-panelDark/40 transition-colors">
+              <td class="py-2 px-3">
+                <div class="flex items-center gap-1.5">
+                  <span class="font-bold text-white">${d.formattedDate} | Day ${d.dayNum}</span>
+                  <span class="text-[9px] px-1 py-0.5 rounded bg-brandDark border border-borderDark text-slate-400">${d.weekday}</span>
+                </div>
+              </td>
+              <td class="py-2 px-3 text-right">
+                <span class="font-bold text-winGreen block">${formatINR(d.totalCumProfit, decPlaces)}</span>
+                <span class="text-[9px] text-slate-500 block">M${idx + 1}: ${formatINR(d.monthCumProfit, decPlaces)} (+${formatINR(d.dailyProfit, decPlaces)})</span>
+              </td>
+            </tr>`;
+        });
+
+        const bodyHiddenClass = allMonthsExpanded ? '' : 'hidden';
+        const iconRotateClass = allMonthsExpanded ? 'rotate-180' : '';
+
+        accordionsHTML += `
+          <div class="bg-cardDark border border-borderDark rounded-xl overflow-hidden shadow">
+            <button onclick="toggleMonthAccordion(${idx})" class="w-full p-3 flex justify-between items-center bg-panelDark/40 hover:bg-panelDark/80 transition-colors text-left">
+              <div class="flex items-center gap-2.5">
+                <span class="px-2 py-0.5 rounded text-[10px] font-bold bg-indigo-500/10 text-indigo-400 border border-indigo-500/20">${m.multiplier}x Cap</span>
+                <div>
+                  <h4 class="font-bold text-xs sm:text-sm text-white">${m.title}</h4>
+                  <p class="text-[10px] text-slate-400 font-mono">Capital: ${formatINR(m.capital, 0)} • Daily: ${formatINR(m.dailyProfit, decPlaces)} • ${m.days.length} Trading Days</p>
+                </div>
+              </div>
+              <div class="flex items-center gap-3">
+                <div class="text-right font-mono">
+                  <span class="text-[9px] text-slate-400 uppercase block">Month Profit</span>
+                  <span class="font-bold text-xs sm:text-sm text-winGreen">+${formatINR(m.monthProfit, decPlaces)}</span>
+                </div>
+                <i id="calcMonthIcon_${idx}" class="fa-solid fa-chevron-down text-slate-400 text-xs transition-transform duration-200 ${iconRotateClass}"></i>
+              </div>
+            </button>
+            <div id="calcMonthBody_${idx}" class="${bodyHiddenClass} border-t border-borderDark">
+              <table class="w-full text-left border-collapse">
+                <thead class="bg-brandDark/90 text-slate-400 border-b border-borderDark uppercase tracking-wider text-[9px]">
+                  <tr>
+                    <th class="py-2 px-3">Date & Day</th>
+                    <th class="py-2 px-3 text-right">Cumulative Total (₹)</th>
+                  </tr>
+                </thead>
+                <tbody class="divide-y divide-borderDark/60 font-mono text-[11px]">
+                  ${rowsHTML || '<tr><td colspan="2" class="text-center py-4 text-slate-500">No weekdays in range</td></tr>'}
+                </tbody>
+              </table>
+            </div>
+          </div>`;
+      });
+
+      document.getElementById('monthSummaryCards').innerHTML = cardsHTML;
+      document.getElementById('calcAccordionContainer').innerHTML = accordionsHTML;
     }
 
     // ==========================================
