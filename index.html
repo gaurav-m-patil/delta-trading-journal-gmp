@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Delta Trading Journal</title>
+  <title>Delta Trading Journal & INR Calculator</title>
   <meta name="theme-color" content="#080b11">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -15,7 +15,18 @@
   <script>
     tailwind.config = {
       darkMode: 'class',
-      theme: { extend: { colors: { brandDark: '#080b11', cardDark: '#0f172a', panelDark: '#131d31', borderDark: '#1e293b', winGreen: '#10b981', lossRed: '#f43f5e' } } }
+      theme: {
+        extend: {
+          colors: {
+            brandDark: '#080b11',
+            cardDark: '#0f172a',
+            panelDark: '#131d31',
+            borderDark: '#1e293b',
+            winGreen: '#10b981',
+            lossRed: '#f43f5e'
+          }
+        }
+      }
     }
   </script>
   <style>
@@ -28,28 +39,46 @@
     #aiSidebar, #ghSettingsModal { transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1); }
     .prose p { margin-bottom: 0.75em; }
     .prose strong { color: #f8fafc; }
+    input[type="date"]::-webkit-calendar-picker-indicator { filter: invert(0.8); cursor: pointer; }
   </style>
 </head>
-<body class="min-h-screen p-3 md:p-6 lg:p-8 relative">
+<body class="min-h-screen p-3 md:p-6 lg:p-8 pb-24 md:pb-28 relative">
 
-  <!-- PEEK OVERLAY -->
+  <!-- PEEK OVERLAY (Pointer-events-none prevents desktop hover flicker) -->
   <div id="peekOverlay" class="fixed inset-0 z-40 flex items-center justify-center bg-brandDark/80 backdrop-blur-sm opacity-0 pointer-events-none transition-opacity duration-150 no-select">
-    <div id="peekCard" class="bg-cardDark border border-borderDark rounded-2xl p-5 w-[280px] sm:w-[320px] shadow-2xl scale-95 transition-transform duration-150"></div>
+    <div id="peekCard" class="bg-cardDark border border-borderDark rounded-2xl p-5 w-[290px] sm:w-[340px] shadow-2xl scale-95 transition-transform duration-150 pointer-events-none"></div>
   </div>
 
-  <!-- GITHUB TOKEN SETTINGS MODAL -->
-  <div id="ghSettingsModal" class="fixed inset-0 z-50 flex items-center justify-center bg-brandDark/80 backdrop-blur-sm opacity-0 pointer-events-none transition-opacity duration-200">
-    <div class="bg-cardDark border border-borderDark rounded-2xl p-5 w-[320px] sm:w-[380px] shadow-2xl">
-      <h3 class="font-bold text-base text-white mb-2"><i class="fa-solid fa-key text-indigo-400 mr-1.5"></i> GitHub Workflow Token</h3>
-      <p class="text-xs text-slate-400 mb-4">Enter a GitHub Personal Access Token (PAT) with repo/workflow scope to remotely trigger updates from this page.</p>
-      <input type="password" id="ghTokenInput" placeholder="ghp_..." class="w-full bg-brandDark border border-borderDark rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-indigo-500 font-mono mb-3">
-      <div id="ghRepoConfig" class="space-y-2 mb-4">
-        <input type="text" id="ghOwnerInput" placeholder="GitHub Username" class="w-full bg-brandDark border border-borderDark rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-indigo-500 font-mono">
-        <input type="text" id="ghRepoInput" placeholder="Repo Name" class="w-full bg-brandDark border border-borderDark rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-indigo-500 font-mono">
+  <!-- SETTINGS MODAL (GitHub PAT + Local Gemini API Key) -->
+  <div id="ghSettingsModal" class="fixed inset-0 z-50 flex items-center justify-center bg-brandDark/80 backdrop-blur-sm opacity-0 pointer-events-none transition-opacity duration-200 p-4">
+    <div class="bg-cardDark border border-borderDark rounded-2xl p-5 w-full max-w-[400px] shadow-2xl">
+      <h3 class="font-bold text-base text-white mb-1"><i class="fa-solid fa-shield-halved text-indigo-400 mr-1.5"></i> Local Security & Sync Settings</h3>
+      <p class="text-[11px] text-slate-400 mb-4">Keys are stored strictly in your browser's localStorage and never exposed publicly.</p>
+      
+      <div class="space-y-3 mb-4">
+        <div>
+          <label class="text-[10px] font-semibold uppercase tracking-wider text-slate-400 block mb-1">GitHub Personal Access Token (PAT)</label>
+          <input type="password" id="ghTokenInput" placeholder="ghp_..." class="w-full bg-brandDark border border-borderDark rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-indigo-500 font-mono">
+        </div>
+        <div class="grid grid-cols-2 gap-2">
+          <div>
+            <label class="text-[10px] font-semibold uppercase tracking-wider text-slate-400 block mb-1">GitHub Username</label>
+            <input type="text" id="ghOwnerInput" placeholder="gaurav-m-patil" class="w-full bg-brandDark border border-borderDark rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-indigo-500 font-mono">
+          </div>
+          <div>
+            <label class="text-[10px] font-semibold uppercase tracking-wider text-slate-400 block mb-1">Repository Name</label>
+            <input type="text" id="ghRepoInput" placeholder="delta-trading-journal-gmp" class="w-full bg-brandDark border border-borderDark rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-indigo-500 font-mono">
+          </div>
+        </div>
+        <div class="pt-2 border-t border-borderDark">
+          <label class="text-[10px] font-semibold uppercase tracking-wider text-indigo-300 block mb-1">Gemini API Key (For AI Coach)</label>
+          <input type="password" id="geminiKeyInput" placeholder="AIzaSy..." class="w-full bg-brandDark border border-borderDark rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-indigo-500 font-mono">
+        </div>
       </div>
+
       <div class="flex gap-2">
-        <button onclick="saveGitHubSettings()" class="flex-1 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold py-2 rounded-xl transition-colors">Save Settings</button>
-        <button onclick="toggleGhSettings()" class="bg-panelDark hover:bg-borderDark text-slate-300 text-xs px-4 py-2 rounded-xl transition-colors">Cancel</button>
+        <button onclick="saveAppSettings()" class="flex-1 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold py-2.5 rounded-xl transition-colors">Save Locally</button>
+        <button onclick="toggleGhSettings()" class="bg-panelDark hover:bg-borderDark text-slate-300 text-xs px-4 py-2.5 rounded-xl transition-colors">Cancel</button>
       </div>
     </div>
   </div>
@@ -73,33 +102,61 @@
     </div>
   </div>
 
-  <!-- HEADER (Streamlined & Clean for Mobile & Desktop) -->
-  <header class="flex flex-col lg:flex-row justify-between items-start lg:items-center pb-5 border-b border-borderDark mb-5 gap-4">
-    <div class="flex items-center justify-between w-full lg:w-auto">
-      <div class="flex items-center gap-3">
-        <div class="h-10 w-10 bg-indigo-600 rounded-xl flex items-center justify-center text-white font-bold shadow-lg shadow-indigo-500/20"><i class="fa-solid fa-chart-line text-lg"></i></div>
-        <div>
-          <h1 class="text-lg md:text-2xl font-bold tracking-tight text-white flex items-center gap-2">Delta Trading Journal <span class="px-2 py-0.5 rounded text-[10px] font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">Live</span></h1>
-          <p class="text-[11px] text-slate-400 mt-0.5" id="lastUpdated">Loading raw database...</p>
+  <!-- TOP HEADER -->
+  <header class="flex flex-col sm:flex-row justify-between items-start sm:items-center pb-4 border-b border-borderDark mb-5 gap-3">
+    <div class="flex items-center gap-3">
+      <div class="h-10 w-10 bg-indigo-600 rounded-xl flex items-center justify-center text-white font-bold shadow-lg shadow-indigo-500/20">
+        <i class="fa-solid fa-chart-line text-lg"></i>
+      </div>
+      <div>
+        <div class="flex items-center gap-2">
+          <h1 class="text-lg md:text-2xl font-bold tracking-tight text-white">Delta Trading Journal</h1>
+          <span id="syncStatusBadge" class="px-2 py-0.5 rounded text-[10px] font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">Live</span>
         </div>
+        <p class="text-[11px] text-slate-400 mt-0.5" id="lastUpdated">Loading raw database...</p>
       </div>
     </div>
+    <span class="text-[10px] text-slate-500 font-mono hidden sm:inline-block"><i class="fa-solid fa-arrows-left-right mr-1"></i>Swipe or use bottom bar to switch tabs</span>
+  </header>
 
-    <div class="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5 w-full lg:w-auto">
-      <!-- TIME FRAME PILLS -->
-      <div class="flex items-center bg-cardDark border border-borderDark rounded-xl p-1 gap-1 w-full sm:w-auto justify-center">
+  <!-- ========================================== -->
+  <!-- TAB 1: DELTA INSIGHTS VIEW                 -->
+  <!-- ========================================== -->
+  <div id="view_INSIGHTS" class="block">
+    
+    <!-- CONTROLS & TIMEFRAME BAR -->
+    <section class="flex flex-col sm:flex-row justify-between items-stretch sm:items-center gap-3 mb-5">
+      <!-- Active Timeframe Context Banner -->
+      <div class="bg-cardDark border border-borderDark px-4 py-2.5 rounded-xl flex items-center justify-between sm:justify-start gap-4 shadow-sm flex-1">
+        <div class="flex items-center gap-2.5">
+          <div class="h-7 w-7 rounded-lg bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center text-indigo-400 text-xs">
+            <i class="fa-regular fa-calendar-check"></i>
+          </div>
+          <div>
+            <span class="text-[9px] text-slate-400 uppercase tracking-wider block font-medium">Active Timeframe</span>
+            <h3 class="text-xs sm:text-sm font-bold text-white font-mono" id="kpiActivity">Loading...</h3>
+          </div>
+        </div>
+        <span id="staleWarningText" class="hidden text-[10px] font-mono text-amber-400 bg-amber-500/10 border border-amber-500/20 px-2 py-0.5 rounded">
+          <i class="fa-solid fa-triangle-exclamation mr-1"></i>Stale Sync (>24h)
+        </span>
+      </div>
+
+      <!-- Filter Pills -->
+      <div class="flex items-center bg-cardDark border border-borderDark rounded-xl p-1 gap-1">
         <button onclick="setPreset('CURRENT_MONTH')" id="btn_CURRENT_MONTH" class="flex-1 sm:flex-none px-3 py-1.5 text-xs font-semibold rounded-lg transition-colors bg-indigo-600 text-white text-center">Current Month</button>
         <button onclick="setPreset('CUSTOM')" id="btn_CUSTOM" class="flex-1 sm:flex-none px-3 py-1.5 text-xs font-semibold rounded-lg transition-colors text-slate-400 hover:text-white text-center">Custom Range</button>
         <button onclick="setPreset('ALL_TIME')" id="btn_ALL_TIME" class="flex-1 sm:flex-none px-3 py-1.5 text-xs font-semibold rounded-lg transition-colors text-slate-400 hover:text-white text-center">All-Time</button>
       </div>
 
-      <div id="customDateContainer" class="hidden items-center gap-1.5 bg-cardDark border border-borderDark rounded-xl px-2.5 py-1">
+      <!-- Custom Date Inputs -->
+      <div id="customDateContainer" class="hidden items-center justify-between gap-1.5 bg-cardDark border border-borderDark rounded-xl px-3 py-1.5">
         <input type="date" id="customStartDate" onchange="applyGlobalFilter()" class="bg-transparent text-[11px] text-white focus:outline-none font-mono">
         <span class="text-slate-500 text-xs">to</span>
         <input type="date" id="customEndDate" onchange="applyGlobalFilter()" class="bg-transparent text-[11px] text-white focus:outline-none font-mono">
       </div>
 
-      <!-- ACTION BUTTONS ROW -->
+      <!-- Action Buttons -->
       <div class="flex items-center gap-2">
         <button onclick="toggleAICoach()" class="flex-1 sm:flex-none px-3.5 py-2 text-xs font-bold bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 hover:bg-indigo-500/20 rounded-xl transition-colors flex items-center justify-center gap-1.5">
           <i class="fa-solid fa-sparkles"></i> AI Coach
@@ -114,83 +171,218 @@
           <i class="fa-solid fa-arrows-rotate"></i>
         </button>
       </div>
-    </div>
-  </header>
-
-  <!-- TIMEFRAME STATUS BANNER (Moved to top as requested) -->
-  <section class="mb-5">
-    <div class="bg-cardDark border border-borderDark px-4 py-3 rounded-xl flex items-center justify-between shadow-sm">
-      <div class="flex items-center gap-2.5">
-        <div class="h-7 w-7 rounded-lg bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center text-indigo-400 text-xs"><i class="fa-regular fa-clock"></i></div>
-        <div>
-          <span class="text-[10px] text-slate-400 uppercase tracking-wider block font-medium">Active Timeframe</span>
-          <h3 class="text-sm font-bold text-white font-mono" id="kpiActivity">Loading...</h3>
-        </div>
-      </div>
-      <div id="calendarBadge" class="text-xs font-mono text-indigo-300 font-semibold px-2.5 py-1 rounded-lg bg-panelDark border border-borderDark"></div>
-    </div>
-  </section>
-
-  <!-- KPI SCORECARD -->
-  <section class="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">
-    <div class="bg-cardDark border border-borderDark p-3.5 rounded-xl"><span class="text-slate-400 text-[10px] font-medium uppercase tracking-wider block mb-1">Gross PnL</span><h3 class="text-base font-bold font-mono" id="kpiGross">$0.00</h3><span class="text-[9px] text-slate-500">Market outcome</span></div>
-    <div class="bg-cardDark border border-borderDark p-3.5 rounded-xl"><span class="text-slate-400 text-[10px] font-medium uppercase tracking-wider block mb-1">Brokerage & Fees</span><h3 class="text-base font-bold text-lossRed font-mono" id="kpiBrokerage">$0.00</h3><span class="text-[9px] text-slate-500">Exchange charges</span></div>
-    <div class="bg-cardDark border border-borderDark p-3.5 rounded-xl border-l-4 border-l-emerald-500"><span class="text-emerald-300 text-[10px] font-medium uppercase tracking-wider block mb-1">Net PnL</span><h3 class="text-base font-bold font-mono" id="kpiNet">$0.00</h3><span class="text-[9px] text-emerald-400">Net Take-Home</span></div>
-    <div class="bg-cardDark border border-borderDark p-3.5 rounded-xl"><span class="text-slate-400 text-[10px] font-medium uppercase tracking-wider block mb-1">Win Rate</span><h3 class="text-base font-bold text-white font-mono" id="kpiWinRate">0%</h3><span class="text-[9px] text-slate-500" id="kpiTradeCount">0 trades</span></div>
-  </section>
-
-  <!-- TRAJECTORY & INSTRUMENT ANALYSIS -->
-  <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
-    <section class="lg:col-span-2 bg-cardDark border border-borderDark p-4 md:p-5 rounded-2xl flex flex-col">
-      <div class="flex justify-between items-center mb-3">
-        <div><h2 class="font-bold text-sm md:text-base text-white">Performance Trajectory</h2><p class="text-[11px] text-slate-400">Net Take-Home vs Gross Outcome</p></div>
-      </div>
-      <div id="equityChart" class="flex-1 w-full overflow-hidden min-h-[260px]"></div>
     </section>
-    
-    <section class="bg-cardDark border border-borderDark p-4 md:p-5 rounded-2xl flex flex-col gap-4">
-      <div>
-        <h2 class="font-bold text-sm md:text-base text-white">Instrument Analysis</h2>
-        <p class="text-[11px] text-slate-400">Profitability and frequency by contract type</p>
+
+    <!-- KPI SCORECARD (With Explicit Brokerage & 18% GST Split) -->
+    <section class="grid grid-cols-2 sm:grid-cols-5 gap-3 mb-6">
+      <div class="bg-cardDark border border-borderDark p-3.5 rounded-xl">
+        <span class="text-slate-400 text-[10px] font-medium uppercase tracking-wider block mb-1">Gross PnL</span>
+        <h3 class="text-base font-bold font-mono" id="kpiGross">$0.00</h3>
+        <span class="text-[9px] text-slate-500">Raw market outcome</span>
       </div>
-      <div class="flex-1 grid grid-cols-2 lg:grid-cols-1 xl:grid-cols-2 gap-4 items-center">
-        <div class="flex flex-col items-center w-full"><div id="callPutChart" class="w-full"></div><p class="text-[10px] text-slate-400 uppercase tracking-wide mt-2">Calls vs Puts (PnL)</p></div>
-        <div class="flex flex-col items-center w-full"><div id="buySellChart" class="w-full"></div><p class="text-[10px] text-slate-400 uppercase tracking-wide mt-2">Calls vs Puts (Count)</p></div>
+      <div class="bg-cardDark border border-borderDark p-3.5 rounded-xl">
+        <span class="text-slate-400 text-[10px] font-medium uppercase tracking-wider block mb-1">Base Brokerage</span>
+        <h3 class="text-base font-bold text-lossRed font-mono" id="kpiBrokerage">$0.00</h3>
+        <span class="text-[9px] text-slate-500">Excl. 18% GST</span>
+      </div>
+      <div class="bg-cardDark border border-borderDark p-3.5 rounded-xl">
+        <span class="text-slate-400 text-[10px] font-medium uppercase tracking-wider block mb-1">18% GST Paid</span>
+        <h3 class="text-base font-bold text-amber-400 font-mono" id="kpiGst">$0.00</h3>
+        <span class="text-[9px] text-slate-500" id="kpiTotalFeeSub">Total Fee: $0.00</span>
+      </div>
+      <div class="bg-cardDark border border-borderDark p-3.5 rounded-xl border-l-4 border-l-emerald-500">
+        <span class="text-emerald-300 text-[10px] font-medium uppercase tracking-wider block mb-1">Net PnL</span>
+        <h3 class="text-base font-bold font-mono" id="kpiNet">$0.00</h3>
+        <span class="text-[9px] text-emerald-400">Net Take-Home</span>
+      </div>
+      <div class="bg-cardDark border border-borderDark p-3.5 rounded-xl col-span-2 sm:col-span-1">
+        <span class="text-slate-400 text-[10px] font-medium uppercase tracking-wider block mb-1">Win Rate</span>
+        <h3 class="text-base font-bold text-white font-mono" id="kpiWinRate">0%</h3>
+        <span class="text-[9px] text-slate-500" id="kpiTradeCount">0 trades</span>
+      </div>
+    </section>
+
+    <!-- TRAJECTORY & INSTRUMENT ANALYSIS -->
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
+      <section class="lg:col-span-2 bg-cardDark border border-borderDark p-4 md:p-5 rounded-2xl flex flex-col">
+        <div class="flex justify-between items-center mb-3">
+          <div>
+            <h2 class="font-bold text-sm md:text-base text-white">Performance Trajectory</h2>
+            <p class="text-[11px] text-slate-400">Cumulative Net Take-Home vs Gross Outcome</p>
+          </div>
+        </div>
+        <div id="equityChart" class="flex-1 w-full overflow-hidden min-h-[260px]"></div>
+      </section>
+      
+      <section class="bg-cardDark border border-borderDark p-4 md:p-5 rounded-2xl flex flex-col gap-4">
+        <div>
+          <h2 class="font-bold text-sm md:text-base text-white">Instrument Analysis</h2>
+          <p class="text-[11px] text-slate-400">Profitability and frequency by contract type</p>
+        </div>
+        <div class="flex-1 grid grid-cols-2 lg:grid-cols-1 xl:grid-cols-2 gap-4 items-center">
+          <div class="flex flex-col items-center w-full"><div id="callPutChart" class="w-full"></div><p class="text-[10px] text-slate-400 uppercase tracking-wide mt-2">Calls vs Puts (PnL)</p></div>
+          <div class="flex flex-col items-center w-full"><div id="buySellChart" class="w-full"></div><p class="text-[10px] text-slate-400 uppercase tracking-wide mt-2">Calls vs Puts (Trades)</p></div>
+        </div>
+      </section>
+    </div>
+
+    <!-- ADAPTIVE CALENDAR / MONTHLY OVERVIEW SECTION -->
+    <section class="bg-cardDark border border-borderDark p-4 md:p-5 rounded-2xl mb-6">
+      <div class="flex justify-between items-center mb-4">
+        <div>
+          <h2 class="font-bold text-sm md:text-base text-white" id="middleSectionTitle">Journal Overview</h2>
+          <p class="text-[11px] text-slate-400" id="middleSectionSubtitle">Performance breakdown</p>
+        </div>
+        <div id="calendarBadge" class="text-xs font-mono text-indigo-300 font-semibold px-2.5 py-1 rounded-lg bg-panelDark border border-borderDark"></div>
+      </div>
+      <div id="middleSectionContainer" class="w-full"></div>
+    </section>
+
+    <!-- BOTTOM TRADE LOG (Responsive Cards on Mobile, Table on Desktop, with Pagination) -->
+    <section id="tradeTableSection" class="bg-cardDark border border-borderDark p-4 md:p-5 rounded-2xl">
+      <div class="flex justify-between items-center mb-4">
+        <div>
+          <h2 class="font-bold text-sm md:text-base text-white">Closed Position Audit Log</h2>
+          <p class="text-[11px] text-slate-400">Scale-in/out fills merged until position size reaches 0</p>
+        </div>
+        <span class="text-xs font-mono text-slate-400" id="tradeCountBadge">0 trades</span>
+      </div>
+
+      <!-- Mobile Card List (Zero Horizontal Scroll) -->
+      <div id="tradeLogMobileCards" class="grid grid-cols-1 gap-2.5 md:hidden"></div>
+
+      <!-- Desktop Table -->
+      <div class="hidden md:block overflow-x-auto custom-scroll pb-2">
+        <table class="w-full text-left text-xs">
+          <thead class="bg-brandDark/80 text-slate-400 border-b border-borderDark uppercase tracking-wider text-[10px]">
+            <tr>
+              <th class="py-2.5 px-3">Closed Time (IST)</th>
+              <th class="py-2.5 px-3">Symbol</th>
+              <th class="py-2.5 px-3 text-right">Size</th>
+              <th class="py-2.5 px-3 text-right">Avg Entry / Exit</th>
+              <th class="py-2.5 px-3 text-right">Gross PnL</th>
+              <th class="py-2.5 px-3 text-right">Brokerage</th>
+              <th class="py-2.5 px-3 text-right">18% GST</th>
+              <th class="py-2.5 px-3 text-right">Net PnL</th>
+              <th class="py-2.5 px-3 text-center">Status</th>
+            </tr>
+          </thead>
+          <tbody id="tradeLogBody" class="divide-y divide-borderDark text-slate-300 font-mono text-[11px]"></tbody>
+        </table>
+      </div>
+
+      <!-- Pagination Controls -->
+      <div id="paginationControls" class="hidden justify-between items-center mt-4 pt-3 border-t border-borderDark text-xs">
+        <button onclick="changeTradePage(-1)" id="prevPageBtn" class="px-3 py-1.5 rounded-lg bg-panelDark border border-borderDark text-slate-300 hover:text-white disabled:opacity-40">Previous</button>
+        <span id="pageIndicator" class="font-mono text-slate-400">Page 1 of 1</span>
+        <button onclick="changeTradePage(1)" id="nextPageBtn" class="px-3 py-1.5 rounded-lg bg-panelDark border border-borderDark text-slate-300 hover:text-white disabled:opacity-40">Next</button>
       </div>
     </section>
   </div>
 
-  <!-- ADAPTIVE SECTION -->
-  <section class="bg-cardDark border border-borderDark p-4 md:p-5 rounded-2xl mb-6">
-    <div class="flex justify-between items-center mb-4">
-      <div><h2 class="font-bold text-sm md:text-base text-white" id="middleSectionTitle">Journal Overview</h2><p class="text-[11px] text-slate-400" id="middleSectionSubtitle">Performance breakdown</p></div>
-    </div>
-    <div id="middleSectionContainer" class="w-full"></div>
-  </section>
+  <!-- ========================================== -->
+  <!-- TAB 2: 100-DAY INR PROFIT CALCULATOR       -->
+  <!-- ========================================== -->
+  <div id="view_CALCULATOR" class="hidden max-w-4xl mx-auto">
+    
+    <!-- CALCULATOR INPUT PANEL -->
+    <section class="bg-cardDark border border-borderDark p-4 sm:p-6 rounded-2xl mb-5 shadow-lg">
+      <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-4 gap-2">
+        <div>
+          <h2 class="font-bold text-base sm:text-lg text-white flex items-center gap-2">
+            <i class="fa-solid fa-calculator text-indigo-400"></i> 100-Day Non-Compounding Profit Planner (INR)
+          </h2>
+          <p class="text-xs text-slate-400">Fixed base capital per trade • Skips Saturdays & Sundays automatically</p>
+        </div>
+        <button onclick="resetCalculatorInputs()" class="text-xs text-slate-400 hover:text-white bg-panelDark border border-borderDark px-3 py-1.5 rounded-lg transition-colors">
+          <i class="fa-solid fa-rotate-left mr-1"></i> Reset
+        </button>
+      </div>
 
-  <!-- BOTTOM EXECUTION AUDIT LOG TABLE -->
-  <section id="tradeTableSection" class="bg-cardDark border border-borderDark p-4 md:p-5 rounded-2xl">
-    <div class="flex justify-between items-center mb-4">
-      <div><h2 class="font-bold text-sm md:text-base text-white">Trade Log</h2><p class="text-[11px] text-slate-400" id="tableSubtitle">Grouped positions matching Delta app trade counts</p></div>
-      <span class="text-xs font-mono text-slate-400" id="tradeCountBadge">Showing 0 trades</span>
-    </div>
-    <div class="overflow-x-auto custom-scroll pb-2">
-      <table class="w-full text-left text-xs min-w-[800px]">
-        <thead class="bg-brandDark/80 text-slate-400 border-b border-borderDark uppercase tracking-wider text-[10px]">
-          <tr>
-            <th class="py-2.5 px-3">Date (IST)</th>
-            <th class="py-2.5 px-3">Symbol</th>
-            <th class="py-2.5 px-3 text-right">Total Size</th>
-            <th class="py-2.5 px-3 text-right">Gross PnL</th>
-            <th class="py-2.5 px-3 text-right">Commission</th>
-            <th class="py-2.5 px-3 text-right">Net PnL</th>
-            <th class="py-2.5 px-3 text-center">Status</th>
-          </tr>
-        </thead>
-        <tbody id="tradeLogBody" class="divide-y divide-borderDark text-slate-300 font-mono text-[11px]"></tbody>
-      </table>
-    </div>
-  </section>
+      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5">
+        <!-- Start Date -->
+        <div class="bg-brandDark border border-borderDark p-3 rounded-xl">
+          <label class="text-[10px] font-semibold uppercase tracking-wider text-slate-400 block mb-1">Start Date</label>
+          <input type="date" id="calcStartDate" onchange="runInrCalculator()" class="w-full bg-transparent text-sm font-bold text-white focus:outline-none font-mono">
+          <span class="text-[9px] text-slate-500 block mt-1">Mon–Fri trading days</span>
+        </div>
+
+        <!-- Base Capital (INR) -->
+        <div class="bg-brandDark border border-borderDark p-3 rounded-xl">
+          <label class="text-[10px] font-semibold uppercase tracking-wider text-slate-400 block mb-1">Base Capital (₹)</label>
+          <input type="number" id="calcCapital" oninput="runInrCalculator()" placeholder="e.g. 100000" value="100000" class="w-full bg-transparent text-sm font-bold text-white focus:outline-none font-mono">
+          <span class="text-[9px] text-indigo-400 font-mono block mt-1" id="calcCapitalFormatted">₹1,00,000</span>
+        </div>
+
+        <!-- Daily Profit Percentage (Mutually Exclusive with Amount) -->
+        <div id="boxCalcPct" class="bg-brandDark border border-borderDark p-3 rounded-xl transition-opacity">
+          <label class="text-[10px] font-semibold uppercase tracking-wider text-emerald-400 block mb-1">Daily Profit (%)</label>
+          <input type="number" step="any" id="calcPct" oninput="onCalcModeInput('PCT')" placeholder="e.g. 5" value="5" class="w-full bg-transparent text-sm font-bold text-white focus:outline-none font-mono">
+          <span class="text-[9px] text-slate-500 block mt-1" id="calcPctHint">Locks Daily ₹ field</span>
+        </div>
+
+        <!-- Daily Profit Amount INR (Mutually Exclusive with Percentage) -->
+        <div id="boxCalcAmt" class="bg-brandDark border border-borderDark p-3 rounded-xl transition-opacity">
+          <label class="text-[10px] font-semibold uppercase tracking-wider text-emerald-400 block mb-1">Daily Profit (₹)</label>
+          <input type="number" step="any" id="calcAmt" oninput="onCalcModeInput('AMT')" placeholder="Blank (Auto)" class="w-full bg-transparent text-sm font-bold text-white focus:outline-none font-mono">
+          <span class="text-[9px] text-slate-500 block mt-1" id="calcAmtHint">Locks Daily % field</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- STATIC SUMMARY BANNER (Replaces repetitive columns so table never scrolls horizontally) -->
+    <section class="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-5">
+      <div class="bg-cardDark border border-borderDark p-3.5 rounded-xl">
+        <span class="text-[10px] text-slate-400 uppercase tracking-wider block mb-1">Fixed Daily Capital</span>
+        <h3 class="text-sm sm:text-base font-bold text-white font-mono" id="sumFixedCap">₹1,00,000</h3>
+        <span class="text-[9px] text-slate-500">Non-compounding base</span>
+      </div>
+      <div class="bg-cardDark border border-borderDark p-3.5 rounded-xl">
+        <span class="text-[10px] text-slate-400 uppercase tracking-wider block mb-1">Daily Profit Target</span>
+        <h3 class="text-sm sm:text-base font-bold text-winGreen font-mono" id="sumDailyTarget">₹5,000</h3>
+        <span class="text-[9px] text-emerald-400 font-mono" id="sumDailyPctBadge">5.00% / day</span>
+      </div>
+      <div class="bg-cardDark border border-borderDark p-3.5 rounded-xl border-l-4 border-l-emerald-500">
+        <span class="text-[10px] text-emerald-300 uppercase tracking-wider block mb-1">100-Day Total Profit</span>
+        <h3 class="text-sm sm:text-base font-bold text-winGreen font-mono" id="sumTotal100Profit">₹5,00,000</h3>
+        <span class="text-[9px] text-slate-400 font-mono" id="sumTotalWithCap">Cap + Profit: ₹6,00,000</span>
+      </div>
+      <div class="bg-cardDark border border-borderDark p-3.5 rounded-xl">
+        <span class="text-[10px] text-slate-400 uppercase tracking-wider block mb-1">Day 100 Target Date</span>
+        <h3 class="text-sm sm:text-base font-bold text-indigo-300 font-mono" id="sumEndDate">--</h3>
+        <span class="text-[9px] text-slate-500">Excludes Sat & Sun</span>
+      </div>
+    </section>
+
+    <!-- 2-COLUMN VERTICAL PROJECTION TABLE (Zero Horizontal Scroll) -->
+    <section class="bg-cardDark border border-borderDark rounded-2xl overflow-hidden shadow-lg">
+      <div class="p-4 border-b border-borderDark flex justify-between items-center bg-panelDark/50">
+        <h3 class="font-bold text-xs sm:text-sm text-white uppercase tracking-wider">100-Day Weekday Schedule</h3>
+        <span class="text-[11px] font-mono text-slate-400">Mon – Fri Only</span>
+      </div>
+      <div class="w-full">
+        <table class="w-full text-left border-collapse">
+          <thead class="bg-brandDark/90 text-slate-400 border-b border-borderDark uppercase tracking-wider text-[10px]">
+            <tr>
+              <th class="py-3 px-4">Date & Trading Day</th>
+              <th class="py-3 px-4 text-right">Cumulative Profit (₹)</th>
+            </tr>
+          </thead>
+          <tbody id="calcTableBody" class="divide-y divide-borderDark/60 font-mono text-xs"></tbody>
+        </table>
+      </div>
+    </section>
+  </div>
+
+  <!-- FLOATING BOTTOM NAVIGATION BAR -->
+  <nav class="fixed bottom-4 left-1/2 -translate-x-1/2 z-30 w-[92%] max-w-[380px] bg-cardDark/95 backdrop-blur-md border border-borderDark rounded-2xl p-1.5 shadow-2xl flex items-center gap-1.5 no-select">
+    <button onclick="switchMainTab('INSIGHTS')" id="tabBtn_INSIGHTS" class="flex-1 py-2.5 px-3 text-xs font-bold rounded-xl transition-all bg-indigo-600 text-white flex items-center justify-center gap-2 shadow-lg shadow-indigo-600/25">
+      <i class="fa-solid fa-chart-pie"></i> Delta Insights
+    </button>
+    <button onclick="switchMainTab('CALCULATOR')" id="tabBtn_CALCULATOR" class="flex-1 py-2.5 px-3 text-xs font-bold rounded-xl transition-all text-slate-400 hover:text-white flex items-center justify-center gap-2">
+      <i class="fa-solid fa-indian-rupee-sign"></i> Calculator
+    </button>
+  </nav>
 
   <script>
     let rawDumpCache = null;
@@ -200,25 +392,240 @@
     let callPutChart = null;
     let buySellChart = null;
     let currentPreset = 'CURRENT_MONTH';
+    let currentMainTab = 'INSIGHTS';
+    let currentTradePage = 1;
+    const TRADES_PER_PAGE = 25;
 
-    document.addEventListener("DOMContentLoaded", () => { 
+    // Formatters
+    const formatUSD = (val) => {
+      const num = Number(val) || 0;
+      return (num < 0 ? "-$" : "$") + Math.abs(num).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    };
+    const compactUSD = (val) => {
+      const num = Number(val) || 0;
+      const absNum = Math.abs(num);
+      if (absNum >= 1000) return (num < 0 ? "-$" : "$") + (absNum / 1000).toFixed(1) + "k";
+      return (num < 0 ? "-$" : "$") + absNum.toFixed(0);
+    };
+    const formatINR = (val, decimals = 0) => {
+      const num = Number(val) || 0;
+      return (num < 0 ? "-₹" : "₹") + Math.abs(num).toLocaleString('en-IN', { minimumFractionDigits: decimals, maximumFractionDigits: decimals });
+    };
+
+    document.addEventListener("DOMContentLoaded", () => {
       const savedToken = localStorage.getItem("gh_pat_token");
       const savedOwner = localStorage.getItem("gh_owner");
       const savedRepo = localStorage.getItem("gh_repo");
-      if(savedToken) document.getElementById('ghTokenInput').value = savedToken;
-      if(savedOwner) document.getElementById('ghOwnerInput').value = savedOwner;
-      if(savedRepo) document.getElementById('ghRepoInput').value = savedRepo;
-      fetchRawData(); 
+      const savedGeminiKey = localStorage.getItem("gemini_api_key");
+      if (savedToken) document.getElementById('ghTokenInput').value = savedToken;
+      if (savedOwner) document.getElementById('ghOwnerInput').value = savedOwner;
+      if (savedRepo) document.getElementById('ghRepoInput').value = savedRepo;
+      if (savedGeminiKey) document.getElementById('geminiKeyInput').value = savedGeminiKey;
+
+      const todayISO = new Date().toISOString().split('T')[0];
+      document.getElementById('calcStartDate').value = todayISO;
+      onCalcModeInput('PCT');
+
+      initSwipeNavigation();
+      fetchRawData();
     });
 
-    const formatUSD = (val) => { const num = Number(val) || 0; return (num < 0 ? "-$" : "$") + Math.abs(num).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }); };
-    const compactUSD = (val) => { const num = Number(val) || 0; const absNum = Math.abs(num); if (absNum >= 1000) return (num < 0 ? "-$" : "$") + (absNum / 1000).toFixed(1) + "k"; return (num < 0 ? "-$" : "$") + absNum.toFixed(0); };
+    // ==========================================
+    // BOTTOM TAB SWITCHER & SWIPE GESTURES
+    // ==========================================
+    function switchMainTab(tab) {
+      if (currentMainTab === tab) return;
+      currentMainTab = tab;
 
+      const insightsView = document.getElementById('view_INSIGHTS');
+      const calcView = document.getElementById('view_CALCULATOR');
+      const btnInsights = document.getElementById('tabBtn_INSIGHTS');
+      const btnCalc = document.getElementById('tabBtn_CALCULATOR');
+
+      if (tab === 'INSIGHTS') {
+        insightsView.classList.remove('hidden');
+        calcView.classList.add('hidden');
+        btnInsights.className = "flex-1 py-2.5 px-3 text-xs font-bold rounded-xl transition-all bg-indigo-600 text-white flex items-center justify-center gap-2 shadow-lg shadow-indigo-600/25";
+        btnCalc.className = "flex-1 py-2.5 px-3 text-xs font-bold rounded-xl transition-all text-slate-400 hover:text-white flex items-center justify-center gap-2";
+      } else {
+        insightsView.classList.add('hidden');
+        calcView.classList.remove('hidden');
+        btnCalc.className = "flex-1 py-2.5 px-3 text-xs font-bold rounded-xl transition-all bg-indigo-600 text-white flex items-center justify-center gap-2 shadow-lg shadow-indigo-600/25";
+        btnInsights.className = "flex-1 py-2.5 px-3 text-xs font-bold rounded-xl transition-all text-slate-400 hover:text-white flex items-center justify-center gap-2";
+        runInrCalculator();
+      }
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+
+    function initSwipeNavigation() {
+      let touchStartX = 0;
+      let touchStartY = 0;
+
+      document.addEventListener('touchstart', (e) => {
+        if (e.touches.length !== 1) return;
+        touchStartX = e.touches[0].clientX;
+        touchStartY = e.touches[0].clientY;
+      }, { passive: true });
+
+      document.addEventListener('touchend', (e) => {
+        if (e.changedTouches.length !== 1) return;
+
+        // Ignore swipes if AI Sidebar or Settings Modal is open, or if swiping inside an input
+        const aiSidebarOpen = !document.getElementById('aiSidebar').classList.contains('translate-x-full');
+        const settingsOpen = !document.getElementById('ghSettingsModal').classList.contains('opacity-0');
+        const tag = (e.target.tagName || '').toLowerCase();
+        if (aiSidebarOpen || settingsOpen || tag === 'input' || tag === 'select') return;
+
+        const dx = e.changedTouches[0].clientX - touchStartX;
+        const dy = e.changedTouches[0].clientY - touchStartY;
+
+        // Require horizontal swipe > 65px and strictly flatter than vertical scroll
+        if (Math.abs(dx) > 65 && Math.abs(dx) > Math.abs(dy) * 1.8) {
+          if (dx < 0 && currentMainTab === 'INSIGHTS') {
+            // Swipe Left -> Go to Calculator
+            switchMainTab('CALCULATOR');
+          } else if (dx > 0 && currentMainTab === 'CALCULATOR') {
+            // Swipe Right -> Go to Delta Insights
+            switchMainTab('INSIGHTS');
+          }
+        }
+      }, { passive: true });
+    }
+
+    // ==========================================
+    // 100-DAY INR PROFIT CALCULATOR LOGIC
+    // ==========================================
+    function onCalcModeInput(source) {
+      const pctInput = document.getElementById('calcPct');
+      const amtInput = document.getElementById('calcAmt');
+      const boxPct = document.getElementById('boxCalcPct');
+      const boxAmt = document.getElementById('boxCalcAmt');
+
+      if (source === 'PCT') {
+        if (pctInput.value.trim() !== '') {
+          amtInput.value = '';
+          amtInput.disabled = true;
+          boxAmt.classList.add('opacity-40');
+          pctInput.disabled = false;
+          boxPct.classList.remove('opacity-40');
+        } else {
+          amtInput.disabled = false;
+          boxAmt.classList.remove('opacity-40');
+        }
+      } else if (source === 'AMT') {
+        if (amtInput.value.trim() !== '') {
+          pctInput.value = '';
+          pctInput.disabled = true;
+          boxPct.classList.add('opacity-40');
+          amtInput.disabled = false;
+          boxAmt.classList.remove('opacity-40');
+        } else {
+          pctInput.disabled = false;
+          boxPct.classList.remove('opacity-40');
+        }
+      }
+      runInrCalculator();
+    }
+
+    function resetCalculatorInputs() {
+      document.getElementById('calcStartDate').value = new Date().toISOString().split('T')[0];
+      document.getElementById('calcCapital').value = '100000';
+      document.getElementById('calcPct').value = '5';
+      document.getElementById('calcAmt').value = '';
+      document.getElementById('calcPct').disabled = false;
+      document.getElementById('calcAmt').disabled = true;
+      document.getElementById('boxCalcPct').classList.remove('opacity-40');
+      document.getElementById('boxCalcAmt').classList.add('opacity-40');
+      runInrCalculator();
+    }
+
+    function formatCalcDate(d) {
+      const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+      const days = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+      const dd = String(d.getDate()).padStart(2, '0');
+      const mmm = months[d.getMonth()];
+      const yy = String(d.getFullYear()).slice(-2);
+      const ddd = days[d.getDay()];
+      return { formatted: `${dd}-${mmm}-${yy}`, weekday: ddd };
+    }
+
+    function runInrCalculator() {
+      const capVal = parseFloat(document.getElementById('calcCapital').value) || 0;
+      const pctRaw = document.getElementById('calcPct').value.trim();
+      const amtRaw = document.getElementById('calcAmt').value.trim();
+      const startStr = document.getElementById('calcStartDate').value;
+
+      document.getElementById('calcCapitalFormatted').innerText = formatINR(capVal, 0);
+
+      let dailyProfitINR = 0;
+      let dailyProfitPct = 0;
+
+      if (pctRaw !== '') {
+        dailyProfitPct = parseFloat(pctRaw) || 0;
+        dailyProfitINR = capVal * (dailyProfitPct / 100);
+      } else if (amtRaw !== '') {
+        dailyProfitINR = parseFloat(amtRaw) || 0;
+        dailyProfitPct = capVal > 0 ? (dailyProfitINR / capVal) * 100 : 0;
+      }
+
+      const hasDecimals = (dailyProfitINR % 1 !== 0);
+      const decPlaces = hasDecimals ? 2 : 0;
+
+      document.getElementById('sumFixedCap').innerText = formatINR(capVal, 0);
+      document.getElementById('sumDailyTarget').innerText = formatINR(dailyProfitINR, decPlaces);
+      document.getElementById('sumDailyPctBadge').innerText = `${dailyProfitPct.toFixed(2)}% / day`;
+
+      const total100Profit = dailyProfitINR * 100;
+      document.getElementById('sumTotal100Profit').innerText = formatINR(total100Profit, decPlaces);
+      document.getElementById('sumTotalWithCap').innerText = `Cap + Profit: ${formatINR(capVal + total100Profit, decPlaces)}`;
+
+      let curDate = startStr ? new Date(startStr + "T00:00:00") : new Date();
+      if (isNaN(curDate.getTime())) curDate = new Date();
+
+      const tbody = document.getElementById('calcTableBody');
+      let rowsHTML = '';
+      let lastFormattedDate = '--';
+
+      for (let day = 1; day <= 100; day++) {
+        while (curDate.getDay() === 0 || curDate.getDay() === 6) {
+          curDate.setDate(curDate.getDate() + 1);
+        }
+
+        const { formatted, weekday } = formatCalcDate(curDate);
+        if (day === 100) lastFormattedDate = `${formatted} (${weekday})`;
+
+        const cumulativeProfit = dailyProfitINR * day;
+        const isMilestone = (day % 25 === 0 || day === 1);
+        const rowBg = isMilestone ? 'bg-indigo-500/10' : 'hover:bg-panelDark/40';
+
+        rowsHTML += `
+          <tr class="${rowBg} transition-colors">
+            <td class="py-2.5 px-4">
+              <div class="flex items-center gap-2">
+                <span class="font-bold text-white">${formatted} | Day ${day}</span>
+                <span class="text-[10px] px-1.5 py-0.5 rounded bg-brandDark border border-borderDark text-slate-400">${weekday}</span>
+              </div>
+            </td>
+            <td class="py-2.5 px-4 text-right">
+              <span class="font-bold ${cumulativeProfit >= 0 ? 'text-winGreen' : 'text-lossRed'} text-xs sm:text-sm">${formatINR(cumulativeProfit, decPlaces)}</span>
+            </td>
+          </tr>`;
+
+        curDate.setDate(curDate.getDate() + 1);
+      }
+
+      document.getElementById('sumEndDate').innerText = lastFormattedDate;
+      tbody.innerHTML = rowsHTML;
+    }
+
+    // ==========================================
+    // DELTA INSIGHTS & POSITION-ZERO GROUPING
+    // ==========================================
     function setPreset(preset) {
       currentPreset = preset;
       ['CURRENT_MONTH', 'CUSTOM', 'ALL_TIME'].forEach(p => {
         const btn = document.getElementById(`btn_${p}`);
-        if(p === preset) {
+        if (p === preset) {
           btn.className = "flex-1 sm:flex-none px-3 py-1.5 text-xs font-semibold rounded-lg transition-colors bg-indigo-600 text-white text-center";
         } else {
           btn.className = "flex-1 sm:flex-none px-3 py-1.5 text-xs font-semibold rounded-lg transition-colors text-slate-400 hover:text-white text-center";
@@ -243,19 +650,19 @@
       }
     }
 
-    function saveGitHubSettings() {
+    function saveAppSettings() {
       const token = document.getElementById('ghTokenInput').value.trim();
       const owner = document.getElementById('ghOwnerInput').value.trim();
       const repo = document.getElementById('ghRepoInput').value.trim();
-      if(token && owner && repo) {
-        localStorage.setItem("gh_pat_token", token);
-        localStorage.setItem("gh_owner", owner);
-        localStorage.setItem("gh_repo", repo);
-        toggleGhSettings();
-        alert("GitHub settings saved successfully!");
-      } else {
-        alert("Please fill in all fields.");
-      }
+      const geminiKey = document.getElementById('geminiKeyInput').value.trim();
+
+      if (token) localStorage.setItem("gh_pat_token", token);
+      if (owner) localStorage.setItem("gh_owner", owner);
+      if (repo) localStorage.setItem("gh_repo", repo);
+      if (geminiKey) localStorage.setItem("gemini_api_key", geminiKey);
+
+      toggleGhSettings();
+      alert("Settings saved to your browser's localStorage!");
     }
 
     async function triggerGitHubWorkflow() {
@@ -263,9 +670,9 @@
       const owner = localStorage.getItem("gh_owner");
       const repo = localStorage.getItem("gh_repo");
       
-      if(!token || !owner || !repo) {
+      if (!token || !owner || !repo) {
         toggleGhSettings();
-        alert("Please configure your GitHub token and repository details first.");
+        alert("Please configure your GitHub PAT, Username, and Repo Name first.");
         return;
       }
 
@@ -284,13 +691,12 @@
           body: JSON.stringify({ ref: 'main' })
         });
 
-        if(!res.ok) {
+        if (!res.ok) {
           const errText = await res.text();
           throw new Error(`GitHub API Error: ${res.status} - ${errText}`);
         }
-
-        alert("Workflow successfully triggered! Give it 30-60 seconds, then hit Refresh.");
-      } catch(err) {
+        alert("Workflow triggered! Wait ~45 seconds, then click Refresh.");
+      } catch (err) {
         alert(`Failed to trigger workflow: ${err.message}`);
       } finally {
         btn.innerHTML = `<i class="fa-solid fa-play"></i> Run Sync`;
@@ -302,8 +708,8 @@
       if (!processedState || !processedState.dailyMap[dateKey]) return;
       const data = processedState.dailyMap[dateKey];
       if (data.trades === 0) return;
-      const dObj = new Date(dateKey);
-      const displayDate = dObj.toLocaleDateString('en-IN', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' });
+      const dObj = new Date(dateKey + "T00:00:00");
+      const displayDate = dObj.toLocaleDateString('en-IN', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' });
       const isWin = data.net_pnl >= 0;
 
       const html = `
@@ -311,15 +717,17 @@
           <p class="text-slate-400 text-[11px] font-semibold uppercase tracking-wider">${displayDate}</p>
           <h2 class="text-3xl font-bold font-mono mt-1.5 ${isWin ? 'text-winGreen' : 'text-lossRed'}">${isWin ? '+' : ''}${formatUSD(data.net_pnl)}</h2>
           <div class="flex justify-center gap-2 mt-3 text-xs font-mono">
-            <span class="px-2 py-0.5 rounded bg-brandDark border border-borderDark text-slate-300">${data.trades} Trades</span>
+            <span class="px-2 py-0.5 rounded bg-brandDark border border-borderDark text-slate-300">${data.trades} ${data.trades === 1 ? 'Trade' : 'Trades'}</span>
             <span class="px-2 py-0.5 rounded bg-winGreen/10 border border-winGreen/20 text-winGreen">${data.wins}W</span>
             <span class="px-2 py-0.5 rounded bg-lossRed/10 border border-lossRed/20 text-lossRed">${data.losses}L</span>
           </div>
         </div>
-        <div class="bg-brandDark rounded-xl p-3.5 border border-borderDark/50 space-y-2.5 text-xs font-mono text-slate-300">
+        <div class="bg-brandDark rounded-xl p-3.5 border border-borderDark/50 space-y-2 text-xs font-mono text-slate-300">
           <div class="flex justify-between items-center"><span>Gross PnL</span><span class="font-bold ${data.gross_pnl >= 0 ? 'text-winGreen' : 'text-lossRed'}">${formatUSD(data.gross_pnl)}</span></div>
-          <div class="flex justify-between items-center"><span>Brokerage & Fees</span><span class="text-lossRed font-bold">${formatUSD(data.brokerage)}</span></div>
-          <div class="flex justify-between items-center"><span>Net PnL</span><span class="font-bold ${data.net_pnl >= 0 ? 'text-winGreen' : 'text-lossRed'}">${formatUSD(data.net_pnl)}</span></div>
+          <div class="flex justify-between items-center"><span>Base Brokerage</span><span class="text-lossRed">${formatUSD(data.base_brokerage)}</span></div>
+          <div class="flex justify-between items-center"><span>18% GST</span><span class="text-amber-400">${formatUSD(data.gst)}</span></div>
+          <div class="flex justify-between items-center pt-1.5 border-t border-borderDark/60"><span>Total Fee Paid</span><span class="text-lossRed font-bold">${formatUSD(data.total_fee)}</span></div>
+          <div class="flex justify-between items-center pt-1.5 border-t border-borderDark/60"><span>Net Take-Home</span><span class="font-bold ${data.net_pnl >= 0 ? 'text-winGreen' : 'text-lossRed'}">${formatUSD(data.net_pnl)}</span></div>
         </div>`;
       document.getElementById('peekCard').innerHTML = html;
       const overlay = document.getElementById('peekOverlay');
@@ -349,10 +757,12 @@
 
     async function generateAIAnalysis() {
       const chatArea = document.getElementById('aiChatArea');
-      const apiKey = rawDumpCache && rawDumpCache.gemini_api_key ? rawDumpCache.gemini_api_key.trim() : null;
+      const localKey = localStorage.getItem("gemini_api_key");
+      const fallbackKey = rawDumpCache && rawDumpCache.gemini_api_key ? rawDumpCache.gemini_api_key.trim() : null;
+      const apiKey = (localKey && localKey.trim() !== "") ? localKey.trim() : fallbackKey;
       
-      if (!apiKey || apiKey === "") {
-        chatArea.innerHTML = `<div class="bg-lossRed/10 border border-lossRed/30 text-lossRed p-4 rounded-xl text-sm"><i class="fa-solid fa-triangle-exclamation mr-2"></i><strong>API Key Missing:</strong> Please add GEMINI_API_KEY to your GitHub Secrets.</div>`;
+      if (!apiKey) {
+        chatArea.innerHTML = `<div class="bg-lossRed/10 border border-lossRed/30 text-lossRed p-4 rounded-xl text-xs"><i class="fa-solid fa-key mr-2"></i><strong>Gemini API Key Missing:</strong> Click the Gear (<i class="fa-solid fa-gear"></i>) icon in the header and paste your Gemini API Key into Local Settings.</div>`;
         return;
       }
 
@@ -364,11 +774,13 @@
       chatArea.innerHTML = `
         <div class="flex flex-col items-center justify-center py-8 gap-4">
           <i class="fa-solid fa-circle-notch fa-spin text-3xl text-indigo-500"></i>
-          <p class="text-sm text-slate-400 animate-pulse">Coach is analyzing ${currentFilteredTrades.length} trades...</p>
+          <p class="text-sm text-slate-400 animate-pulse">Analyzing ${currentFilteredTrades.length} grouped positions...</p>
         </div>`;
 
       const winRate = document.getElementById('kpiWinRate').innerText;
       const netPnl = document.getElementById('kpiNet').innerText;
+      const brokerage = document.getElementById('kpiBrokerage').innerText;
+      const gst = document.getElementById('kpiGst').innerText;
 
       let callPnl = 0, putPnl = 0, callTrades = 0, putTrades = 0;
       currentFilteredTrades.forEach(t => {
@@ -377,18 +789,18 @@
       });
 
       const promptData = `
-        Timeframe context: ${document.getElementById('calendarBadge').innerText}
-        Total Trades: ${currentFilteredTrades.length}
-        Net PnL: ${netPnl}
+        Timeframe: ${document.getElementById('kpiActivity').innerText}
+        Total Grouped Trades: ${currentFilteredTrades.length}
+        Net PnL: ${netPnl} (Base Brokerage: ${brokerage}, 18% GST: ${gst})
         Win Rate: ${winRate}
-        Instrument PnL - Calls: $${callPnl.toFixed(2)}, Puts: $${putPnl.toFixed(2)}
-        Trade Count - Calls: ${callTrades}, Puts: ${putTrades}
+        Calls Gross PnL: $${callPnl.toFixed(2)} (${callTrades} trades)
+        Puts Gross PnL: $${putPnl.toFixed(2)} (${putTrades} trades)
       `;
 
-      const systemPrompt = `You are an elite crypto options trading coach. Review the performance metrics for their selected timeframe and provide a direct, unvarnished analysis. Format strictly using markdown with three bulleted sections: **What's Working:**, **Critical Mistakes:**, **Actionable Adjustments:**.`;
+      const systemPrompt = `You are an elite crypto options trading coach. Review the trader's metrics and provide a concise, direct analysis in three markdown sections: **What's Working:**, **Fee & Risk Drag:**, and **Actionable Adjustments:**.`;
 
       try {
-        const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-3.7-flash:generateContent?key=${apiKey}`, {
+        const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -397,133 +809,245 @@
           })
         });
 
-        if (!response.ok) throw new Error("API request failed.");
+        if (!response.ok) throw new Error("API request failed. Check your Gemini API key in Settings.");
         const data = await response.json();
-        chatArea.innerHTML = `<div class="prose prose-invert prose-sm max-w-none text-slate-300">${marked.parse(data.candidates[0].content.parts[0].text)}</div>`;
+        chatArea.innerHTML = `<div class="prose prose-invert prose-sm max-w-none text-slate-300 text-xs leading-relaxed">${marked.parse(data.candidates[0].content.parts[0].text)}</div>`;
       } catch (err) {
-        chatArea.innerHTML = `<div class="bg-lossRed/10 border border-lossRed/30 text-lossRed p-4 rounded-xl text-sm"><i class="fa-solid fa-triangle-exclamation mr-2"></i> Error: ${err.message}</div>`;
+        chatArea.innerHTML = `<div class="bg-lossRed/10 border border-lossRed/30 text-lossRed p-4 rounded-xl text-xs"><i class="fa-solid fa-triangle-exclamation mr-2"></i> ${err.message}</div>`;
       }
     }
 
     async function fetchRawData() {
       try {
         const res = await fetch('./data/raw_data.json?t=' + Date.now());
-        if (!res.ok) throw new Error("Could not find data/raw_data.json");
+        if (!res.ok) throw new Error("Could not find ./data/raw_data.json");
         rawDumpCache = await res.json();
-        
-        const genDateStr = (rawDumpCache.generated_at || "").replace(" UTC", "Z").replace(" ", "T");
-        const istTime = genDateStr ? new Date(genDateStr).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata', year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true }) : "Just now";
-        document.getElementById('lastUpdated').innerText = `Synced Data As Of: ${istTime} (IST)`;
-        
+        checkSyncFreshness(rawDumpCache.generated_at);
         processRawData(rawDumpCache);
       } catch (err) {
         console.error(err);
-        document.getElementById('lastUpdated').innerText = "Status: Waiting for GitHub Action data...";
+        document.getElementById('lastUpdated').innerText = "Waiting for raw_data.json...";
+      }
+    }
+
+    function checkSyncFreshness(generatedAtStr) {
+      const genDateStr = (generatedAtStr || "").replace(" UTC", "Z").replace(" ", "T");
+      const badge = document.getElementById('syncStatusBadge');
+      const staleWarn = document.getElementById('staleWarningText');
+
+      if (!genDateStr) return;
+      const genDate = new Date(genDateStr);
+      const istTime = genDate.toLocaleString('en-IN', { timeZone: 'Asia/Kolkata', year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit', hour12: true });
+      document.getElementById('lastUpdated').innerText = `Synced: ${istTime} (IST)`;
+
+      const hoursOld = (Date.now() - genDate.getTime()) / (1000 * 60 * 60);
+      if (hoursOld > 24) {
+        badge.innerText = "Stale";
+        badge.className = "px-2 py-0.5 rounded text-[10px] font-semibold bg-amber-500/10 text-amber-400 border border-amber-500/20";
+        staleWarn.classList.remove('hidden');
+      } else {
+        badge.innerText = "Live";
+        badge.className = "px-2 py-0.5 rounded text-[10px] font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20";
+        staleWarn.classList.add('hidden');
       }
     }
 
     function processRawData(rawDump) {
       const istFormatter = new Intl.DateTimeFormat('en-US', { timeZone: 'Asia/Kolkata', year: 'numeric', month: '2-digit', day: '2-digit' });
-      
-      const productMap = {};
-
-      (rawDump.orders || []).forEach(order => {
-        if (order.state !== "closed") return;
-        const meta = order.meta_data || {};
-        const grossPnl = parseFloat(meta.pnl || 0);
-        const commission = parseFloat(order.paid_commission || 0);
-        if (grossPnl === 0 && commission === 0) return;
-
-        const symbol = order.product_symbol || order.product?.symbol || "OPTION";
-        const orderDate = new Date(order.updated_at || order.created_at);
-        const parts = istFormatter.formatToParts(orderDate);
+      const getIstDayKey = (dateObj) => {
+        const parts = istFormatter.formatToParts(dateObj);
         const y = parts.find(p => p.type === 'year').value;
         const m = parts.find(p => p.type === 'month').value;
         const d = parts.find(p => p.type === 'day').value;
-        const dayKey = `${y}-${m}-${d}`;
-        const groupKey = `${symbol}_${dayKey}`;
+        return { dayKey: `${y}-${m}-${d}`, monthKey: `${y}-${m}` };
+      };
 
-        if (!productMap[groupKey]) {
-          productMap[groupKey] = {
-            timestamp: orderDate.toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' }),
-            rawDate: dayKey,
-            monthKey: `${y}-${m}`,
-            symbol: symbol,
-            isCall: symbol.includes('C-BTC'),
-            maxSize: 0,
-            gross_pnl: 0,
-            brokerage: 0,
-            net_pnl: 0
-          };
-        }
+      const validOrders = [];
+      (rawDump.orders || []).forEach(order => {
+        const totalSize = parseFloat(order.size || 0);
+        const unfilled = parseFloat(order.unfilled_size || 0);
+        const filledSize = order.state === 'closed' ? totalSize : Math.max(0, totalSize - unfilled);
+        const commission = parseFloat(order.paid_commission || 0);
+        const grossPnl = parseFloat(order.meta_data?.pnl || 0);
 
-        const orderSize = parseFloat(order.size || 0);
-        if (orderSize > productMap[groupKey].maxSize) {
-          productMap[groupKey].maxSize = orderSize;
-        }
+        if (filledSize <= 0 && commission === 0 && grossPnl === 0) return;
 
-        productMap[groupKey].gross_pnl += grossPnl;
-        productMap[groupKey].brokerage += commission;
-        productMap[groupKey].net_pnl += (grossPnl - commission);
-      });
-
-      const allTrades = [];
-      const dailyMap = {};
-      const monthlyMap = {};
-
-      Object.values(productMap).forEach(trade => {
-        const dayKey = trade.rawDate;
-        const monthKey = trade.monthKey;
-        const netPnl = trade.net_pnl;
-
-        if (!dailyMap[dayKey]) dailyMap[dayKey] = { gross_pnl: 0, brokerage: 0, net_pnl: 0, trades: 0, wins: 0, losses: 0 };
-        dailyMap[dayKey].gross_pnl += trade.gross_pnl; 
-        dailyMap[dayKey].brokerage += trade.brokerage; 
-        dailyMap[dayKey].net_pnl += netPnl; 
-        dailyMap[dayKey].trades += 1;
-        if (netPnl > 0) dailyMap[dayKey].wins += 1; else if (netPnl < 0) dailyMap[dayKey].losses += 1;
-
-        if (!monthlyMap[monthKey]) monthlyMap[monthKey] = { month: monthKey, gross_pnl: 0, brokerage: 0, net_pnl: 0, trades: 0 };
-        monthlyMap[monthKey].gross_pnl += trade.gross_pnl; 
-        monthlyMap[monthKey].brokerage += trade.brokerage; 
-        monthlyMap[monthKey].net_pnl += netPnl; 
-        monthlyMap[monthKey].trades += 1;
-
-        allTrades.push({
-          timestamp: trade.timestamp,
-          rawDate: dayKey, 
-          monthKey: monthKey, 
-          symbol: trade.symbol, 
-          isCall: trade.isCall,
-          size: trade.maxSize, 
-          gross_pnl: trade.gross_pnl, 
-          brokerage: trade.brokerage, 
-          net_pnl: netPnl,
-          status: netPnl > 0 ? 'WIN' : (netPnl < 0 ? 'LOSS' : 'BE')
+        validOrders.push({
+          ...order,
+          filledSize,
+          commission,
+          grossPnl,
+          execTime: new Date(order.updated_at || order.created_at)
         });
       });
 
-      processedState = { allTrades: allTrades.sort((a, b) => b.rawDate.localeCompare(a.rawDate)), dailyMap, monthlyMap };
+      validOrders.sort((a, b) => a.execTime - b.execTime);
+
+      const openPositions = {};
+      const closedTrades = [];
+
+      validOrders.forEach(order => {
+        const symbol = order.product_symbol || order.product?.symbol || "OPTION";
+        const side = (order.side || "").toLowerCase();
+        const fillPrice = parseFloat(order.average_fill_price || order.meta_data?.avg_exit_price || order.limit_price || 0);
+
+        if (!openPositions[symbol]) {
+          openPositions[symbol] = {
+            symbol,
+            isCall: symbol.includes('C-BTC'),
+            netPosition: 0,
+            buySize: 0,
+            buyValue: 0,
+            sellSize: 0,
+            sellValue: 0,
+            gross_pnl: 0,
+            total_fee: 0,
+            lastTime: order.execTime
+          };
+        }
+
+        const pos = openPositions[symbol];
+        pos.lastTime = order.execTime;
+        pos.gross_pnl += order.grossPnl;
+        pos.total_fee += order.commission;
+
+        if (side === 'buy') {
+          pos.netPosition += order.filledSize;
+          pos.buySize += order.filledSize;
+          pos.buyValue += (order.filledSize * fillPrice);
+        } else if (side === 'sell') {
+          pos.netPosition -= order.filledSize;
+          pos.sellSize += order.filledSize;
+          pos.sellValue += (order.filledSize * fillPrice);
+        }
+
+        if (Math.abs(pos.netPosition) < 1e-6 || (pos.buySize > 0 && pos.sellSize >= pos.buySize)) {
+          const { dayKey, monthKey } = getIstDayKey(pos.lastTime);
+          const baseBrokerage = pos.total_fee / 1.18;
+          const gst = pos.total_fee - baseBrokerage;
+          const netPnl = pos.gross_pnl - pos.total_fee;
+          const closedSize = Math.max(pos.buySize, pos.sellSize);
+
+          closedTrades.push({
+            timestamp: pos.lastTime.toLocaleString('en-IN', { timeZone: 'Asia/Kolkata', day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit', hour12: true }),
+            sortTime: pos.lastTime.getTime(),
+            rawDate: dayKey,
+            monthKey: monthKey,
+            symbol: pos.symbol,
+            isCall: pos.isCall,
+            size: closedSize,
+            avgEntry: pos.buySize > 0 ? (pos.buyValue / pos.buySize) : 0,
+            avgExit: pos.sellSize > 0 ? (pos.sellValue / pos.sellSize) : 0,
+            gross_pnl: pos.gross_pnl,
+            base_brokerage: baseBrokerage,
+            gst: gst,
+            total_fee: pos.total_fee,
+            net_pnl: netPnl,
+            status: netPnl > 0 ? 'WIN' : (netPnl < 0 ? 'LOSS' : 'BE')
+          });
+
+          delete openPositions[symbol];
+        }
+      });
+
+      Object.values(openPositions).forEach(pos => {
+        if (pos.gross_pnl !== 0 || pos.total_fee !== 0) {
+          const { dayKey, monthKey } = getIstDayKey(pos.lastTime);
+          const baseBrokerage = pos.total_fee / 1.18;
+          const gst = pos.total_fee - baseBrokerage;
+          const netPnl = pos.gross_pnl - pos.total_fee;
+          closedTrades.push({
+            timestamp: pos.lastTime.toLocaleString('en-IN', { timeZone: 'Asia/Kolkata', day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit', hour12: true }),
+            sortTime: pos.lastTime.getTime(),
+            rawDate: dayKey,
+            monthKey: monthKey,
+            symbol: pos.symbol,
+            isCall: pos.isCall,
+            size: Math.max(pos.buySize, pos.sellSize),
+            avgEntry: pos.buySize > 0 ? (pos.buyValue / pos.buySize) : 0,
+            avgExit: pos.sellSize > 0 ? (pos.sellValue / pos.sellSize) : 0,
+            gross_pnl: pos.gross_pnl,
+            base_brokerage: baseBrokerage,
+            gst: gst,
+            total_fee: pos.total_fee,
+            net_pnl: netPnl,
+            status: netPnl > 0 ? 'WIN' : (netPnl < 0 ? 'LOSS' : 'BE')
+          });
+        }
+      });
+
+      const dailyMap = {};
+      const monthlyMap = {};
+
+      closedTrades.forEach(trade => {
+        const { rawDate: dayKey, monthKey, net_pnl: netPnl } = trade;
+
+        if (!dailyMap[dayKey]) {
+          dailyMap[dayKey] = { gross_pnl: 0, base_brokerage: 0, gst: 0, total_fee: 0, net_pnl: 0, trades: 0, wins: 0, losses: 0 };
+        }
+        dailyMap[dayKey].gross_pnl += trade.gross_pnl;
+        dailyMap[dayKey].base_brokerage += trade.base_brokerage;
+        dailyMap[dayKey].gst += trade.gst;
+        dailyMap[dayKey].total_fee += trade.total_fee;
+        dailyMap[dayKey].net_pnl += netPnl;
+        dailyMap[dayKey].trades += 1;
+        if (netPnl > 0) dailyMap[dayKey].wins += 1;
+        else if (netPnl < 0) dailyMap[dayKey].losses += 1;
+
+        if (!monthlyMap[monthKey]) {
+          monthlyMap[monthKey] = { month: monthKey, gross_pnl: 0, base_brokerage: 0, gst: 0, total_fee: 0, net_pnl: 0, trades: 0 };
+        }
+        monthlyMap[monthKey].gross_pnl += trade.gross_pnl;
+        monthlyMap[monthKey].base_brokerage += trade.base_brokerage;
+        monthlyMap[monthKey].gst += trade.gst;
+        monthlyMap[monthKey].total_fee += trade.total_fee;
+        monthlyMap[monthKey].net_pnl += netPnl;
+        monthlyMap[monthKey].trades += 1;
+      });
+
+      processedState = {
+        allTrades: closedTrades.sort((a, b) => b.sortTime - a.sortTime),
+        dailyMap,
+        monthlyMap
+      };
+
       applyGlobalFilter();
     }
 
     function resolveFilterBounds() {
-      const now = new Date();
-      const curYear = now.getFullYear(), curMonth = now.getMonth();
+      let refYear = new Date().getFullYear();
+      let refMonth = new Date().getMonth();
+
+      if (processedState && processedState.allTrades.length > 0) {
+        const curMonthKey = `${refYear}-${String(refMonth + 1).padStart(2, '0')}`;
+        if (!processedState.monthlyMap[curMonthKey]) {
+          const latestMonthParts = processedState.allTrades[0].monthKey.split('-');
+          refYear = parseInt(latestMonthParts[0]);
+          refMonth = parseInt(latestMonthParts[1]) - 1;
+        }
+      }
 
       let startDate = "", endDate = "", isSingleMonth = false, targetMonthStr = "", displayLabel = "";
 
       if (currentPreset === 'CURRENT_MONTH') {
-        isSingleMonth = true; targetMonthStr = `${curYear}-${String(curMonth + 1).padStart(2, '0')}`;
-        startDate = `${targetMonthStr}-01`; endDate = `${targetMonthStr}-${String(new Date(curYear, curMonth + 1, 0).getDate()).padStart(2, '0')}`;
-        displayLabel = new Date(curYear, curMonth, 1).toLocaleString('default', { month: 'long', year: 'numeric' });
+        isSingleMonth = true;
+        targetMonthStr = `${refYear}-${String(refMonth + 1).padStart(2, '0')}`;
+        startDate = `${targetMonthStr}-01`;
+        endDate = `${targetMonthStr}-${String(new Date(refYear, refMonth + 1, 0).getDate()).padStart(2, '0')}`;
+        displayLabel = new Date(refYear, refMonth, 1).toLocaleString('default', { month: 'long', year: 'numeric' });
       } else if (currentPreset === 'CUSTOM') {
         startDate = document.getElementById('customStartDate').value || "2024-01-01";
-        endDate = document.getElementById('customEndDate').value || "2030-12-31"; displayLabel = `${startDate} to ${endDate}`;
+        endDate = document.getElementById('customEndDate').value || "2030-12-31";
+        displayLabel = `${startDate} to ${endDate}`;
         const diffDays = Math.ceil(Math.abs(new Date(endDate) - new Date(startDate)) / (1000 * 60 * 60 * 24));
-        if (diffDays <= 31 && startDate.slice(0, 7) === endDate.slice(0, 7)) { isSingleMonth = true; targetMonthStr = startDate.slice(0, 7); }
+        if (diffDays <= 31 && startDate.slice(0, 7) === endDate.slice(0, 7)) {
+          isSingleMonth = true;
+          targetMonthStr = startDate.slice(0, 7);
+        }
       } else {
-        startDate = "2020-01-01"; endDate = "2030-12-31"; displayLabel = "All-Time";
+        startDate = "2020-01-01";
+        endDate = "2030-12-31";
+        displayLabel = "All-Time";
       }
 
       return { startDate, endDate, isSingleMonth, targetMonthStr, displayLabel };
@@ -534,40 +1058,40 @@
       const { startDate, endDate, isSingleMonth, targetMonthStr, displayLabel } = resolveFilterBounds();
 
       const filteredTrades = processedState.allTrades.filter(t => t.rawDate >= startDate && t.rawDate <= endDate);
-      currentFilteredTrades = filteredTrades; 
-      
-      let periodGross = 0, periodBrokerage = 0, periodNet = 0;
+      currentFilteredTrades = filteredTrades;
+      currentTradePage = 1;
+
+      let periodGross = 0, periodBaseBrok = 0, periodGst = 0, periodTotalFee = 0, periodNet = 0;
       let winCount = 0;
       let callPnl = 0, putPnl = 0, callTrades = 0, putTrades = 0;
 
       filteredTrades.forEach(t => {
-        periodGross += t.gross_pnl; 
-        periodBrokerage += t.brokerage; 
+        periodGross += t.gross_pnl;
+        periodBaseBrok += t.base_brokerage;
+        periodGst += t.gst;
+        periodTotalFee += t.total_fee;
         periodNet += t.net_pnl;
         if (t.net_pnl > 0) winCount++;
-        
-        if(t.isCall) { callPnl += t.gross_pnl; callTrades++; } 
+
+        if (t.isCall) { callPnl += t.gross_pnl; callTrades++; }
         else { putPnl += t.gross_pnl; putTrades++; }
       });
 
       document.getElementById('kpiGross').innerText = formatUSD(periodGross);
       document.getElementById('kpiGross').className = `text-base font-bold font-mono ${periodGross >= 0 ? 'text-winGreen' : 'text-lossRed'}`;
-      document.getElementById('kpiBrokerage').innerText = formatUSD(periodBrokerage);
+      document.getElementById('kpiBrokerage').innerText = formatUSD(periodBaseBrok);
+      document.getElementById('kpiGst').innerText = formatUSD(periodGst);
+      document.getElementById('kpiTotalFeeSub').innerText = `Total Fee: ${formatUSD(periodTotalFee)}`;
       document.getElementById('kpiNet').innerText = formatUSD(periodNet);
       document.getElementById('kpiNet').className = `text-base font-bold font-mono ${periodNet >= 0 ? 'text-winGreen' : 'text-lossRed'}`;
       document.getElementById('kpiWinRate').innerText = filteredTrades.length ? `${Math.round((winCount / filteredTrades.length) * 100)}%` : '0%';
-      document.getElementById('kpiTradeCount').innerText = `${filteredTrades.length} trades`;
+      document.getElementById('kpiTradeCount').innerText = `${filteredTrades.length} closed positions`;
       document.getElementById('kpiActivity').innerText = displayLabel;
 
       renderTrajectoryChart(filteredTrades, isSingleMonth);
       renderInstrumentCharts(callPnl, putPnl, callTrades, putTrades);
       renderMiddleSection(isSingleMonth, targetMonthStr, startDate, endDate, displayLabel);
-
-      const tableSection = document.getElementById('tradeTableSection');
-      if (isSingleMonth) { tableSection.classList.remove('hidden'); renderTable(filteredTrades); } 
-      else { tableSection.classList.add('hidden'); }
-      
-      document.getElementById('aiChatArea').innerHTML = `<div class="bg-brandDark border border-borderDark rounded-xl p-4 text-sm text-slate-300">Click analyze below to generate an automated review of your currently selected timeframe.</div>`;
+      renderPaginatedTrades();
     }
 
     function renderInstrumentCharts(callPnl, putPnl, callTrades, putTrades) {
@@ -578,10 +1102,10 @@
         yaxis: { labels: { style: { colors: '#94a3b8', fontSize: '10px' }, formatter: (v) => compactUSD(v) } },
         colors: [function({ value }) { return value >= 0 ? '#10b981' : '#f43f5e'; }],
         plotOptions: { bar: { borderRadius: 4, columnWidth: '40%', distributed: true } },
-        dataLabels: { enabled: false }, legend: { show: false }, grid: { borderColor: '#1e293b', strokeDashArray: 3 }, tooltip: { theme: 'dark', y: { formatter: (v)=>formatUSD(v) } }
+        dataLabels: { enabled: false }, legend: { show: false }, grid: { borderColor: '#1e293b', strokeDashArray: 3 }, tooltip: { theme: 'dark', y: { formatter: (v) => formatUSD(v) } }
       };
 
-      if(callPutChart) callPutChart.destroy();
+      if (callPutChart) callPutChart.destroy();
       callPutChart = new ApexCharts(document.querySelector("#callPutChart"), pnlOpts);
       callPutChart.render();
 
@@ -592,7 +1116,7 @@
         series: [callTrades, putTrades], labels: ['Calls', 'Puts'], colors: ['#6366f1', '#f59e0b']
       };
 
-      if(buySellChart) buySellChart.destroy();
+      if (buySellChart) buySellChart.destroy();
       buySellChart = new ApexCharts(document.querySelector("#buySellChart"), countOpts);
       buySellChart.render();
     }
@@ -603,18 +1127,24 @@
 
       if (isSingleMonth && targetMonthStr) {
         document.getElementById('middleSectionTitle').innerText = `Daily Journal Calendar`;
-        document.getElementById('middleSectionSubtitle').innerText = `Hover over any day to view details`;
+        document.getElementById('middleSectionSubtitle').innerText = `7-Day week on Mobile • 10-Column compact grid on Desktop`;
         const parts = targetMonthStr.split('-');
         const year = parseInt(parts[0]), month = parseInt(parts[1]) - 1;
+        const firstDayOfWeek = new Date(year, month, 1).getDay();
         const daysInMonth = new Date(year, month + 1, 0).getDate();
 
-        // RESPONSIVE CALENDAR: 7-day grid on mobile (`grid-cols-7`), 10-day grid on desktop (`sm:grid-cols-10`)
         let calHTML = `<div class="w-full max-w-5xl mx-auto">
-          <div class="grid grid-cols-7 sm:grid-cols-10 gap-1.5 sm:gap-2 mb-1.5 text-center text-[9px] sm:text-[10px] font-semibold text-slate-400 uppercase tracking-wider">
-            <div class="sm:hidden">S</div><div class="sm:hidden">M</div><div class="sm:hidden">T</div><div class="sm:hidden">W</div><div class="sm:hidden">T</div><div class="sm:hidden">F</div><div class="sm:hidden">S</div>
-            <div class="hidden sm:block">D1</div><div class="hidden sm:block">D2</div><div class="hidden sm:block">D3</div><div class="hidden sm:block">D4</div><div class="hidden sm:block">D5</div><div class="hidden sm:block">D6</div><div class="hidden sm:block">D7</div><div class="hidden sm:block">D8</div><div class="hidden sm:block">D9</div><div class="hidden sm:block">D10</div>
+          <div class="grid grid-cols-7 sm:hidden gap-1.5 mb-1.5 text-center text-[9px] font-semibold text-slate-400 uppercase tracking-wider">
+            <div>Sun</div><div>Mon</div><div>Tue</div><div>Wed</div><div>Thu</div><div>Fri</div><div>Sat</div>
+          </div>
+          <div class="hidden sm:grid sm:grid-cols-10 gap-2 mb-1.5 text-center text-[10px] font-semibold text-slate-400 uppercase tracking-wider">
+            <div>D1</div><div>D2</div><div>D3</div><div>D4</div><div>D5</div><div>D6</div><div>D7</div><div>D8</div><div>D9</div><div>D10</div>
           </div>
           <div class="grid grid-cols-7 sm:grid-cols-10 gap-1.5 sm:gap-2">`;
+
+        for (let i = 0; i < firstDayOfWeek; i++) {
+          calHTML += `<div class="sm:hidden aspect-square rounded-lg border border-borderDark/30 bg-brandDark/20"></div>`;
+        }
 
         for (let day = 1; day <= daysInMonth; day++) {
           const fullDateKey = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
@@ -627,9 +1157,9 @@
             calHTML += `
               <div class="relative aspect-square rounded-lg border ${cardBorder} flex flex-col justify-center items-center cursor-pointer transition-transform active:scale-95 no-select" 
                    onmouseenter="showPeek('${fullDateKey}')" onmouseleave="hidePeek()" ontouchstart="showPeek('${fullDateKey}')" ontouchend="hidePeek()">
-                <span class="absolute top-1 left-1.5 text-[9px] font-bold text-white/80">${day}</span>
-                <span class="absolute top-1 right-1.5 px-1 rounded bg-brandDark/60 text-[7px] font-mono text-slate-300 hidden sm:block">${dayData.trades}t</span>
-                <div class="text-[9px] sm:text-xs font-bold font-mono mt-2">${isWin ? '+' : ''}${compactUSD(dayData.net_pnl)}</div>
+                <span class="absolute top-1 left-1.5 text-[9px] font-bold text-white/80 pointer-events-none">${day}</span>
+                <span class="absolute top-1 right-1.5 px-1 rounded bg-brandDark/60 text-[7px] font-mono text-slate-300 hidden sm:block pointer-events-none">${dayData.trades}t</span>
+                <div class="text-[9px] sm:text-xs font-bold font-mono mt-2 pointer-events-none">${isWin ? '+' : ''}${compactUSD(dayData.net_pnl)}</div>
               </div>`;
           } else {
             calHTML += `<div class="relative aspect-square rounded-lg border border-borderDark/40 bg-panelDark/25 flex flex-col justify-center items-center"><span class="absolute top-1 left-1.5 text-[9px] font-bold text-slate-600">${day}</span></div>`;
@@ -642,14 +1172,14 @@
         const matchingMonths = Object.keys(processedState.monthlyMap).filter(m => `${m}-01` >= startDate.slice(0, 7) && `${m}-01` <= endDate.slice(0, 7)).sort().reverse();
         if (matchingMonths.length === 0) return container.innerHTML = `<div class="p-8 text-center text-slate-500 text-xs">No trade history found.</div>`;
 
-        let gridHTML = `<div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-2 sm:gap-3">`;
+        let gridHTML = `<div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-2.5 sm:gap-3">`;
         matchingMonths.forEach(mKey => {
           const mData = processedState.monthlyMap[mKey];
           gridHTML += `
-            <div class="border border-borderDark bg-panelDark/40 p-2.5 sm:p-3.5 rounded-xl flex flex-col justify-between">
-              <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-1.5 sm:mb-2 gap-1 sm:gap-0"><span class="font-bold text-xs sm:text-sm text-white">${new Date(mKey + "-01").toLocaleString('default', { month: 'short', year: '2-digit' })}</span><span class="text-[8px] sm:text-[9px] px-1.5 py-0.5 rounded bg-cardDark text-slate-400 border border-borderDark">${mData.trades} trades</span></div>
-              <div class="my-1 sm:my-2"><span class="text-[8px] sm:text-[9px] text-slate-400 block uppercase">Net Profit</span><h4 class="text-sm sm:text-base font-bold font-mono ${mData.net_pnl >= 0 ? 'text-winGreen' : 'text-lossRed'}">${mData.net_pnl >= 0 ? '+' : ''}${formatUSD(mData.net_pnl)}</h4></div>
-              <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center pt-1.5 sm:pt-2 border-t border-borderDark/60 text-[8px] sm:text-[10px] text-slate-400 font-mono gap-0.5 sm:gap-0"><span>Gross: ${formatUSD(mData.gross_pnl)}</span><span class="text-lossRed">Fees: ${formatUSD(mData.brokerage)}</span></div>
+            <div class="border border-borderDark bg-panelDark/40 p-3 rounded-xl flex flex-col justify-between">
+              <div class="flex justify-between items-center mb-1.5"><span class="font-bold text-xs sm:text-sm text-white">${new Date(mKey + "-01").toLocaleString('default', { month: 'short', year: '2-digit' })}</span><span class="text-[9px] px-1.5 py-0.5 rounded bg-cardDark text-slate-400 border border-borderDark">${mData.trades}t</span></div>
+              <div class="my-1.5"><span class="text-[9px] text-slate-400 block uppercase">Net Profit</span><h4 class="text-sm sm:text-base font-bold font-mono ${mData.net_pnl >= 0 ? 'text-winGreen' : 'text-lossRed'}">${mData.net_pnl >= 0 ? '+' : ''}${formatUSD(mData.net_pnl)}</h4></div>
+              <div class="flex justify-between items-center pt-1.5 border-t border-borderDark/60 text-[9px] text-slate-400 font-mono"><span>Gross: ${compactUSD(mData.gross_pnl)}</span><span class="text-lossRed">Fee: ${compactUSD(mData.total_fee)}</span></div>
             </div>`;
         });
         container.innerHTML = gridHTML + `</div>`;
@@ -657,7 +1187,7 @@
     }
 
     function renderTrajectoryChart(trades, isSingleMonth) {
-      const chronological = [...trades].sort((a, b) => a.rawDate.localeCompare(b.rawDate) || new Date(a.timestamp) - new Date(b.timestamp));
+      const chronological = [...trades].sort((a, b) => a.sortTime - b.sortTime);
       const cat = [], netSeries = [], grossSeries = [];
       let runningNet = 0, runningGross = 0;
 
@@ -665,23 +1195,29 @@
         const dailyAgg = {};
         chronological.forEach(t => {
           if (!dailyAgg[t.rawDate]) dailyAgg[t.rawDate] = { net: 0, gross: 0 };
-          dailyAgg[t.rawDate].net += t.net_pnl; dailyAgg[t.rawDate].gross += t.gross_pnl;
+          dailyAgg[t.rawDate].net += t.net_pnl;
+          dailyAgg[t.rawDate].gross += t.gross_pnl;
         });
         Object.keys(dailyAgg).sort().forEach(day => {
-          runningNet += dailyAgg[day].net; runningGross += dailyAgg[day].gross;
+          runningNet += dailyAgg[day].net;
+          runningGross += dailyAgg[day].gross;
           cat.push(day.slice(8));
-          netSeries.push(Number(runningNet.toFixed(2))); grossSeries.push(Number(runningGross.toFixed(2)));
+          netSeries.push(Number(runningNet.toFixed(2)));
+          grossSeries.push(Number(runningGross.toFixed(2)));
         });
       } else {
         const monthlyAgg = {};
         chronological.forEach(t => {
           if (!monthlyAgg[t.monthKey]) monthlyAgg[t.monthKey] = { net: 0, gross: 0 };
-          monthlyAgg[t.monthKey].net += t.net_pnl; monthlyAgg[t.monthKey].gross += t.gross_pnl;
+          monthlyAgg[t.monthKey].net += t.net_pnl;
+          monthlyAgg[t.monthKey].gross += t.gross_pnl;
         });
         Object.keys(monthlyAgg).sort().forEach(month => {
-          runningNet += monthlyAgg[month].net; runningGross += monthlyAgg[month].gross;
+          runningNet += monthlyAgg[month].net;
+          runningGross += monthlyAgg[month].gross;
           cat.push(new Date(month + "-01").toLocaleString('default', { month: 'short', year: '2-digit' }));
-          netSeries.push(Number(runningNet.toFixed(2))); grossSeries.push(Number(runningGross.toFixed(2)));
+          netSeries.push(Number(runningNet.toFixed(2)));
+          grossSeries.push(Number(runningGross.toFixed(2)));
         });
       }
 
@@ -698,24 +1234,87 @@
       apexChartInstance.render();
     }
 
-    function renderTable(trades) {
-      const tbody = document.getElementById('tradeLogBody');
-      tbody.innerHTML = '';
-      document.getElementById('tradeCountBadge').innerText = `Showing ${trades.length} trades`;
-      if (trades.length === 0) return tbody.innerHTML = `<tr><td colspan="7" class="text-center py-6 text-slate-500 font-sans">No trades recorded.</td></tr>`;
+    function changeTradePage(delta) {
+      const totalPages = Math.max(1, Math.ceil(currentFilteredTrades.length / TRADES_PER_PAGE));
+      currentTradePage = Math.min(totalPages, Math.max(1, currentTradePage + delta));
+      renderPaginatedTrades();
+    }
 
-      trades.forEach(t => {
-        tbody.innerHTML += `
+    function renderPaginatedTrades() {
+      const tbody = document.getElementById('tradeLogBody');
+      const mobileContainer = document.getElementById('tradeLogMobileCards');
+      const pagControls = document.getElementById('paginationControls');
+
+      const totalTrades = currentFilteredTrades.length;
+      document.getElementById('tradeCountBadge').innerText = `Showing ${totalTrades} positions`;
+
+      if (totalTrades === 0) {
+        tbody.innerHTML = `<tr><td colspan="9" class="text-center py-8 text-slate-500 font-sans">No closed trades recorded in this period.</td></tr>`;
+        mobileContainer.innerHTML = `<div class="text-center py-8 text-slate-500 text-xs">No closed trades recorded in this period.</div>`;
+        pagControls.classList.add('hidden');
+        pagControls.classList.remove('flex');
+        return;
+      }
+
+      const totalPages = Math.ceil(totalTrades / TRADES_PER_PAGE);
+      const startIdx = (currentTradePage - 1) * TRADES_PER_PAGE;
+      const pageTrades = currentFilteredTrades.slice(startIdx, startIdx + TRADES_PER_PAGE);
+
+      if (totalPages > 1) {
+        pagControls.classList.remove('hidden');
+        pagControls.classList.add('flex');
+        document.getElementById('pageIndicator').innerText = `Page ${currentTradePage} of ${totalPages}`;
+        document.getElementById('prevPageBtn').disabled = (currentTradePage === 1);
+        document.getElementById('nextPageBtn').disabled = (currentTradePage === totalPages);
+      } else {
+        pagControls.classList.add('hidden');
+        pagControls.classList.remove('flex');
+      }
+
+      let tableHTML = '';
+      let cardsHTML = '';
+
+      pageTrades.forEach(t => {
+        const isWin = t.status === 'WIN';
+        const badgeClass = isWin ? 'bg-winGreen/10 text-winGreen border border-winGreen/20' : 'bg-lossRed/10 text-lossRed border border-lossRed/20';
+
+        // Desktop Row
+        tableHTML += `
           <tr class="hover:bg-panelDark/40 border-b border-borderDark/50">
             <td class="py-2.5 px-3 text-slate-400">${t.timestamp}</td>
             <td class="py-2.5 px-3 font-semibold text-white">${t.symbol}</td>
             <td class="py-2.5 px-3 text-right">${t.size}</td>
+            <td class="py-2.5 px-3 text-right text-slate-400">$${t.avgEntry.toFixed(1)} → $${t.avgExit.toFixed(1)}</td>
             <td class="py-2.5 px-3 text-right ${t.gross_pnl >= 0 ? 'text-winGreen' : 'text-lossRed'}">${formatUSD(t.gross_pnl)}</td>
-            <td class="py-2.5 px-3 text-right text-lossRed">${formatUSD(t.brokerage)}</td>
+            <td class="py-2.5 px-3 text-right text-lossRed">${formatUSD(t.base_brokerage)}</td>
+            <td class="py-2.5 px-3 text-right text-amber-400">${formatUSD(t.gst)}</td>
             <td class="py-2.5 px-3 text-right font-bold ${t.net_pnl >= 0 ? 'text-winGreen' : 'text-lossRed'}">${formatUSD(t.net_pnl)}</td>
-            <td class="py-2.5 px-3 text-center"><span class="px-2 py-0.5 rounded-full text-[9px] font-semibold ${t.status === 'WIN' ? 'bg-winGreen/10 text-winGreen border border-winGreen/20' : 'bg-lossRed/10 text-lossRed border border-lossRed/20'}">${t.status}</span></td>
+            <td class="py-2.5 px-3 text-center"><span class="px-2 py-0.5 rounded-full text-[9px] font-semibold ${badgeClass}">${t.status}</span></td>
           </tr>`;
+
+        // Mobile Card (Fits 100% width without horizontal scroll)
+        cardsHTML += `
+          <div class="bg-brandDark border border-borderDark rounded-xl p-3.5 flex flex-col gap-2 font-mono">
+            <div class="flex justify-between items-start">
+              <div>
+                <span class="font-bold text-white text-xs block">${t.symbol}</span>
+                <span class="text-[10px] text-slate-400">${t.timestamp} • Size: ${t.size}</span>
+              </div>
+              <div class="text-right">
+                <span class="font-bold text-sm ${t.net_pnl >= 0 ? 'text-winGreen' : 'text-lossRed'} block">${t.net_pnl >= 0 ? '+' : ''}${formatUSD(t.net_pnl)}</span>
+                <span class="text-[9px] text-slate-400">$${t.avgEntry.toFixed(1)} → $${t.avgExit.toFixed(1)}</span>
+              </div>
+            </div>
+            <div class="grid grid-cols-3 gap-2 pt-2 border-t border-borderDark/60 text-[10px]">
+              <div><span class="text-slate-500 block">Gross</span><span class="${t.gross_pnl >= 0 ? 'text-winGreen' : 'text-lossRed'}">${formatUSD(t.gross_pnl)}</span></div>
+              <div><span class="text-slate-500 block">Brokerage</span><span class="text-lossRed">${formatUSD(t.base_brokerage)}</span></div>
+              <div class="text-right"><span class="text-slate-500 block">18% GST</span><span class="text-amber-400">${formatUSD(t.gst)}</span></div>
+            </div>
+          </div>`;
       });
+
+      tbody.innerHTML = tableHTML;
+      mobileContainer.innerHTML = cardsHTML;
     }
   </script>
 </body>
