@@ -55,12 +55,12 @@
 </head>
 <body class="min-h-screen p-3 md:p-6 lg:p-8 pb-24 md:pb-28 relative">
 
-  <!-- PEEK OVERLAY (Pointer-events-none prevents desktop hover flicker) -->
+  <!-- PEEK OVERLAY -->
   <div id="peekOverlay" class="fixed inset-0 z-40 flex items-center justify-center bg-brandDark/80 backdrop-blur-sm opacity-0 pointer-events-none transition-opacity duration-150 no-select">
     <div id="peekCard" class="bg-cardDark border border-borderDark rounded-2xl p-5 w-[290px] sm:w-[340px] shadow-2xl scale-95 transition-transform duration-150 pointer-events-none"></div>
   </div>
 
-  <!-- SETTINGS MODAL (GitHub PAT + Local Gemini API Key) -->
+  <!-- SETTINGS MODAL -->
   <div id="ghSettingsModal" class="fixed inset-0 z-50 flex items-center justify-center bg-brandDark/80 backdrop-blur-sm opacity-0 pointer-events-none transition-opacity duration-200 p-4">
     <div class="bg-cardDark border border-borderDark rounded-2xl p-5 w-full max-w-[400px] shadow-2xl">
       <h3 class="font-bold text-base text-white mb-1"><i class="fa-solid fa-shield-halved text-indigo-400 mr-1.5"></i> Local Security & Sync Settings</h3>
@@ -130,6 +130,15 @@
     <span class="text-[10px] text-slate-500 font-mono hidden sm:inline-block"><i class="fa-solid fa-arrows-left-right mr-1"></i>Swipe or use bottom bar to switch tabs</span>
   </header>
 
+  <!-- EMPTY DATA ALERT BANNER -->
+  <div id="emptyDataAlert" class="hidden bg-lossRed/10 border border-lossRed/30 text-lossRed p-4 rounded-xl mb-5 text-sm flex items-center shadow-lg">
+    <i class="fa-solid fa-triangle-exclamation mr-3 text-lg"></i>
+    <div>
+      <strong class="block mb-0.5">Database Empty: Delta API Sync Failed</strong>
+      <span class="text-xs opacity-90">No trades were found in the raw_data.json file. This means your Python GitHub Action was likely blocked by Delta's IP whitelisting due to a Webshare Proxy failure. Check your GitHub Action logs.</span>
+    </div>
+  </div>
+
   <!-- ========================================== -->
   <!-- TAB 1: DELTA INSIGHTS VIEW                 -->
   <!-- ========================================== -->
@@ -184,7 +193,7 @@
       </div>
     </section>
 
-    <!-- KPI SCORECARD (With Explicit Brokerage & 18% GST Split) -->
+    <!-- KPI SCORECARD -->
     <section class="grid grid-cols-2 sm:grid-cols-5 gap-3 mb-6">
       <div class="bg-cardDark border border-borderDark p-3.5 rounded-xl">
         <span class="text-slate-400 text-[10px] font-medium uppercase tracking-wider block mb-1">Gross PnL</span>
@@ -249,7 +258,7 @@
       <div id="middleSectionContainer" class="w-full"></div>
     </section>
 
-    <!-- BOTTOM TRADE LOG (Responsive Cards on Mobile, Table on Desktop, with Pagination) -->
+    <!-- BOTTOM TRADE LOG -->
     <section id="tradeTableSection" class="bg-cardDark border border-borderDark p-4 md:p-5 rounded-2xl">
       <div class="flex justify-between items-center mb-4">
         <div>
@@ -259,10 +268,8 @@
         <span class="text-xs font-mono text-slate-400" id="tradeCountBadge">0 trades</span>
       </div>
 
-      <!-- Mobile Card List (Zero Horizontal Scroll) -->
       <div id="tradeLogMobileCards" class="grid grid-cols-1 gap-2.5 md:hidden"></div>
 
-      <!-- Desktop Table -->
       <div class="hidden md:block overflow-x-auto custom-scroll pb-2">
         <table class="w-full text-left text-xs">
           <thead class="bg-brandDark/80 text-slate-400 border-b border-borderDark uppercase tracking-wider text-[10px]">
@@ -282,7 +289,6 @@
         </table>
       </div>
 
-      <!-- Pagination Controls -->
       <div id="paginationControls" class="hidden justify-between items-center mt-4 pt-3 border-t border-borderDark text-xs">
         <button onclick="changeTradePage(-1)" id="prevPageBtn" class="px-3 py-1.5 rounded-lg bg-panelDark border border-borderDark text-slate-300 hover:text-white disabled:opacity-40">Previous</button>
         <span id="pageIndicator" class="font-mono text-slate-400">Page 1 of 1</span>
@@ -296,7 +302,6 @@
   <!-- ========================================== -->
   <div id="view_CALCULATOR" class="hidden max-w-5xl mx-auto">
     
-    <!-- 1. INPUT BAR -->
     <section class="bg-cardDark border border-borderDark p-4 sm:p-5 rounded-2xl mb-4 shadow-md">
       <div class="flex justify-between items-center mb-3.5">
         <div class="flex items-center gap-2.5">
@@ -314,13 +319,11 @@
       </div>
 
       <div class="grid grid-cols-2 lg:grid-cols-4 gap-3">
-        <!-- Start Date -->
         <div class="bg-brandDark border border-borderDark focus-within:border-indigo-500 px-3.5 py-2.5 rounded-xl transition-colors">
           <label class="text-[10px] sm:text-[11px] font-semibold uppercase tracking-wider text-slate-400 block mb-1">Start Date</label>
           <input type="date" id="calcStartDate" onchange="runInrCalculator()" class="w-full bg-transparent text-sm sm:text-base font-bold text-white focus:outline-none font-mono">
         </div>
 
-        <!-- Base Capital (INR) -->
         <div class="bg-brandDark border border-borderDark focus-within:border-indigo-500 px-3.5 py-2.5 rounded-xl transition-colors">
           <div class="flex justify-between items-center mb-1">
             <label class="text-[10px] sm:text-[11px] font-semibold uppercase tracking-wider text-slate-400">M1 Capital (₹)</label>
@@ -329,13 +332,11 @@
           <input type="number" id="calcCapital" oninput="runInrCalculator()" placeholder="100000" value="100000" class="w-full bg-transparent text-sm sm:text-base font-bold text-white focus:outline-none font-mono">
         </div>
 
-        <!-- Daily Profit Percentage -->
         <div id="boxCalcPct" class="bg-brandDark border border-borderDark focus-within:border-emerald-500 px-3.5 py-2.5 rounded-xl transition-all">
           <label class="text-[10px] sm:text-[11px] font-semibold uppercase tracking-wider text-emerald-400 block mb-1">Daily Target (%)</label>
           <input type="number" step="any" id="calcPct" oninput="onCalcModeInput('PCT')" placeholder="e.g. 5" value="5" class="w-full bg-transparent text-sm sm:text-base font-bold text-white focus:outline-none font-mono">
         </div>
 
-        <!-- Daily Profit Amount INR -->
         <div id="boxCalcAmt" class="bg-brandDark border border-borderDark focus-within:border-emerald-500 px-3.5 py-2.5 rounded-xl transition-all">
           <label class="text-[10px] sm:text-[11px] font-semibold uppercase tracking-wider text-emerald-400 block mb-1">M1 Daily Profit (₹)</label>
           <input type="number" step="any" id="calcAmt" oninput="onCalcModeInput('AMT')" placeholder="Auto" class="w-full bg-transparent text-sm sm:text-base font-bold text-white focus:outline-none font-mono">
@@ -343,9 +344,8 @@
       </div>
     </section>
 
-    <!-- 2. UNIFIED PROJECTION & EXPANDABLE MONTHLY CARDS -->
+    <!-- UNIFIED PROJECTION & EXPANDABLE MONTHLY CARDS -->
     <section class="bg-cardDark border border-borderDark p-4 sm:p-5 rounded-2xl shadow-md">
-      <!-- Top Grand Summary Bar -->
       <div class="flex flex-wrap justify-between items-center gap-3 pb-4 mb-4 border-b border-borderDark">
         <div class="flex flex-wrap items-center gap-3 sm:gap-5 font-mono">
           <div>
@@ -370,10 +370,8 @@
         </button>
       </div>
 
-      <!-- Unified Interactive Month Cards (Summary + Collapsible Schedule in One) -->
       <div id="calcUnifiedMonthsContainer" class="space-y-3"></div>
     </section>
-
   </div>
 
   <!-- FLOATING BOTTOM NAVIGATION BAR -->
@@ -399,7 +397,6 @@
     const TRADES_PER_PAGE = 25;
     let allMonthsExpanded = false;
 
-    // Formatters
     const formatUSD = (val) => {
       const num = Number(val) || 0;
       return (num < 0 ? "-$" : "$") + Math.abs(num).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -433,9 +430,6 @@
       fetchRawData();
     });
 
-    // ==========================================
-    // BOTTOM TAB SWITCHER & SWIPE GESTURES
-    // ==========================================
     function switchMainTab(tab) {
       if (currentMainTab === tab) return;
       currentMainTab = tab;
@@ -491,9 +485,6 @@
       }, { passive: true });
     }
 
-    // ==========================================
-    // 3-MONTH STEP-UP INR PROFIT PLANNER LOGIC
-    // ==========================================
     function onCalcModeInput(source) {
       const pctInput = document.getElementById('calcPct');
       const amtInput = document.getElementById('calcAmt');
@@ -609,7 +600,6 @@
       const sMonth = startDate.getMonth();
       const sDay = startDate.getDate();
 
-      // If start date is near the end of the month (>= 25th), fold those initial days into Month 1 alongside the next full month
       const m1Offset = (sDay >= 25) ? 1 : 0;
       const m1End = new Date(sYear, sMonth + m1Offset + 1, 0);
       const m2End = new Date(sYear, sMonth + m1Offset + 2, 0);
@@ -688,13 +678,11 @@
         curDate.setDate(curDate.getDate() + 1);
       }
 
-      // Update Top Overview Strip
       document.getElementById('sumDailyPctBadge').innerText = `${dailyProfitPct.toFixed(2)}% / day`;
       document.getElementById('sumTotalDays').innerText = `${globalDayCount} days`;
       document.getElementById('sumDateSpan').innerText = globalDayCount > 0 ? `(${firstTradingDateStr} → ${lastTradingDateStr})` : '';
       document.getElementById('sumTotal3MProfit').innerText = formatINR(runningTotalProfit, decPlaces);
 
-      // Render Unified Month Cards (Summary + Collapsible Schedule in One)
       let unifiedHTML = '';
 
       monthsMeta.forEach((m, idx) => {
@@ -720,7 +708,6 @@
 
         unifiedHTML += `
           <div class="bg-brandDark border border-borderDark hover:border-indigo-500/40 rounded-2xl overflow-hidden transition-all shadow-sm">
-            <!-- Clickable Month Summary Card Header -->
             <button onclick="toggleMonthAccordion(${idx})" class="w-full p-4 sm:p-5 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 hover:bg-panelDark/40 transition-colors text-left">
               <div class="flex items-center gap-3.5">
                 <div class="h-10 w-10 rounded-xl bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center text-indigo-400 font-bold font-mono text-xs sm:text-sm shrink-0">
@@ -748,8 +735,6 @@
                 </div>
               </div>
             </button>
-
-            <!-- Collapsible Day-by-Day Schedule Table -->
             <div id="calcMonthBody_${idx}" class="${bodyHiddenClass} border-t border-borderDark bg-cardDark/60">
               <table class="w-full text-left border-collapse">
                 <thead class="bg-brandDark/90 text-slate-400 border-b border-borderDark uppercase tracking-wider text-[10px] sm:text-xs">
@@ -769,9 +754,6 @@
       document.getElementById('calcUnifiedMonthsContainer').innerHTML = unifiedHTML;
     }
 
-    // ==========================================
-    // DELTA INSIGHTS & POSITION-ZERO GROUPING
-    // ==========================================
     function setPreset(preset) {
       currentPreset = preset;
       ['CURRENT_MONTH', 'CUSTOM', 'ALL_TIME'].forEach(p => {
@@ -1004,12 +986,20 @@
     }
 
     function processRawData(rawDump) {
+      // DATA FAIL-SAFE: If the API pulled an empty array due to proxy limits, show an alert
+      if (!rawDump.orders || rawDump.orders.length === 0) {
+        document.getElementById('emptyDataAlert').classList.remove('hidden');
+      } else {
+        document.getElementById('emptyDataAlert').classList.add('hidden');
+      }
+
       const istFormatter = new Intl.DateTimeFormat('en-US', { timeZone: 'Asia/Kolkata', year: 'numeric', month: '2-digit', day: '2-digit' });
       const getIstDayKey = (dateObj) => {
+        if (isNaN(dateObj.getTime())) dateObj = new Date();
         const parts = istFormatter.formatToParts(dateObj);
-        const y = parts.find(p => p.type === 'year').value;
-        const m = parts.find(p => p.type === 'month').value;
-        const d = parts.find(p => p.type === 'day').value;
+        const y = parts.find(p => p.type === 'year')?.value || dateObj.getFullYear();
+        const m = parts.find(p => p.type === 'month')?.value || String(dateObj.getMonth() + 1).padStart(2, '0');
+        const d = parts.find(p => p.type === 'day')?.value || String(dateObj.getDate()).padStart(2, '0');
         return { dayKey: `${y}-${m}-${d}`, monthKey: `${y}-${m}` };
       };
 
@@ -1028,7 +1018,7 @@
           filledSize,
           commission,
           grossPnl,
-          execTime: new Date(order.updated_at || order.created_at)
+          execTime: new Date(order.updated_at || order.created_at || Date.now())
         });
       });
 
@@ -1059,8 +1049,9 @@
 
         const pos = openPositions[symbol];
         pos.lastTime = order.execTime;
-        pos.gross_pnl += order.grossPnl;
-        pos.total_fee += order.commission;
+        
+        if (!isNaN(order.grossPnl)) pos.gross_pnl += order.grossPnl;
+        if (!isNaN(order.commission)) pos.total_fee += order.commission;
 
         if (side === 'buy') {
           pos.netPosition += order.filledSize;
@@ -1429,7 +1420,6 @@
         const isWin = t.status === 'WIN';
         const badgeClass = isWin ? 'bg-winGreen/10 text-winGreen border border-winGreen/20' : 'bg-lossRed/10 text-lossRed border border-lossRed/20';
 
-        // Desktop Row
         tableHTML += `
           <tr class="hover:bg-panelDark/40 border-b border-borderDark/50">
             <td class="py-2.5 px-3 text-slate-400">${t.timestamp}</td>
@@ -1443,7 +1433,6 @@
             <td class="py-2.5 px-3 text-center"><span class="px-2 py-0.5 rounded-full text-[9px] font-semibold ${badgeClass}">${t.status}</span></td>
           </tr>`;
 
-        // Mobile Card (Fits 100% width without horizontal scroll)
         cardsHTML += `
           <div class="bg-brandDark border border-borderDark rounded-xl p-3.5 flex flex-col gap-2 font-mono">
             <div class="flex justify-between items-start">
