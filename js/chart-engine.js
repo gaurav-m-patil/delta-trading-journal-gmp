@@ -4,7 +4,8 @@
  * 
  * Features:
  * - Real-time tick-by-tick WebSocket streaming for BTC/USD (0ms latency)
- * - TradingView Long / Short Position Tool drawing (Native Entry, TP, and SL lines)
+ * - Local Timezone (IST / Local clock) synchronization
+ * - Authentic TradingView Long / Short Position Drawing Tool (Trade-to-trade shaded SVG box)
  * - Quantitative 66.7% Win Rate Confluence Strategy integration
  * - Option 200 -> 300 profit projection (+50% gross / +40% net)
  * - Zero external API costs, zero Firebase reads/writes
@@ -20,8 +21,11 @@ window.DeltaLiveChart = (function() {
   let candleData = [];
   let isInitialized = false;
   let currentAnalysis = null;
-  let activePriceLines = [];
-  let selectedTradeId = null;
+  let selectedTrade = null;
+
+  // Local Timezone Offset in Seconds (e.g. +19800 for IST +5:30)
+  // Ensures chart axis and timestamps match the user's wall clock (e.g. 5:00 PM)
+  const TZ_OFFSET_SEC = -new Date().getTimezoneOffset() * 60;
 
   const TIMEFRAME_MAP = {
     '1m': '1m',
@@ -92,11 +96,31 @@ window.DeltaLiveChart = (function() {
       }
     });
 
+    // Create SVG Overlay for TradingView Long / Short Position Tool
+    let svgOverlay = document.getElementById('tvPositionBoxSvg');
+    if (!svgOverlay) {
+      svgOverlay = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+      svgOverlay.setAttribute('id', 'tvPositionBoxSvg');
+      svgOverlay.style.position = 'absolute';
+      svgOverlay.style.top = '0';
+      svgOverlay.style.left = '0';
+      svgOverlay.style.width = '100%';
+      svgOverlay.style.height = '100%';
+      svgOverlay.style.pointerEvents = 'none';
+      svgOverlay.style.zIndex = '12';
+      svgOverlay.style.overflow = 'hidden';
+      container.appendChild(svgOverlay);
+    }
+
+    // Keep position box locked to candles during pan / zoom
+    chart.timeScale().subscribeVisibleLogicalRangeChange(() => {
+      renderPositionBox(selectedTrade);
+    });
+
     // Subscribe to chart clicks to select nearest trade
     chart.subscribeClick((param) => {
       if (!param || !param.time || !currentAnalysis) return;
       const clickedTime = param.time;
-      // Find trade closest to clicked time
       const match = currentAnalysis.trades.find(t => Math.abs(t.time - clickedTime) < 1800);
       if (match) {
         selectTrade(match.id);
@@ -107,6 +131,7 @@ window.DeltaLiveChart = (function() {
     window.addEventListener('resize', () => {
       if (chart && container) {
         chart.applyOptions({ width: container.clientWidth });
+        renderPositionBox(selectedTrade);
       }
     });
 
@@ -137,7 +162,8 @@ window.DeltaLiveChart = (function() {
       const rawBars = await res.json();
 
       candleData = rawBars.map(b => {
-        const timeSec = Math.floor(b[0] / 1000);
+        // Shift time by local timezone offset so chart axis matches user's wall clock (IST)
+        const timeSec = Math.floor(b[0] / 1000) + TZ_OFFSET_SEC;
         const open = parseFloat(b[1]);
         const high = parseFloat(b[2]);
         const low = parseFloat(b[3]);
@@ -202,7 +228,7 @@ window.DeltaLiveChart = (function() {
           if (!k) return;
 
           const updatedCandle = {
-            time: Math.floor(k.t / 1000),
+            time: Math.floor(k.t / 1000) + TZ_OFFSET_SEC,
             open: parseFloat(k.o),
             high: parseFloat(k.h),
             low: parseFloat(k.l),
@@ -229,6 +255,9 @@ window.DeltaLiveChart = (function() {
           if (k.x) {
             candleData.push(updatedCandle);
             runSMCAnalysisAndBacktest();
+          } else {
+            // Keep position box aligned with live ticks
+            if (selectedTrade) renderPositionBox(selectedTrade);
           }
         } catch (e) {
           console.error("WS parse error:", e);
@@ -251,66 +280,100 @@ window.DeltaLiveChart = (function() {
   }
 
   /**
-   * Clears any active TradingView Position Tool price lines from the chart
+   * Renders the authentic TradingView Long / Short Position Drawing Tool
+   * (Shaded Green Profit Box, Shaded Red Loss Box, Entry line, exact targets)
+   * Strictly bounded from Trade Entry bar to Exit bar (NOT infinite lines!).
    */
-  function clearPriceLines() {
-    if (!candleSeries) return;
-    activePriceLines.forEach(line => {
-      try {
-        candleSeries.removePriceLine(line);
-      } catch (e) {}
-    });
-    activePriceLines = [];
-  }
+  function renderPositionBox(trade) {
+    const svg = document.getElementById('tvPositionBoxSvg');
+    if (!svg) return;
 
-  /**
-   * Draws the TradingView Long / Short Position Tool lines on the canvas
-   * (Entry line, Take Profit line, Stop Loss line) with exact prices and Delta Option targets
-   */
-  function drawPositionLines(trade) {
-    clearPriceLines();
-    if (!trade || !candleSeries) return;
+    if (!trade || !chart || !candleSeries) {
+      svg.innerHTML = '';
+      return;
+    }
 
-    selectedTradeId = trade.id;
+    // Horizontal Bar Coordinates
+    const x1 = chart.timeScale().timeToCoordinate(trade.time);
+    const exitTime = trade.exitTime || (trade.time + (trade.barsHeld || 8) * 900);
+    let x2 = chart.timeScale().timeToCoordinate(exitTime);
+
+    if (x1 === null && x2 === null) {
+      svg.innerHTML = '';
+      return;
+    }
+
+    // Default width if exit time is off-screen or single bar
+    if (x1 === null) return;
+    if (x2 === null || x2 <= x1) {
+      x2 = x1 + 100;
+    }
+
+    const boxWidth = Math.max(70, x2 - x1);
+
+    // Vertical Price Coordinates (Screen pixels: lower price = higher Y value)
+    const yEntry = candleSeries.priceToCoordinate(trade.entry);
+    const yTp = candleSeries.priceToCoordinate(trade.tp);
+    const ySl = candleSeries.priceToCoordinate(trade.sl);
+
+    if (yEntry === null || yTp === null || ySl === null) {
+      svg.innerHTML = '';
+      return;
+    }
+
     const isCall = trade.direction === "LONG";
+    let profitY, profitHeight, lossY, lossHeight;
 
-    // 1. Target (TP) Price Line (Emerald Solid)
-    const tpTitle = `TARGET: $${trade.tp.toLocaleString()} (+${trade.targetDist} pts | OPTION 300 [+50%])`;
-    const tpLine = candleSeries.createPriceLine({
-      price: trade.tp,
-      color: '#10b981',
-      lineWidth: 2,
-      lineStyle: LightweightCharts.LineStyle.Solid,
-      axisLabelVisible: true,
-      title: tpTitle
-    });
+    if (isCall) {
+      // LONG: TP is higher price (smaller Y), SL is lower price (larger Y)
+      profitY = yTp;
+      profitHeight = Math.max(4, yEntry - yTp);
+      lossY = yEntry;
+      lossHeight = Math.max(4, ySl - yEntry);
+    } else {
+      // SHORT: TP is lower price (larger Y), SL is higher price (smaller Y)
+      profitY = yEntry;
+      profitHeight = Math.max(4, yTp - yEntry);
+      lossY = ySl;
+      lossHeight = Math.max(4, yEntry - ySl);
+    }
 
-    // 2. Entry Price Line (Cyan Dashed)
-    const entryTitle = `ENTRY: $${trade.entry.toLocaleString()} (OPTION @ 200)`;
-    const entryLine = candleSeries.createPriceLine({
-      price: trade.entry,
-      color: '#38bdf8',
-      lineWidth: 2,
-      lineStyle: LightweightCharts.LineStyle.Dashed,
-      axisLabelVisible: true,
-      title: entryTitle
-    });
+    const profitFill = "rgba(16, 185, 129, 0.25)";
+    const profitStroke = "rgba(16, 185, 129, 0.9)";
+    const lossFill = "rgba(244, 63, 94, 0.25)";
+    const lossStroke = "rgba(244, 63, 94, 0.9)";
 
-    // 3. Stop Loss (SL) Price Line (Rose Solid)
-    const slTitle = `STOP LOSS: $${trade.sl.toLocaleString()} (-${trade.slDist} pts | -1R SL)`;
-    const slLine = candleSeries.createPriceLine({
-      price: trade.sl,
-      color: '#f43f5e',
-      lineWidth: 2,
-      lineStyle: LightweightCharts.LineStyle.Solid,
-      axisLabelVisible: true,
-      title: slTitle
-    });
+    const targetLabel = `TP: $${trade.tp.toLocaleString()} (+${trade.targetDist} pts | +50% Option)`;
+    const stopLabel = `SL: $${trade.sl.toLocaleString()} (-${trade.slDist} pts) | 1:${trade.rrRatio} R:R`;
 
-    activePriceLines.push(tpLine, entryLine, slLine);
+    svg.innerHTML = `
+      <!-- Green Take Profit Zone -->
+      <rect x="${x1}" y="${profitY}" width="${boxWidth}" height="${profitHeight}"
+            fill="${profitFill}" stroke="${profitStroke}" stroke-width="1.5" rx="3" />
 
-    // Update the TradingView Position Tool Cockpit UI
-    updatePositionToolCockpit(trade);
+      <!-- Red Stop Loss Zone -->
+      <rect x="${x1}" y="${lossY}" width="${boxWidth}" height="${lossHeight}"
+            fill="${lossFill}" stroke="${lossStroke}" stroke-width="1.5" rx="3" />
+
+      <!-- Dashed Entry Level Line -->
+      <line x1="${x1}" y1="${yEntry}" x2="${x1 + boxWidth}" y2="${yEntry}"
+            stroke="#38bdf8" stroke-width="2" stroke-dasharray="4,3" />
+
+      <!-- Labels & Badges on the Position Box -->
+      <g font-family="-apple-system, BlinkMacSystemFont, monospace" font-size="10" font-weight="bold">
+        <!-- Target Price Tag -->
+        <rect x="${x1 + 4}" y="${profitY + 3}" width="${Math.min(boxWidth - 8, 240)}" height="16" fill="rgba(15, 23, 42, 0.9)" rx="3" />
+        <text x="${x1 + 8}" y="${profitY + 15}" fill="#10b981">🎯 ${targetLabel}</text>
+
+        <!-- Entry Price Tag -->
+        <rect x="${x1 + 4}" y="${yEntry - 18}" width="${Math.min(boxWidth - 8, 140)}" height="16" fill="rgba(15, 23, 42, 0.9)" rx="3" />
+        <text x="${x1 + 8}" y="${yEntry - 6}" fill="#38bdf8">⚪ Entry: $${trade.entry.toLocaleString()}</text>
+
+        <!-- Stop Loss Price Tag -->
+        <rect x="${x1 + 4}" y="${isCall ? (lossY + lossHeight - 19) : (lossY + 3)}" width="${Math.min(boxWidth - 8, 220)}" height="16" fill="rgba(15, 23, 42, 0.9)" rx="3" />
+        <text x="${x1 + 8}" y="${isCall ? (lossY + lossHeight - 7) : (lossY + 15)}" fill="#f43f5e">🛑 ${stopLabel}</text>
+      </g>
+    `;
   }
 
   /**
@@ -319,6 +382,12 @@ window.DeltaLiveChart = (function() {
   function updatePositionToolCockpit(trade) {
     const cockpit = document.getElementById('tvPositionToolCockpit');
     if (!cockpit) return;
+
+    if (!trade) {
+      cockpit.classList.add('opacity-50');
+      return;
+    }
+    cockpit.classList.remove('opacity-50');
 
     const isCall = trade.direction === "LONG";
     const isWin = trade.outcome === "WIN";
@@ -374,18 +443,15 @@ window.DeltaLiveChart = (function() {
   }
 
   /**
-   * Selects a trade from the table and projects its TradingView lines onto the chart
+   * Selects a trade from the table and projects its TradingView position box onto the chart
    */
   function selectTrade(tradeId) {
     if (!currentAnalysis || !currentAnalysis.trades) return;
     const t = currentAnalysis.trades.find(x => x.id === tradeId);
     if (t) {
-      drawPositionLines(t);
-
-      // Scroll chart view to trade time
-      if (chart && chart.timeScale) {
-        chart.timeScale().scrollToPosition(-5, true);
-      }
+      selectedTrade = t;
+      renderPositionBox(t);
+      updatePositionToolCockpit(t);
 
       // Highlight row in table
       const rows = document.querySelectorAll('.bt-trade-row');
@@ -396,7 +462,7 @@ window.DeltaLiveChart = (function() {
   }
 
   /**
-   * Snaps the TradingView Position lines back to the latest detected trade
+   * Snaps the TradingView Position Box back to the latest detected trade
    */
   function showLatestTrade() {
     if (currentAnalysis && currentAnalysis.latestTrade) {
@@ -405,12 +471,14 @@ window.DeltaLiveChart = (function() {
   }
 
   /**
-   * Hides the TradingView Position lines from the chart
+   * Hides the TradingView Position Box from the chart
    */
   function clearLinesAndReset() {
-    clearPriceLines();
+    selectedTrade = null;
+    renderPositionBox(null);
+    updatePositionToolCockpit(null);
     const activeLabel = document.getElementById('ptActiveLabel');
-    if (activeLabel) activeLabel.innerText = "Lines hidden";
+    if (activeLabel) activeLabel.innerText = "Position tool hidden";
   }
 
   /**
@@ -429,13 +497,22 @@ window.DeltaLiveChart = (function() {
     // Set Markers on TradingView Chart (Clean, uncluttered)
     candleSeries.setMarkers(currentAnalysis.markers);
 
-    // Automatically draw the latest high-conviction trade lines on the chart
-    if (currentAnalysis.latestTrade && (!selectedTradeId || !currentAnalysis.trades.find(t => t.id === selectedTradeId))) {
-      drawPositionLines(currentAnalysis.latestTrade);
-    } else if (selectedTradeId) {
-      const existing = currentAnalysis.trades.find(t => t.id === selectedTradeId);
-      if (existing) drawPositionLines(existing);
-      else if (currentAnalysis.latestTrade) drawPositionLines(currentAnalysis.latestTrade);
+    // Automatically draw the latest high-conviction trade box on the chart
+    if (currentAnalysis.latestTrade && (!selectedTrade || !currentAnalysis.trades.find(t => t.id === selectedTrade.id))) {
+      selectedTrade = currentAnalysis.latestTrade;
+      renderPositionBox(selectedTrade);
+      updatePositionToolCockpit(selectedTrade);
+    } else if (selectedTrade) {
+      const existing = currentAnalysis.trades.find(t => t.id === selectedTrade.id);
+      if (existing) {
+        selectedTrade = existing;
+        renderPositionBox(selectedTrade);
+        updatePositionToolCockpit(selectedTrade);
+      } else if (currentAnalysis.latestTrade) {
+        selectedTrade = currentAnalysis.latestTrade;
+        renderPositionBox(selectedTrade);
+        updatePositionToolCockpit(selectedTrade);
+      }
     }
 
     // Update Quant Time-Machine Scorecard
@@ -526,7 +603,7 @@ window.DeltaLiveChart = (function() {
         outcomeBadge = `<span class="px-2 py-0.5 rounded text-[10px] font-bold bg-slate-500/10 text-slate-400 border border-slate-500/30">TIMEOUT (Scratch)</span>`;
       }
 
-      const isSelected = selectedTradeId === t.id;
+      const isSelected = selectedTrade && selectedTrade.id === t.id;
 
       return `
         <tr id="row_${t.id}" class="bt-trade-row hover:bg-panelDark/60 transition-colors ${isSelected ? 'bg-indigo-600/20' : ''}">
@@ -584,7 +661,7 @@ window.DeltaLiveChart = (function() {
       candleData = [];
       for (let i = 0; i < r.t.length; i++) {
         candleData.push({
-          time: r.t[i],
+          time: r.t[i] + TZ_OFFSET_SEC,
           open: r.o[i],
           high: r.h[i],
           low: r.l[i],
