@@ -1,0 +1,106 @@
+/**
+ * Delta Trading Journal - Custom Enhancements & Animations
+ */
+
+/* Custom Scrollbars */
+.custom-scroll::-webkit-scrollbar {
+  height: 6px;
+  width: 6px;
+}
+.custom-scroll::-webkit-scrollbar-thumb {
+  background: #334155;
+  border-radius: 4px;
+}
+.custom-scroll::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+/* Slide-over Drawer Animations */
+#tradeDrawer {
+  transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+#tradeDrawer.drawer-open {
+  transform: translateX(0) !important;
+}
+
+#aiSidebar, #ghSettingsModal, #imageViewerModal {
+  transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+/* Tag Pills */
+.smc-tag-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 8px;
+  border-radius: 6px;
+  font-size: 10px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  user-select: none;
+}
+.smc-tag-pill:hover {
+  transform: translateY(-1px);
+  filter: brightness(1.15);
+}
+.smc-tag-pill.active {
+  ring: 2px solid #ffffff;
+}
+
+/* Edge Tier Badges */
+.tier-badge-alpha {
+  background-color: rgba(16, 185, 129, 0.12);
+  color: #10b981;
+  border: 1px solid rgba(16, 185, 129, 0.25);
+}
+.tier-badge-leak {
+  background-color: rgba(244, 63, 94, 0.12);
+  color: #f43f5e;
+  border: 1px solid rgba(244, 63, 94, 0.25);
+}
+.tier-badge-neutral {
+  background-color: rgba(148, 163, 184, 0.12);
+  color: #94a3b8;
+  border: 1px solid rgba(148, 163, 184, 0.25);
+}
+
+/* Screenshot Thumbnail Preview */
+.screenshot-thumb {
+  position: relative;
+  aspect-ratio: 16 / 9;
+  border-radius: 8px;
+  overflow: hidden;
+  border: 1px solid #1e293b;
+  cursor: pointer;
+  background-color: #0b0f17;
+}
+.screenshot-thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transition: transform 0.2s ease;
+}
+.screenshot-thumb:hover img {
+  transform: scale(1.04);
+}
+
+/* Number Inputs: remove spin arrows */
+input[type="number"]::-webkit-inner-spin-button,
+input[type="number"]::-webkit-outer-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+input[type="number"] {
+  -moz-appearance: textfield;
+  appearance: textfield;
+}
+
+/* Pulse animation for live sync */
+@keyframes pulse-subtle {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+.pulse-subtle {
+  animation: pulse-subtle 2s infinite ease-in-out;
+}
