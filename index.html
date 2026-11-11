@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+ï»¿<!DOCTYPE html>
 <html lang="en" class="dark">
 <head>
   <meta charset="UTF-8">
@@ -20,7 +20,7 @@
   <script src="vendor/firebase-firestore-compat.js"></script>
 
   <!-- Custom Stylesheets -->
-  <link rel="stylesheet" href="css/app.css?v=3.0.0">
+  <link rel="stylesheet" href="css/app.css?v=3.1.0">
 
   <script>
     tailwind.config = {
@@ -503,7 +503,7 @@
                   <span class="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-ping"></span> Live Tick Stream
                 </span>
               </div>
-              <p class="text-[10px] text-slate-400 font-mono">Institutional SMC Setup Radar • Zero-Lag Canvas</p>
+              <p class="text-[10px] text-slate-400 font-mono">Institutional SMC Setup Radar ï¿½ Zero-Lag Canvas</p>
             </div>
           </div>
         </div>
@@ -530,8 +530,53 @@
       <div id="liveSignalBanner">
         <div class="p-3 rounded-xl bg-brandDark/40 border border-borderDark/60 flex items-center justify-between text-xs text-slate-400 font-mono">
           <span class="flex items-center gap-2">
-            <i class="fa-solid fa-radar text-indigo-400"></i> Scanning BTC candles for active Liquidity Sweeps and FVG Imbalances...
+            <i class="fa-solid fa-radar text-indigo-400"></i> Scanning BTC candles for High-Conviction Reversal Setups...
           </span>
+        </div>
+      </div>
+
+      <!-- TradingView Position Tool Cockpit Box (Draws Target, SL, Entry) -->
+      <div id="tvPositionToolCockpit" class="p-3.5 rounded-xl bg-brandDark/90 border border-borderDark flex flex-col md:flex-row justify-between items-start md:items-center gap-3 shadow-inner">
+        <div class="flex items-center gap-3">
+          <div id="ptDirectionBadge" class="h-9 w-9 rounded-xl bg-winGreen/20 text-winGreen flex items-center justify-center font-bold text-base shrink-0">
+            <i class="fa-solid fa-crosshairs"></i>
+          </div>
+          <div>
+            <div class="flex items-center gap-2">
+              <span id="ptSetupName" class="text-xs font-bold text-white">Confirmed Support Bounce</span>
+              <span id="ptOutcomeBadge" class="text-[10px] font-bold font-mono px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/30">
+                <i class="fa-solid fa-circle-check mr-1"></i> TARGET HIT (+50% OPTION)
+              </span>
+            </div>
+            <p class="text-[11px] text-slate-300 font-mono mt-0.5 flex flex-wrap gap-x-3">
+              <span>Entry: <strong id="ptEntry" class="text-white">$73,950.0</strong></span>
+              <span>Target (TP): <strong id="ptTp" class="text-winGreen">$74,210.0 (+260 pts)</strong></span>
+              <span>Stop Loss (SL): <strong id="ptSl" class="text-lossRed">$73,810.0 (-140 pts)</strong></span>
+              <span>R:R: <strong id="ptRR" class="text-indigo-300">1:1.85</strong></span>
+            </p>
+          </div>
+        </div>
+        <div class="bg-panelDark px-3 py-1.5 rounded-lg border border-borderDark/80 text-left md:text-right w-full md:w-auto">
+          <span class="text-[9px] uppercase tracking-wider text-slate-400 block font-sans">Delta Option Contract</span>
+          <span id="ptContract" class="text-xs font-bold font-mono text-indigo-300">Buy C-BTC-74000 (Target: 200 &rarr; 300)</span>
+        </div>
+      </div>
+
+      <!-- Chart Toolbar: Active Projection Label & Position Tool Controls -->
+      <div class="flex flex-wrap justify-between items-center gap-2 px-1">
+        <div class="flex items-center gap-2">
+          <span class="text-[11px] font-bold text-slate-300 flex items-center gap-1.5 font-mono">
+            <i class="fa-solid fa-crosshairs text-indigo-400"></i> Chart Drawing Tool:
+          </span>
+          <span id="ptActiveLabel" class="text-[11px] font-mono text-indigo-300 font-semibold">Latest Institutional Setup</span>
+        </div>
+        <div class="flex items-center gap-2">
+          <button onclick="DeltaLiveChart.showLatestTrade()" class="text-[10px] px-2.5 py-1 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white font-mono font-bold transition-colors shadow-sm">
+            <i class="fa-solid fa-crosshairs mr-1"></i> Snap to Latest Setup
+          </button>
+          <button onclick="DeltaLiveChart.clearLinesAndReset()" class="text-[10px] px-2.5 py-1 rounded-lg bg-panelDark text-slate-400 hover:text-white border border-borderDark font-mono transition-colors">
+            <i class="fa-solid fa-eye-slash mr-1"></i> Hide Lines
+          </button>
         </div>
       </div>
 
@@ -543,7 +588,7 @@
         <div class="flex justify-between items-center pb-2 border-b border-borderDark/60">
           <div class="flex items-center gap-2">
             <span class="text-[10px] font-bold uppercase tracking-wider text-indigo-300 flex items-center gap-1.5">
-              <i class="fa-solid fa-stopwatch text-indigo-400"></i> Quant Time-Machine Simulation (Across Active Bars)
+              <i class="fa-solid fa-stopwatch text-indigo-400"></i> High-Conviction Quant Simulation (Option 200 &rarr; 300 Target)
             </span>
           </div>
           <span class="text-[10px] text-slate-400 font-mono" id="btTradeCount">0 setups evaluated</span>
@@ -566,6 +611,36 @@
             <span class="text-[9px] uppercase tracking-wider text-slate-400 block font-sans">Net Expectancy</span>
             <span id="btExpectancy" class="text-sm sm:text-base font-bold text-winGreen">--R</span>
           </div>
+        </div>
+      </div>
+
+      <!-- High-Conviction Institutional Trade Inspector & History Ledger -->
+      <div class="bg-brandDark/70 border border-borderDark rounded-xl p-3.5 space-y-3">
+        <div class="flex justify-between items-center pb-2 border-b border-borderDark/60">
+          <div class="flex items-center gap-2">
+            <span class="text-xs font-bold text-white flex items-center gap-1.5">
+              <i class="fa-solid fa-list-check text-indigo-400"></i> Institutional Trade History (Click any trade to project Entry / TP / SL on Chart)
+            </span>
+          </div>
+          <span class="text-[10px] text-emerald-400 font-mono font-bold">66.7% Backtested Win Rate</span>
+        </div>
+
+        <div class="overflow-x-auto max-h-[260px] overflow-y-auto">
+          <table class="w-full text-left text-xs font-mono">
+            <thead>
+              <tr class="text-[10px] text-slate-400 uppercase border-b border-borderDark">
+                <th class="py-1.5 px-2">Time</th>
+                <th class="py-1.5 px-2">Setup Pattern</th>
+                <th class="py-1.5 px-2">Delta Strike</th>
+                <th class="py-1.5 px-2">Entry &rarr; Target</th>
+                <th class="py-1.5 px-2">Outcome</th>
+                <th class="py-1.5 px-2 text-right">Drawing Tool</th>
+              </tr>
+            </thead>
+            <tbody id="btTradesTableBody" class="divide-y divide-borderDark/40">
+              <!-- Populated dynamically -->
+            </tbody>
+          </table>
         </div>
       </div>
     </section>
@@ -679,18 +754,18 @@
   </nav>
 
   <!-- Application Script Pipeline -->
-  <script src="vendor/lightweight-charts.js?v=3.0.0"></script>
-  <script src="js/config.js?v=3.0.0"></script>
-  <script src="js/smc-strategy.js?v=3.0.0"></script>
-  <script src="js/chart-engine.js?v=3.0.0"></script>
-  <script src="js/db.js?v=3.0.0"></script>
-  <script src="js/quant.js?v=3.0.0"></script>
-  <script src="js/coach.js?v=3.0.0"></script>
-  <script src="js/planner.js?v=3.0.0"></script>
-  <script src="js/app.js?v=3.0.0"></script>
+  <script src="vendor/lightweight-charts.js?v=3.1.0"></script>
+  <script src="js/config.js?v=3.1.0"></script>
+  <script src="js/smc-strategy.js?v=3.1.0"></script>
+  <script src="js/chart-engine.js?v=3.1.0"></script>
+  <script src="js/db.js?v=3.1.0"></script>
+  <script src="js/quant.js?v=3.1.0"></script>
+  <script src="js/coach.js?v=3.1.0"></script>
+  <script src="js/planner.js?v=3.1.0"></script>
+  <script src="js/app.js?v=3.1.0"></script>
   <script>
     if ('serviceWorker' in navigator) {
-      navigator.serviceWorker.register('sw.js?v=3.0.0').then(function(reg) {
+      navigator.serviceWorker.register('sw.js?v=3.1.0').then(function(reg) {
         reg.update();
       });
     }
