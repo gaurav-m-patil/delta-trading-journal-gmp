@@ -20,7 +20,7 @@
   <script src="vendor/firebase-firestore-compat.js"></script>
 
   <!-- Custom Stylesheets -->
-  <link rel="stylesheet" href="css/app.css?v=3.3.1">
+  <link rel="stylesheet" href="css/app.css?v=3.3.2">
 
   <script>
     tailwind.config = {
@@ -303,32 +303,59 @@
       </div>
     </section>
 
-    <!-- KPI SCORECARD -->
-    <section class="grid grid-cols-2 sm:grid-cols-5 gap-3 mb-6">
-      <div class="bg-cardDark border border-borderDark p-3.5 rounded-xl">
-        <span class="text-slate-400 text-[10px] font-medium uppercase tracking-wider block mb-1">Gross PnL</span>
-        <h3 class="text-base font-bold font-mono" id="kpiGross">$0.00</h3>
-        <span class="text-[9px] text-slate-500">Raw market outcome</span>
+    <!-- KPI SCORECARD (TIER 1: CAPITAL & FEES | TIER 2: RISK & EDGE RATIOS) -->
+    <section class="space-y-3 mb-6">
+      <!-- Tier 1: Capital, Take-Home & Fees -->
+      <div class="grid grid-cols-2 sm:grid-cols-5 gap-3">
+        <div class="bg-cardDark border border-borderDark p-3.5 rounded-xl border-l-4 border-l-emerald-500">
+          <span class="text-emerald-300 text-[10px] font-medium uppercase tracking-wider block mb-1">Net PnL</span>
+          <h3 class="text-base font-bold font-mono" id="kpiNet">$0.00</h3>
+          <span class="text-[9px] text-emerald-400">Net Take-Home</span>
+        </div>
+        <div class="bg-cardDark border border-borderDark p-3.5 rounded-xl">
+          <span class="text-slate-400 text-[10px] font-medium uppercase tracking-wider block mb-1">Gross PnL</span>
+          <h3 class="text-base font-bold font-mono" id="kpiGross">$0.00</h3>
+          <span class="text-[9px] text-slate-500">Raw market outcome</span>
+        </div>
+        <div class="bg-cardDark border border-borderDark p-3.5 rounded-xl">
+          <span class="text-slate-400 text-[10px] font-medium uppercase tracking-wider block mb-1">Base Brokerage</span>
+          <h3 class="text-base font-bold text-lossRed font-mono" id="kpiBrokerage">$0.00</h3>
+          <span class="text-[9px] text-slate-500">Delta fees (excl. GST)</span>
+        </div>
+        <div class="bg-cardDark border border-borderDark p-3.5 rounded-xl">
+          <span class="text-slate-400 text-[10px] font-medium uppercase tracking-wider block mb-1">18% GST Paid</span>
+          <h3 class="text-base font-bold text-amber-400 font-mono" id="kpiGst">$0.00</h3>
+          <span class="text-[9px] text-slate-500" id="kpiTotalFeeSub">Total Fee: $0.00</span>
+        </div>
+        <div class="bg-cardDark border border-borderDark p-3.5 rounded-xl col-span-2 sm:col-span-1">
+          <span class="text-slate-400 text-[10px] font-medium uppercase tracking-wider block mb-1">Win Rate</span>
+          <h3 class="text-base font-bold text-white font-mono" id="kpiWinRate">0%</h3>
+          <span class="text-[9px] text-slate-500" id="kpiTradeCount">0 trades</span>
+        </div>
       </div>
-      <div class="bg-cardDark border border-borderDark p-3.5 rounded-xl">
-        <span class="text-slate-400 text-[10px] font-medium uppercase tracking-wider block mb-1">Base Brokerage</span>
-        <h3 class="text-base font-bold text-lossRed font-mono" id="kpiBrokerage">$0.00</h3>
-        <span class="text-[9px] text-slate-500">Excl. 18% GST</span>
-      </div>
-      <div class="bg-cardDark border border-borderDark p-3.5 rounded-xl">
-        <span class="text-slate-400 text-[10px] font-medium uppercase tracking-wider block mb-1">18% GST Paid</span>
-        <h3 class="text-base font-bold text-amber-400 font-mono" id="kpiGst">$0.00</h3>
-        <span class="text-[9px] text-slate-500" id="kpiTotalFeeSub">Total Fee: $0.00</span>
-      </div>
-      <div class="bg-cardDark border border-borderDark p-3.5 rounded-xl border-l-4 border-l-emerald-500">
-        <span class="text-emerald-300 text-[10px] font-medium uppercase tracking-wider block mb-1">Net PnL</span>
-        <h3 class="text-base font-bold font-mono" id="kpiNet">$0.00</h3>
-        <span class="text-[9px] text-emerald-400">Net Take-Home</span>
-      </div>
-      <div class="bg-cardDark border border-borderDark p-3.5 rounded-xl col-span-2 sm:col-span-1">
-        <span class="text-slate-400 text-[10px] font-medium uppercase tracking-wider block mb-1">Win Rate</span>
-        <h3 class="text-base font-bold text-white font-mono" id="kpiWinRate">0%</h3>
-        <span class="text-[9px] text-slate-500" id="kpiTradeCount">0 trades</span>
+
+      <!-- Tier 2: Institutional Edge & Risk Metrics (Idea 3) -->
+      <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
+        <div class="bg-brandDark/70 border border-borderDark/80 p-3 rounded-xl font-mono">
+          <span class="text-slate-400 text-[9px] font-semibold uppercase tracking-wider block mb-0.5 font-sans">Profit Factor</span>
+          <h4 class="text-sm sm:text-base font-bold text-white" id="kpiProfitFactor">--</h4>
+          <span class="text-[9px] text-slate-500 font-sans">Gross Wins / Gross Losses</span>
+        </div>
+        <div class="bg-brandDark/70 border border-borderDark/80 p-3 rounded-xl font-mono">
+          <span class="text-slate-400 text-[9px] font-semibold uppercase tracking-wider block mb-0.5 font-sans">Realized R : R</span>
+          <h4 class="text-sm sm:text-base font-bold text-indigo-300" id="kpiRealizedRR">--</h4>
+          <span class="text-[9px] text-slate-500 font-sans">Avg Win vs Avg Loss</span>
+        </div>
+        <div class="bg-brandDark/70 border border-borderDark/80 p-3 rounded-xl font-mono">
+          <span class="text-slate-400 text-[9px] font-semibold uppercase tracking-wider block mb-0.5 font-sans">Max Drawdown</span>
+          <h4 class="text-sm sm:text-base font-bold text-lossRed" id="kpiMaxDrawdown">$0.00</h4>
+          <span class="text-[9px] text-slate-500 font-sans">Peak-to-trough capital dip</span>
+        </div>
+        <div class="bg-brandDark/70 border border-borderDark/80 p-3 rounded-xl font-mono">
+          <span class="text-slate-400 text-[9px] font-semibold uppercase tracking-wider block mb-0.5 font-sans">Avg Trade (Win / Loss)</span>
+          <h4 class="text-sm sm:text-base font-bold text-slate-200" id="kpiAvgWinLoss">+$0 / -$0</h4>
+          <span class="text-[9px] text-slate-500 font-sans">Mathematical expectation</span>
+        </div>
       </div>
     </section>
 
@@ -368,42 +395,116 @@
       <div id="middleSectionContainer" class="w-full"></div>
     </section>
 
-    <!-- CLOSED POSITION AUDIT LOG -->
-    <section id="tradeTableSection" class="bg-cardDark border border-borderDark p-4 md:p-5 rounded-2xl">
-      <div class="flex justify-between items-center mb-4">
+    <!-- 4. MARKET SESSION & DAY-OF-WEEK EDGE MATRIX (IDEA 6) -->
+    <section id="sessionEdgeSection" class="bg-cardDark border border-borderDark p-4 md:p-5 rounded-2xl mb-6 shadow-md">
+      <div class="flex justify-between items-center mb-4 pb-3 border-b border-borderDark/70">
         <div>
-          <h2 class="font-bold text-sm md:text-base text-white">Closed Position Audit Log</h2>
-          <p class="text-[11px] text-slate-400">Click any trade to attach SMC tags, chart screenshots, and journal notes</p>
+          <h2 class="font-bold text-sm md:text-base text-white flex items-center gap-2">
+            <i class="fa-solid fa-clock-rotate-left text-indigo-400"></i> Market Session & Day-of-Week Edge
+          </h2>
+          <p class="text-[11px] text-slate-400">Discover which market sessions and weekdays yield your highest mathematical edge</p>
         </div>
-        <span class="text-xs font-mono text-slate-400" id="tradeCountBadge">0 trades</span>
+        <span class="text-[10px] font-mono font-bold text-indigo-300 bg-indigo-500/10 border border-indigo-500/30 px-2 py-0.5 rounded">IST Timezone</span>
       </div>
 
-      <div id="tradeLogMobileCards" class="grid grid-cols-1 gap-2.5 md:hidden"></div>
+      <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        <!-- Day of the Week Heatmap -->
+        <div class="bg-brandDark/70 border border-borderDark/80 rounded-xl p-3.5 space-y-2.5">
+          <span class="text-[10px] font-bold uppercase tracking-wider text-slate-400 flex items-center gap-1.5">
+            <i class="fa-regular fa-calendar-days text-indigo-400"></i> Performance by Day of Week
+          </span>
+          <div id="dayOfWeekContainer" class="grid grid-cols-2 sm:grid-cols-4 gap-2 font-mono">
+            <!-- Populated dynamically -->
+          </div>
+        </div>
 
-      <div class="hidden md:block overflow-x-auto custom-scroll pb-2">
-        <table class="w-full text-left text-xs">
-          <thead class="bg-brandDark/80 text-slate-400 border-b border-borderDark uppercase tracking-wider text-[10px]">
-            <tr>
-              <th class="py-2.5 px-3">Closed Time (IST)</th>
-              <th class="py-2.5 px-3">Symbol & Tags</th>
-              <th class="py-2.5 px-3 text-right">Size</th>
-              <th class="py-2.5 px-3 text-right">Avg Entry / Exit</th>
-              <th class="py-2.5 px-3 text-right">Gross PnL</th>
-              <th class="py-2.5 px-3 text-right">Brokerage</th>
-              <th class="py-2.5 px-3 text-right">18% GST</th>
-              <th class="py-2.5 px-3 text-right">Net PnL</th>
-              <th class="py-2.5 px-3 text-center">Status</th>
-              <th class="py-2.5 px-2 text-center">Action</th>
-            </tr>
-          </thead>
-          <tbody id="tradeLogBody" class="divide-y divide-borderDark text-slate-300 font-mono text-[11px]"></tbody>
-        </table>
+        <!-- Session Matrix (Asian, London, NY, Overnight) -->
+        <div class="bg-brandDark/70 border border-borderDark/80 rounded-xl p-3.5 space-y-2.5">
+          <span class="text-[10px] font-bold uppercase tracking-wider text-slate-400 flex items-center gap-1.5">
+            <i class="fa-solid fa-globe text-indigo-400"></i> Performance by Market Session
+          </span>
+          <div id="marketSessionContainer" class="grid grid-cols-2 gap-2 font-mono">
+            <!-- Populated dynamically -->
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 5. CLOSED POSITION AUDIT LOG (COLLAPSIBLE WITH FILTERS & SORTING - IDEA 4) -->
+    <section id="tradeTableSection" class="bg-cardDark border border-borderDark p-4 md:p-5 rounded-2xl shadow-md">
+      <!-- Collapsible Header -->
+      <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 cursor-pointer select-none" onclick="DeltaApp.toggleTradeLogCollapse()">
+        <div>
+          <h2 class="font-bold text-sm md:text-base text-white flex items-center gap-2">
+            <i class="fa-solid fa-list-check text-indigo-400"></i> Closed Position Audit Log
+          </h2>
+          <p class="text-[11px] text-slate-400">Click to expand/collapse closed trades, SMC tags, and execution notes</p>
+        </div>
+        <div class="flex items-center gap-2 w-full sm:w-auto justify-between sm:justify-end">
+          <span id="tradeLogSummaryBadge" class="text-xs font-mono font-bold px-2.5 py-1 rounded-xl bg-panelDark border border-borderDark text-slate-300">0 positions</span>
+          <button id="btnToggleTradeLog" type="button" class="px-3 py-1 text-xs font-bold rounded-xl bg-indigo-600/30 hover:bg-indigo-600 text-indigo-200 hover:text-white border border-indigo-500/40 font-mono transition-colors flex items-center gap-1.5 shadow-sm">
+            <i id="tradeLogChevron" class="fa-solid fa-chevron-down"></i>
+            <span id="tradeLogToggleText">Show Trades</span>
+          </button>
+        </div>
       </div>
 
-      <div id="paginationControls" class="hidden justify-between items-center mt-4 pt-3 border-t border-borderDark text-xs">
-        <button onclick="DeltaApp.changeTradePage(-1)" id="prevPageBtn" class="px-3 py-1.5 rounded-lg bg-panelDark border border-borderDark text-slate-300 hover:text-white disabled:opacity-40">Previous</button>
-        <span id="pageIndicator" class="font-mono text-slate-400">Page 1 of 1</span>
-        <button onclick="DeltaApp.changeTradePage(1)" id="nextPageBtn" class="px-3 py-1.5 rounded-lg bg-panelDark border border-borderDark text-slate-300 hover:text-white disabled:opacity-40">Next</button>
+      <!-- Collapsible Body (Default Hidden) -->
+      <div id="tradeLogCollapseContent" class="hidden space-y-4 pt-4 mt-3 border-t border-borderDark/60">
+        <!-- Filter & Sorting Toolbar -->
+        <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 bg-brandDark/60 p-2.5 rounded-xl border border-borderDark/50">
+          <!-- Fast Filter Pills -->
+          <div class="flex items-center gap-1 overflow-x-auto no-scrollbar w-full sm:w-auto">
+            <button onclick="event.stopPropagation(); DeltaApp.setTradeFilter('ALL')" id="btnTradeFilter_ALL" class="px-2.5 py-1 text-xs font-bold rounded-lg bg-indigo-600 text-white font-mono shadow-sm shrink-0">All</button>
+            <button onclick="event.stopPropagation(); DeltaApp.setTradeFilter('CALLS')" id="btnTradeFilter_CALLS" class="px-2.5 py-1 text-xs font-bold rounded-lg text-slate-400 hover:text-white bg-panelDark font-mono shrink-0">Calls Only</button>
+            <button onclick="event.stopPropagation(); DeltaApp.setTradeFilter('PUTS')" id="btnTradeFilter_PUTS" class="px-2.5 py-1 text-xs font-bold rounded-lg text-slate-400 hover:text-white bg-panelDark font-mono shrink-0">Puts Only</button>
+            <button onclick="event.stopPropagation(); DeltaApp.setTradeFilter('WINNERS')" id="btnTradeFilter_WINNERS" class="px-2.5 py-1 text-xs font-bold rounded-lg text-slate-400 hover:text-white bg-panelDark font-mono shrink-0 text-emerald-400">Winners (+)</button>
+            <button onclick="event.stopPropagation(); DeltaApp.setTradeFilter('LOSSES')" id="btnTradeFilter_LOSSES" class="px-2.5 py-1 text-xs font-bold rounded-lg text-slate-400 hover:text-white bg-panelDark font-mono shrink-0 text-rose-400">Losses (-)</button>
+          </div>
+
+          <!-- Sort Selector -->
+          <div class="flex items-center gap-2 w-full sm:w-auto justify-end text-xs font-mono">
+            <span class="text-slate-400 text-[10px] uppercase font-sans">Sort:</span>
+            <select id="tradeLogSort" onchange="event.stopPropagation(); DeltaApp.setTradeSort(this.value)" class="bg-panelDark border border-borderDark rounded-lg px-2.5 py-1 text-xs font-bold text-white focus:outline-none focus:border-indigo-500">
+              <option value="NEWEST">Newest First</option>
+              <option value="OLDEST">Oldest First</option>
+              <option value="PNL_HIGH">Highest Net Profit</option>
+              <option value="PNL_LOW">Biggest Loss</option>
+              <option value="SIZE_HIGH">Largest Size</option>
+            </select>
+          </div>
+        </div>
+
+        <!-- Mobile Trade Cards -->
+        <div id="tradeLogMobileCards" class="grid grid-cols-1 gap-2.5 md:hidden"></div>
+
+        <!-- Desktop Trade Table -->
+        <div class="hidden md:block overflow-x-auto custom-scroll pb-2">
+          <table class="w-full text-left text-xs">
+            <thead class="bg-brandDark/80 text-slate-400 border-b border-borderDark uppercase tracking-wider text-[10px]">
+              <tr>
+                <th class="py-2.5 px-3">Closed Time (IST)</th>
+                <th class="py-2.5 px-3">Symbol & Tags</th>
+                <th class="py-2.5 px-3 text-right">Size</th>
+                <th class="py-2.5 px-3 text-right">Avg Entry / Exit</th>
+                <th class="py-2.5 px-3 text-right">Gross PnL</th>
+                <th class="py-2.5 px-3 text-right">Brokerage</th>
+                <th class="py-2.5 px-3 text-right">18% GST</th>
+                <th class="py-2.5 px-3 text-right">Net PnL</th>
+                <th class="py-2.5 px-3 text-center">Status</th>
+                <th class="py-2.5 px-2 text-center">Action</th>
+              </tr>
+            </thead>
+            <tbody id="tradeLogBody" class="divide-y divide-borderDark text-slate-300 font-mono text-[11px]"></tbody>
+          </table>
+        </div>
+
+        <!-- Pagination Controls -->
+        <div id="paginationControls" class="hidden justify-between items-center mt-4 pt-3 border-t border-borderDark text-xs font-mono">
+          <button onclick="event.stopPropagation(); DeltaApp.changeTradePage(-1)" id="prevPageBtn" class="px-3 py-1.5 rounded-lg bg-panelDark border border-borderDark text-slate-300 hover:text-white disabled:opacity-40 font-bold">Previous</button>
+          <span id="pageIndicator" class="font-mono text-slate-400">Page 1 of 1</span>
+          <button onclick="event.stopPropagation(); DeltaApp.changeTradePage(1)" id="nextPageBtn" class="px-3 py-1.5 rounded-lg bg-panelDark border border-borderDark text-slate-300 hover:text-white disabled:opacity-40 font-bold">Next</button>
+        </div>
       </div>
     </section>
   </div>
@@ -875,18 +976,18 @@
   </nav>
 
   <!-- Application Script Pipeline -->
-  <script src="vendor/lightweight-charts.js?v=3.3.1"></script>
-  <script src="js/config.js?v=3.3.1"></script>
-  <script src="js/smc-strategy.js?v=3.3.1"></script>
-  <script src="js/chart-engine.js?v=3.3.1"></script>
-  <script src="js/db.js?v=3.3.1"></script>
-  <script src="js/quant.js?v=3.3.1"></script>
-  <script src="js/coach.js?v=3.3.1"></script>
-  <script src="js/planner.js?v=3.3.1"></script>
-  <script src="js/app.js?v=3.3.1"></script>
+  <script src="vendor/lightweight-charts.js?v=3.3.2"></script>
+  <script src="js/config.js?v=3.3.2"></script>
+  <script src="js/smc-strategy.js?v=3.3.2"></script>
+  <script src="js/chart-engine.js?v=3.3.2"></script>
+  <script src="js/db.js?v=3.3.2"></script>
+  <script src="js/quant.js?v=3.3.2"></script>
+  <script src="js/coach.js?v=3.3.2"></script>
+  <script src="js/planner.js?v=3.3.2"></script>
+  <script src="js/app.js?v=3.3.2"></script>
   <script>
     if ('serviceWorker' in navigator) {
-      navigator.serviceWorker.register('sw.js?v=3.3.1').then(function(reg) {
+      navigator.serviceWorker.register('sw.js?v=3.3.2').then(function(reg) {
         reg.update();
       });
     }

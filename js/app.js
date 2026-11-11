@@ -294,6 +294,26 @@ window.DeltaApp = (function() {
     if (tradeCountEl) tradeCountEl.innerText = `${metrics.tradeCount} closed positions`;
     if (activityEl) activityEl.innerText = displayLabel;
 
+    // Tier 2: Institutional Edge & Risk Metrics (Idea 3)
+    const pfEl = document.getElementById('kpiProfitFactor');
+    const rrEl = document.getElementById('kpiRealizedRR');
+    const ddEl = document.getElementById('kpiMaxDrawdown');
+    const avgWlEl = document.getElementById('kpiAvgWinLoss');
+
+    if (pfEl) {
+      pfEl.innerText = metrics.profitFactor >= 99 ? '∞' : metrics.profitFactor.toFixed(2);
+      pfEl.className = `text-sm sm:text-base font-bold font-mono ${metrics.profitFactor >= 1.5 ? 'text-winGreen' : (metrics.profitFactor < 1 ? 'text-lossRed' : 'text-white')}`;
+    }
+    if (rrEl) {
+      rrEl.innerText = metrics.realizedRR >= 99 ? '∞' : `1 : ${metrics.realizedRR.toFixed(2)}`;
+    }
+    if (ddEl) {
+      ddEl.innerText = formatUSD(metrics.maxDrawdown);
+    }
+    if (avgWlEl) {
+      avgWlEl.innerText = `+${formatUSD(metrics.avgWin)} / -${formatUSD(metrics.avgLoss)}`;
+    }
+
     // Call/Put metrics
     let callPnl = 0, putPnl = 0, callTrades = 0, putTrades = 0;
     currentFilteredTrades.forEach(t => {
@@ -304,6 +324,7 @@ window.DeltaApp = (function() {
     renderTrajectoryChart(currentFilteredTrades, isSingleMonth);
     renderInstrumentCharts(callPnl, putPnl, callTrades, putTrades);
     renderMiddleSection(isSingleMonth, targetMonthStr, startDate, endDate, displayLabel);
+    renderSessionAndDayMatrix(currentFilteredTrades);
     renderPaginatedTrades();
 
     // If Coach Tab is active, re-render it
@@ -503,10 +524,200 @@ window.DeltaApp = (function() {
   }
 
   // -------------------------------------------------------------
-  // 5. TRADE AUDIT LOG & SLIDE-OVER DRAWER
+  // 4b. MARKET SESSION & DAY-OF-WEEK EDGE MATRIX (IDEA 6)
   // -------------------------------------------------------------
+  function renderSessionAndDayMatrix(trades) {
+    const dayContainer = document.getElementById('dayOfWeekContainer');
+    const sessionContainer = document.getElementById('marketSessionContainer');
+    if (!dayContainer || !sessionContainer) return;
+
+    if (!trades || trades.length === 0) {
+      dayContainer.innerHTML = `<div class="col-span-full text-center py-4 text-slate-500 text-xs font-sans">No trades recorded in this period.</div>`;
+      sessionContainer.innerHTML = `<div class="col-span-full text-center py-4 text-slate-500 text-xs font-sans">No trades recorded in this period.</div>`;
+      return;
+    }
+
+    const dayMap = {
+      'Mon': { name: 'Monday', trades: 0, wins: 0, netPnl: 0 },
+      'Tue': { name: 'Tuesday', trades: 0, wins: 0, netPnl: 0 },
+      'Wed': { name: 'Wednesday', trades: 0, wins: 0, netPnl: 0 },
+      'Thu': { name: 'Thursday', trades: 0, wins: 0, netPnl: 0 },
+      'Fri': { name: 'Friday', trades: 0, wins: 0, netPnl: 0 },
+      'Sat': { name: 'Saturday', trades: 0, wins: 0, netPnl: 0 },
+      'Sun': { name: 'Sunday', trades: 0, wins: 0, netPnl: 0 }
+    };
+
+    const sessionMap = {
+      'Asian': { name: 'Asian Morning (09-14 IST)', trades: 0, wins: 0, netPnl: 0, icon: 'fa-sun text-amber-400' },
+      'London': { name: 'London Open (14-18 IST)', trades: 0, wins: 0, netPnl: 0, icon: 'fa-landmark text-sky-400' },
+      'NY': { name: 'NY Evening (18-24 IST)', trades: 0, wins: 0, netPnl: 0, icon: 'fa-bolt text-indigo-400' },
+      'Night': { name: 'Overnight (00-09 IST)', trades: 0, wins: 0, netPnl: 0, icon: 'fa-moon text-indigo-300' }
+    };
+
+    const DAY_KEYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+
+    trades.forEach(t => {
+      const d = new Date(t.sortTime || t.closed_at || t.rawDate);
+      const dayKey = DAY_KEYS[d.getDay()] || 'Mon';
+      const hour = d.getHours();
+
+      const net = t.net_pnl || 0;
+      const isWin = net > 0.0001;
+
+      if (dayMap[dayKey]) {
+        dayMap[dayKey].trades++;
+        if (isWin) dayMap[dayKey].wins++;
+        dayMap[dayKey].netPnl += net;
+      }
+
+      let sessKey = 'Night';
+      if (hour >= 9 && hour < 14) sessKey = 'Asian';
+      else if (hour >= 14 && hour < 18) sessKey = 'London';
+      else if (hour >= 18 && hour < 24) sessKey = 'NY';
+
+      if (sessionMap[sessKey]) {
+        sessionMap[sessKey].trades++;
+        if (isWin) sessionMap[sessKey].wins++;
+        sessionMap[sessKey].netPnl += net;
+      }
+    });
+
+    // Render Days of Week
+    const activeDays = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+    dayContainer.innerHTML = activeDays.map(k => {
+      const data = dayMap[k];
+      const winRate = data.trades > 0 ? Math.round((data.wins / data.trades) * 100) : 0;
+      const pnlColor = data.netPnl > 0 ? 'text-winGreen' : (data.netPnl < 0 ? 'text-lossRed' : 'text-slate-400');
+      const badgeBorder = data.netPnl > 0 ? 'border-emerald-500/20 bg-emerald-500/5' : (data.netPnl < 0 ? 'border-rose-500/20 bg-rose-500/5' : 'border-borderDark/40 bg-panelDark/30');
+
+      return `
+        <div class="p-2.5 rounded-xl border ${badgeBorder} flex flex-col justify-between font-mono">
+          <div class="flex justify-between items-center text-[10px]">
+            <span class="font-bold text-slate-300 font-sans">${k}</span>
+            <span class="text-[9px] text-slate-400">${data.trades} tr</span>
+          </div>
+          <div class="mt-1 flex items-baseline justify-between">
+            <span class="text-xs font-bold ${pnlColor}">${data.netPnl >= 0 ? '+' : ''}${formatUSD(data.netPnl)}</span>
+            <span class="text-[9px] text-indigo-300 font-bold">${data.trades > 0 ? winRate + '%' : '--'}</span>
+          </div>
+        </div>
+      `;
+    }).join('');
+
+    // Render Market Sessions
+    const sessKeys = ['Asian', 'London', 'NY', 'Night'];
+    sessionContainer.innerHTML = sessKeys.map(k => {
+      const data = sessionMap[k];
+      const winRate = data.trades > 0 ? Math.round((data.wins / data.trades) * 100) : 0;
+      const pnlColor = data.netPnl > 0 ? 'text-winGreen' : (data.netPnl < 0 ? 'text-lossRed' : 'text-slate-400');
+      const isPrime = k === 'NY'; // High-volatility session for Delta BTC options
+
+      return `
+        <div class="p-3 rounded-xl border ${isPrime ? 'border-indigo-500/30 bg-indigo-950/20' : 'border-borderDark/60 bg-panelDark/40'} flex flex-col justify-between gap-1 font-mono">
+          <div class="flex justify-between items-start">
+            <div class="flex items-center gap-1.5 text-xs font-bold text-white font-sans">
+              <i class="fa-solid ${data.icon}"></i> ${data.name}
+            </div>
+            ${isPrime ? '<span class="text-[8px] uppercase tracking-wider font-bold px-1.5 py-0.5 rounded bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 font-sans">Delta Peak</span>' : ''}
+          </div>
+          <div class="flex justify-between items-end mt-1">
+            <div>
+              <span class="text-[9px] text-slate-400 block font-sans">Net PnL</span>
+              <span class="text-xs sm:text-sm font-bold ${pnlColor}">${data.netPnl >= 0 ? '+' : ''}${formatUSD(data.netPnl)}</span>
+            </div>
+            <div class="text-right">
+              <span class="text-[9px] text-slate-400 block font-sans">${data.trades} trades</span>
+              <span class="text-xs font-bold text-indigo-300">${data.trades > 0 ? winRate + '% win' : '--'}</span>
+            </div>
+          </div>
+        </div>
+      `;
+    }).join('');
+  }
+
+  // -------------------------------------------------------------
+  // 5. TRADE AUDIT LOG & SLIDE-OVER DRAWER (COLLAPSIBLE & FILTERABLE - IDEA 4)
+  // -------------------------------------------------------------
+  let currentTradeFilter = 'ALL';
+  let currentTradeSort = 'NEWEST';
+  let isTradeLogCollapsed = true;
+
+  function toggleTradeLogCollapse() {
+    isTradeLogCollapsed = !isTradeLogCollapsed;
+    const content = document.getElementById('tradeLogCollapseContent');
+    const chevron = document.getElementById('tradeLogChevron');
+    const toggleText = document.getElementById('tradeLogToggleText');
+
+    if (!content) return;
+
+    if (isTradeLogCollapsed) {
+      content.classList.add('hidden');
+      if (chevron) chevron.className = 'fa-solid fa-chevron-down';
+      if (toggleText) toggleText.innerText = 'Show Trades';
+    } else {
+      content.classList.remove('hidden');
+      if (chevron) chevron.className = 'fa-solid fa-chevron-up';
+      if (toggleText) toggleText.innerText = 'Hide Trades';
+      renderPaginatedTrades();
+    }
+  }
+
+  function setTradeFilter(filter) {
+    currentTradeFilter = filter;
+    currentTradePage = 1;
+    ['ALL', 'CALLS', 'PUTS', 'WINNERS', 'LOSSES'].forEach(f => {
+      const btn = document.getElementById(`btnTradeFilter_${f}`);
+      if (btn) {
+        if (f === filter) {
+          btn.className = "px-2.5 py-1 text-xs font-bold rounded-lg bg-indigo-600 text-white font-mono shadow-sm shrink-0";
+        } else {
+          btn.className = "px-2.5 py-1 text-xs font-bold rounded-lg text-slate-400 hover:text-white bg-panelDark font-mono shrink-0";
+        }
+      }
+    });
+    renderPaginatedTrades();
+  }
+
+  function setTradeSort(sort) {
+    currentTradeSort = sort;
+    currentTradePage = 1;
+    renderPaginatedTrades();
+  }
+
+  function getFilteredAndSortedTrades() {
+    let list = [...currentFilteredTrades];
+
+    // Filter
+    if (currentTradeFilter === 'CALLS') {
+      list = list.filter(t => t.isCall);
+    } else if (currentTradeFilter === 'PUTS') {
+      list = list.filter(t => !t.isCall);
+    } else if (currentTradeFilter === 'WINNERS') {
+      list = list.filter(t => t.net_pnl > 0.0001);
+    } else if (currentTradeFilter === 'LOSSES') {
+      list = list.filter(t => t.net_pnl < -0.0001);
+    }
+
+    // Sort
+    if (currentTradeSort === 'NEWEST') {
+      list.sort((a, b) => (b.sortTime || 0) - (a.sortTime || 0));
+    } else if (currentTradeSort === 'OLDEST') {
+      list.sort((a, b) => (a.sortTime || 0) - (b.sortTime || 0));
+    } else if (currentTradeSort === 'PNL_HIGH') {
+      list.sort((a, b) => (b.net_pnl || 0) - (a.net_pnl || 0));
+    } else if (currentTradeSort === 'PNL_LOW') {
+      list.sort((a, b) => (a.net_pnl || 0) - (b.net_pnl || 0));
+    } else if (currentTradeSort === 'SIZE_HIGH') {
+      const parseSize = s => parseFloat(String(s).replace(/,/g, '')) || 0;
+      list.sort((a, b) => parseSize(b.size) - parseSize(a.size));
+    }
+
+    return list;
+  }
+
   function changeTradePage(delta) {
-    const totalPages = Math.max(1, Math.ceil(currentFilteredTrades.length / TRADES_PER_PAGE));
+    const activeList = getFilteredAndSortedTrades();
+    const totalPages = Math.max(1, Math.ceil(activeList.length / TRADES_PER_PAGE));
     currentTradePage = Math.min(totalPages, Math.max(1, currentTradePage + delta));
     renderPaginatedTrades();
   }
@@ -516,15 +727,25 @@ window.DeltaApp = (function() {
     const mobileContainer = document.getElementById('tradeLogMobileCards');
     const pagControls = document.getElementById('paginationControls');
 
-    const totalTrades = currentFilteredTrades.length;
-    const badge = document.getElementById('tradeCountBadge');
-    if (badge) badge.innerText = `Showing ${totalTrades} positions`;
+    // Update summary badge on the collapsible header
+    const sumNet = currentFilteredTrades.reduce((acc, t) => acc + (t.net_pnl || 0), 0);
+    const summaryBadge = document.getElementById('tradeLogSummaryBadge');
+    if (summaryBadge) {
+      summaryBadge.innerText = `${currentFilteredTrades.length} trades | ${sumNet >= 0 ? '+' : ''}${formatUSD(sumNet)} Net`;
+      summaryBadge.className = `text-xs font-mono font-bold px-2.5 py-1 rounded-xl ${sumNet >= 0 ? 'bg-emerald-500/10 text-winGreen border border-emerald-500/20' : 'bg-rose-500/10 text-lossRed border border-rose-500/20'}`;
+    }
 
     if (!tbody || !mobileContainer) return;
 
+    const activeList = getFilteredAndSortedTrades();
+    const totalTrades = activeList.length;
+
+    const badge = document.getElementById('tradeCountBadge');
+    if (badge) badge.innerText = `Showing ${totalTrades} of ${currentFilteredTrades.length} positions`;
+
     if (totalTrades === 0) {
-      tbody.innerHTML = `<tr><td colspan="10" class="text-center py-8 text-slate-500 font-sans">No closed trades recorded in this period.</td></tr>`;
-      mobileContainer.innerHTML = `<div class="text-center py-8 text-slate-500 text-xs">No closed trades recorded in this period.</div>`;
+      tbody.innerHTML = `<tr><td colspan="10" class="text-center py-8 text-slate-500 font-sans">No matching trades found for the selected filter.</td></tr>`;
+      mobileContainer.innerHTML = `<div class="text-center py-8 text-slate-500 text-xs">No matching trades found for the selected filter.</div>`;
       if (pagControls) {
         pagControls.classList.add('hidden');
         pagControls.classList.remove('flex');
@@ -534,7 +755,7 @@ window.DeltaApp = (function() {
 
     const totalPages = Math.ceil(totalTrades / TRADES_PER_PAGE);
     const startIdx = (currentTradePage - 1) * TRADES_PER_PAGE;
-    const pageTrades = currentFilteredTrades.slice(startIdx, startIdx + TRADES_PER_PAGE);
+    const pageTrades = activeList.slice(startIdx, startIdx + TRADES_PER_PAGE);
 
     if (pagControls) {
       if (totalPages > 1) {
@@ -1024,6 +1245,9 @@ window.DeltaApp = (function() {
     triggerFirebaseSync,
     triggerGitHubWorkflow,
     showPeek,
-    hidePeek
+    hidePeek,
+    toggleTradeLogCollapse,
+    setTradeFilter,
+    setTradeSort
   };
 })();
