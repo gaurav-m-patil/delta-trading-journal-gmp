@@ -60,7 +60,10 @@ window.DeltaConfig = {
     FIREBASE_CONFIG: "dtj_firebase_config",
     ACTIVE_BACKEND: "dtj_active_backend", // 'firebase' | 'local'
     LAST_SYNC: "dtj_last_sync_timestamp",
-    CURRENT_TAB: "dtj_active_tab"
+    CURRENT_TAB: "dtj_active_tab",
+    MAX_DAILY_LOSS: "dtj_max_daily_loss",
+    MAX_CONSEC_LOSSES: "dtj_max_consec_losses",
+    SENTINEL_ACKNOWLEDGED: "dtj_sentinel_acknowledged"
   },
 
   // Default Tax & Brokerage Parameters for Delta India

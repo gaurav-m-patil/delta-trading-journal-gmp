@@ -303,6 +303,11 @@
       </div>
     </section>
 
+    <!-- CAPITAL DEFENSE SENTINEL & TILT BREAKER ALERT (FEATURE 4) -->
+    <div id="riskSentinelContainer" class="mb-5">
+      <!-- Populated dynamically via DeltaApp.renderRiskSentinel() -->
+    </div>
+
     <!-- KPI SCORECARD (TIER 1: CAPITAL & FEES | TIER 2: RISK & EDGE RATIOS) -->
     <section class="space-y-3 mb-6">
       <!-- Tier 1: Capital, Take-Home & Fees -->
@@ -427,6 +432,29 @@
             <!-- Populated dynamically -->
           </div>
         </div>
+      </div>
+    </section>
+
+    <!-- 4b. TRADE DURATION & SCALP EFFICIENCY DIAGNOSTIC (FEATURE 3) -->
+    <section id="durationEdgeSection" class="bg-cardDark border border-borderDark p-4 md:p-5 rounded-2xl mb-6 shadow-md">
+      <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 mb-4 pb-3 border-b border-borderDark/70">
+        <div>
+          <h2 class="font-bold text-sm md:text-base text-white flex items-center gap-2">
+            <i class="fa-solid fa-stopwatch text-indigo-400"></i> Trade Duration & Scalp Efficiency Diagnostic
+          </h2>
+          <p class="text-[11px] text-slate-400">Institutional hold-time audit: Quantifies edge across lightning scalps vs prolonged holds where options theta decay compounds</p>
+        </div>
+        <span class="text-[10px] font-mono font-bold text-emerald-400 bg-emerald-500/10 border border-emerald-500/30 px-2 py-0.5 rounded">Delta Options Analytics</span>
+      </div>
+
+      <!-- 4 Hold Duration Buckets Grid -->
+      <div id="holdDurationBucketsContainer" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 mb-4 font-mono">
+        <!-- Populated dynamically via DeltaApp.renderHoldDurationDiagnostic() -->
+      </div>
+
+      <!-- Quant Hold Duration Takeaway / Recommendation Banner -->
+      <div id="holdDurationInsightBanner" class="p-3.5 rounded-xl bg-brandDark/80 border border-borderDark text-xs text-slate-300">
+        <!-- Populated dynamically -->
       </div>
     </section>
 
@@ -961,6 +989,50 @@
     </div>
   </div>
 
+  <!-- MODAL: CAPITAL DEFENSE SENTINEL & TILT BREAKER SETTINGS (FEATURE 4) -->
+  <div id="sentinelConfigModal" class="hidden fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
+    <div class="bg-cardDark border border-borderDark rounded-2xl p-5 w-full max-w-md shadow-2xl space-y-4">
+      <div class="flex justify-between items-center border-b border-borderDark pb-3">
+        <h3 class="font-bold text-white text-sm flex items-center gap-2">
+          <i class="fa-solid fa-shield-halved text-indigo-400"></i> Capital Defense & Tilt Breaker Settings
+        </h3>
+        <button onclick="DeltaApp.closeSentinelConfigModal()" class="text-slate-400 hover:text-white p-1">
+          <i class="fa-solid fa-xmark"></i>
+        </button>
+      </div>
+
+      <p class="text-xs text-slate-300 leading-relaxed font-sans">
+        Set your hard daily loss ceiling and maximum consecutive stop-outs. If your session crosses either threshold, the terminal locks into a defensive alert banner instructing you to halt trading and protect compounding equity.
+      </p>
+
+      <div class="space-y-3 font-mono">
+        <div>
+          <label class="text-[11px] uppercase tracking-wider text-slate-400 font-sans block mb-1">Max Daily Realized Loss Limit ($ USD)</label>
+          <div class="relative">
+            <span class="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 font-bold">$</span>
+            <input type="number" id="inputMaxDailyLoss" step="10" min="20" placeholder="200" class="w-full bg-panelDark border border-borderDark rounded-xl pl-8 pr-3 py-2 text-sm text-white focus:outline-none focus:border-indigo-500 font-mono">
+          </div>
+          <span class="text-[10px] text-slate-500 font-sans">Recommended: $150 to $250 for options margin safety</span>
+        </div>
+
+        <div>
+          <label class="text-[11px] uppercase tracking-wider text-slate-400 font-sans block mb-1">Max Consecutive Stop-Outs</label>
+          <input type="number" id="inputMaxConsecLosses" step="1" min="1" max="5" placeholder="2" class="w-full bg-panelDark border border-borderDark rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:border-indigo-500 font-mono">
+          <span class="text-[10px] text-slate-500 font-sans">Default: 2 consecutive losses = step away to reset mindset</span>
+        </div>
+      </div>
+
+      <div class="flex justify-end gap-2 pt-3 border-t border-borderDark">
+        <button onclick="DeltaApp.closeSentinelConfigModal()" class="px-4 py-2 rounded-xl bg-panelDark text-slate-300 hover:text-white text-xs font-bold transition-colors">
+          Cancel
+        </button>
+        <button onclick="DeltaApp.saveSentinelConfig()" class="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold transition-colors shadow-lg shadow-indigo-600/30">
+          Save Sentinel Limits
+        </button>
+      </div>
+    </div>
+  </div>
+
   <!-- FLOATING BOTTOM NAVIGATION BAR (3 TABS)    -->
   <!-- ========================================== -->
   <nav class="fixed bottom-4 left-1/2 -translate-x-1/2 z-30 w-[94%] max-w-[440px] bg-cardDark/95 backdrop-blur-md border border-borderDark rounded-2xl p-1.5 shadow-2xl flex items-center gap-1.5 no-select">
@@ -976,18 +1048,18 @@
   </nav>
 
   <!-- Application Script Pipeline -->
-  <script src="vendor/lightweight-charts.js?v=3.3.2"></script>
-  <script src="js/config.js?v=3.3.2"></script>
-  <script src="js/smc-strategy.js?v=3.3.2"></script>
-  <script src="js/chart-engine.js?v=3.3.2"></script>
-  <script src="js/db.js?v=3.3.2"></script>
-  <script src="js/quant.js?v=3.3.2"></script>
-  <script src="js/coach.js?v=3.3.2"></script>
-  <script src="js/planner.js?v=3.3.2"></script>
-  <script src="js/app.js?v=3.3.2"></script>
+  <script src="vendor/lightweight-charts.js?v=3.3.3"></script>
+  <script src="js/config.js?v=3.3.3"></script>
+  <script src="js/smc-strategy.js?v=3.3.3"></script>
+  <script src="js/chart-engine.js?v=3.3.3"></script>
+  <script src="js/db.js?v=3.3.3"></script>
+  <script src="js/quant.js?v=3.3.3"></script>
+  <script src="js/coach.js?v=3.3.3"></script>
+  <script src="js/planner.js?v=3.3.3"></script>
+  <script src="js/app.js?v=3.3.3"></script>
   <script>
     if ('serviceWorker' in navigator) {
-      navigator.serviceWorker.register('sw.js?v=3.3.2').then(function(reg) {
+      navigator.serviceWorker.register('sw.js?v=3.3.3').then(function(reg) {
         reg.update();
       });
     }

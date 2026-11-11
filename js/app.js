@@ -325,6 +325,8 @@ window.DeltaApp = (function() {
     renderInstrumentCharts(callPnl, putPnl, callTrades, putTrades);
     renderMiddleSection(isSingleMonth, targetMonthStr, startDate, endDate, displayLabel);
     renderSessionAndDayMatrix(currentFilteredTrades);
+    renderHoldDurationDiagnostic(currentFilteredTrades);
+    renderRiskSentinel(allTrades);
     renderPaginatedTrades();
 
     // If Coach Tab is active, re-render it
@@ -633,6 +635,368 @@ window.DeltaApp = (function() {
         </div>
       `;
     }).join('');
+  }
+
+  // -------------------------------------------------------------
+  // 4c. CAPITAL DEFENSE SENTINEL & TILT BREAKER ALERT (FEATURE 4)
+  // -------------------------------------------------------------
+  function renderRiskSentinel(allTrades) {
+    const container = document.getElementById('riskSentinelContainer');
+    if (!container) return;
+
+    if (!allTrades || allTrades.length === 0) {
+      container.innerHTML = '';
+      return;
+    }
+
+    const savedMaxLoss = parseFloat(localStorage.getItem(DeltaConfig.STORAGE_KEYS.MAX_DAILY_LOSS)) || 200;
+    const savedMaxConsec = parseInt(localStorage.getItem(DeltaConfig.STORAGE_KEYS.MAX_CONSEC_LOSSES), 10) || 2;
+    const isAcknowledged = localStorage.getItem(DeltaConfig.STORAGE_KEYS.SENTINEL_ACKNOWLEDGED) === 'true';
+
+    // Find the relevant trading session: today's date in IST, or the latest active trading day from history
+    const todayIst = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' }); // YYYY-MM-DD
+    let sessionTrades = allTrades.filter(t => t.rawDate === todayIst);
+    let isLiveToday = true;
+    let sessionDate = todayIst;
+
+    if (sessionTrades.length === 0) {
+      // Find latest trading day in allTrades
+      const sorted = [...allTrades].sort((a, b) => (b.sortTime || 0) - (a.sortTime || 0));
+      if (sorted.length > 0 && sorted[0].rawDate) {
+        sessionDate = sorted[0].rawDate;
+        sessionTrades = allTrades.filter(t => t.rawDate === sessionDate);
+        isLiveToday = false;
+      }
+    }
+
+    // Chronological analysis to track consecutive losses
+    const chronological = [...sessionTrades].sort((a, b) => (a.sortTime || 0) - (b.sortTime || 0));
+    let netPnl = 0;
+    let wins = 0;
+    let losses = 0;
+    let consecutiveLosses = 0;
+
+    chronological.forEach(t => {
+      const pnl = t.net_pnl || 0;
+      netPnl += pnl;
+      if (pnl > 0.0001) {
+        wins++;
+        consecutiveLosses = 0;
+      } else if (pnl < -0.0001) {
+        losses++;
+        consecutiveLosses++;
+      }
+    });
+
+    const isBreakerHit = (netPnl <= -savedMaxLoss) || (consecutiveLosses >= savedMaxConsec);
+    const remainingRiskBudget = Math.max(0, savedMaxLoss + netPnl);
+
+    const sessionLabel = isLiveToday ? `Today (${todayIst})` : `Latest Session (${sessionDate})`;
+
+    if (isBreakerHit && !isAcknowledged) {
+      // DANGER ALERT STATE
+      const triggerReason = (netPnl <= -savedMaxLoss && consecutiveLosses >= savedMaxConsec)
+        ? `Daily Loss Ceiling (-$${formatUSD(Math.abs(netPnl))}) & ${consecutiveLosses} Consecutive Losses`
+        : (netPnl <= -savedMaxLoss
+            ? `Daily Loss Ceiling (-$${formatUSD(Math.abs(netPnl))} vs max -$${savedMaxLoss})`
+            : `${consecutiveLosses} Consecutive Stop-Outs (Max allowed: ${savedMaxConsec})`);
+
+      container.innerHTML = `
+        <div class="relative overflow-hidden rounded-2xl border-2 border-rose-500/80 bg-rose-950/40 p-4 sm:p-5 shadow-2xl shadow-rose-950/60 ring-1 ring-rose-500/50">
+          <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 pb-3 border-b border-rose-500/30">
+            <div class="flex items-center gap-3">
+              <span class="relative flex h-3.5 w-3.5 shrink-0">
+                <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-rose-400 opacity-75"></span>
+                <span class="relative inline-flex rounded-full h-3.5 w-3.5 bg-rose-500"></span>
+              </span>
+              <div>
+                <h3 class="text-sm sm:text-base font-bold text-rose-200 font-sans tracking-wide flex items-center gap-2">
+                  <i class="fa-solid fa-triangle-exclamation text-rose-400"></i>
+                  TILT BREAKER TRIGGERED — TERMINAL LOCK RECOMMENDED
+                </h3>
+                <p class="text-xs text-rose-300/90 font-mono mt-0.5">
+                  ${sessionLabel}: <strong class="text-rose-200">${triggerReason}</strong>
+                </p>
+              </div>
+            </div>
+            <div class="flex items-center gap-2 self-end sm:self-auto">
+              <button onclick="DeltaApp.openSentinelConfigModal()" class="px-2.5 py-1 text-[11px] font-bold rounded-lg bg-cardDark/80 hover:bg-cardDark text-slate-300 hover:text-white border border-borderDark transition-colors">
+                <i class="fa-solid fa-gear mr-1"></i> Limits
+              </button>
+              <button onclick="DeltaApp.acknowledgeSentinel()" class="px-3 py-1 text-[11px] font-bold rounded-lg bg-rose-600 hover:bg-rose-500 text-white transition-colors shadow-md shadow-rose-600/30">
+                Acknowledge & Stand Down
+              </button>
+            </div>
+          </div>
+
+          <!-- Alert Metrics Grid -->
+          <div class="grid grid-cols-2 sm:grid-cols-4 gap-2.5 my-3 font-mono">
+            <div class="bg-black/40 border border-rose-500/30 p-2.5 rounded-xl">
+              <span class="text-[9px] uppercase tracking-wider text-rose-300/80 block font-sans">Session Realized</span>
+              <span class="text-sm sm:text-base font-bold text-rose-400">-${formatUSD(Math.abs(netPnl))}</span>
+              <span class="text-[9px] text-rose-400/70 block mt-0.5">Limit: -$${savedMaxLoss}</span>
+            </div>
+            <div class="bg-black/40 border border-rose-500/30 p-2.5 rounded-xl">
+              <span class="text-[9px] uppercase tracking-wider text-rose-300/80 block font-sans">Consecutive Stop-Outs</span>
+              <span class="text-sm sm:text-base font-bold text-rose-400">${consecutiveLosses} / ${savedMaxConsec} Max</span>
+              <span class="text-[9px] text-rose-400/70 block mt-0.5">Ceiling breached</span>
+            </div>
+            <div class="bg-black/40 border border-rose-500/30 p-2.5 rounded-xl">
+              <span class="text-[9px] uppercase tracking-wider text-rose-300/80 block font-sans">Discipline Verdict</span>
+              <span class="text-sm sm:text-base font-bold text-rose-300">HALT TRADING</span>
+              <span class="text-[9px] text-rose-400/70 block mt-0.5">Prevent revenge tilt</span>
+            </div>
+            <div class="bg-black/40 border border-rose-500/30 p-2.5 rounded-xl">
+              <span class="text-[9px] uppercase tracking-wider text-rose-300/80 block font-sans">Session Record</span>
+              <span class="text-sm sm:text-base font-bold text-white">${sessionTrades.length} Trades (${wins}W - ${losses}L)</span>
+              <span class="text-[9px] text-slate-400 block mt-0.5">Save capital for tomorrow</span>
+            </div>
+          </div>
+
+          <!-- Quant Advice -->
+          <div class="text-xs text-rose-200/90 leading-relaxed font-sans flex items-start gap-2 bg-rose-950/60 p-2.5 rounded-xl border border-rose-500/20">
+            <i class="fa-solid fa-hand text-rose-400 shrink-0 mt-0.5"></i>
+            <span><strong>Desk Risk Officer Rule:</strong> In BTC options, taking additional trades after 2 consecutive stop-outs or hitting your daily loss ceiling is the #1 cause of catastrophic account drawdowns. Step away from Delta Exchange, take a mental reset, and preserve your ammunition for the next high-probability session.</span>
+          </div>
+        </div>
+      `;
+    } else {
+      // SAFE / DISCIPLINED STATE
+      const pnlColor = netPnl > 0 ? 'text-winGreen' : (netPnl < 0 ? 'text-lossRed' : 'text-slate-300');
+      const budgetPct = Math.round((remainingRiskBudget / savedMaxLoss) * 100);
+
+      container.innerHTML = `
+        <div class="rounded-2xl border border-emerald-500/30 bg-gradient-to-r from-cardDark via-brandDark to-cardDark p-4 sm:p-5 shadow-lg shadow-black/40">
+          <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 pb-3 border-b border-borderDark/60">
+            <div class="flex items-center gap-2.5">
+              <span class="inline-block w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse shrink-0"></span>
+              <div>
+                <h3 class="text-sm sm:text-base font-bold text-white font-sans flex items-center gap-2">
+                  <i class="fa-solid fa-shield-halved text-emerald-400"></i>
+                  Capital Defense Sentinel: <span class="text-emerald-400 font-bold">DISCIPLINED (Safe)</span>
+                </h3>
+                <p class="text-[11px] text-slate-400 font-mono">
+                  ${sessionLabel}: Real-time desk risk sentinel monitoring capital preservation
+                </p>
+              </div>
+            </div>
+            <div class="flex items-center gap-2 self-end sm:self-auto">
+              <span class="text-[10px] font-mono text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-2 py-0.5 rounded font-bold">
+                Max Loss: $${savedMaxLoss} | Stop-Outs: ${savedMaxConsec}
+              </span>
+              <button onclick="DeltaApp.openSentinelConfigModal()" class="px-2.5 py-1 text-[11px] font-bold rounded-lg bg-panelDark hover:bg-cardDark text-slate-300 hover:text-white border border-borderDark transition-colors">
+                <i class="fa-solid fa-gear mr-1"></i> Edit
+              </button>
+            </div>
+          </div>
+
+          <!-- Safe Metrics Grid -->
+          <div class="grid grid-cols-2 sm:grid-cols-4 gap-2.5 mt-3 font-mono">
+            <div class="bg-panelDark/50 border border-borderDark/60 p-2.5 rounded-xl">
+              <span class="text-[9px] uppercase tracking-wider text-slate-400 block font-sans">Session Realized</span>
+              <span class="text-sm sm:text-base font-bold ${pnlColor}">${netPnl >= 0 ? '+' : ''}${formatUSD(netPnl)}</span>
+              <span class="text-[9px] text-slate-500 block mt-0.5">${sessionTrades.length} trades (${wins}W - ${losses}L)</span>
+            </div>
+            <div class="bg-panelDark/50 border border-borderDark/60 p-2.5 rounded-xl">
+              <span class="text-[9px] uppercase tracking-wider text-slate-400 block font-sans">Remaining Risk Buffer</span>
+              <span class="text-sm sm:text-base font-bold text-emerald-300">${formatUSD(remainingRiskBudget)}</span>
+              <span class="text-[9px] text-slate-500 block mt-0.5">${budgetPct}% daily budget intact</span>
+            </div>
+            <div class="bg-panelDark/50 border border-borderDark/60 p-2.5 rounded-xl">
+              <span class="text-[9px] uppercase tracking-wider text-slate-400 block font-sans">Consecutive Losses</span>
+              <span class="text-sm sm:text-base font-bold ${consecutiveLosses > 0 ? 'text-amber-400' : 'text-slate-200'}">${consecutiveLosses} / ${savedMaxConsec}</span>
+              <span class="text-[9px] text-slate-500 block mt-0.5">${savedMaxConsec - consecutiveLosses} stop-outs allowed</span>
+            </div>
+            <div class="bg-panelDark/50 border border-borderDark/60 p-2.5 rounded-xl">
+              <span class="text-[9px] uppercase tracking-wider text-slate-400 block font-sans">Desk Status</span>
+              <span class="text-sm sm:text-base font-bold text-emerald-400">ACTIVE / GREEN</span>
+              <span class="text-[9px] text-slate-500 block mt-0.5">Selective execution only</span>
+            </div>
+          </div>
+        </div>
+      `;
+    }
+  }
+
+  // -------------------------------------------------------------
+  // 4d. TRADE DURATION & SCALP EFFICIENCY DIAGNOSTIC (FEATURE 3)
+  // -------------------------------------------------------------
+  function renderHoldDurationDiagnostic(trades) {
+    const bucketsContainer = document.getElementById('holdDurationBucketsContainer');
+    const bannerContainer = document.getElementById('holdDurationInsightBanner');
+    if (!bucketsContainer || !bannerContainer) return;
+
+    if (!trades || trades.length === 0) {
+      bucketsContainer.innerHTML = `<div class="col-span-full text-center py-6 text-slate-500 text-xs font-sans">No trades recorded in this period for duration analysis.</div>`;
+      bannerContainer.innerHTML = `<span class="text-slate-500 text-xs">No closed positions available for hold duration quantification.</span>`;
+      return;
+    }
+
+    const bucketDefs = [
+      { id: 'b1', name: '⚡ Lightning Scalp (< 15m)', sub: 'Momentum & Gamma expansion', filter: d => d < 900, icon: 'fa-bolt text-amber-400' },
+      { id: 'b2', name: '🎯 Intraday Momentum (15–60m)', sub: '15m Order block expansion', filter: d => d >= 900 && d < 3600, icon: 'fa-bullseye text-indigo-400' },
+      { id: 'b3', name: '⏳ Swing Hold (1–4 hrs)', sub: 'Theta decay accelerating', filter: d => d >= 3600 && d < 14400, icon: 'fa-hourglass-half text-sky-400' },
+      { id: 'b4', name: '⚠️ Prolonged Hold (> 4 hrs)', sub: 'Severe theta erosion risk', filter: d => d >= 14400, icon: 'fa-triangle-exclamation text-rose-400' }
+    ];
+
+    let bestBucket = null;
+    let worstBucket = null;
+    let maxPnl = -Infinity;
+    let minPnl = Infinity;
+
+    const cardsHtml = bucketDefs.map(b => {
+      const bTrades = trades.filter(t => b.filter(t.holdDurationSec || 0));
+      const count = bTrades.length;
+      const sharePct = trades.length > 0 ? Math.round((count / trades.length) * 100) : 0;
+      const wins = bTrades.filter(t => (t.net_pnl || 0) > 0.0001).length;
+      const losses = bTrades.filter(t => (t.net_pnl || 0) < -0.0001).length;
+      const winRate = count > 0 ? Math.round((wins / count) * 100) : 0;
+      const netPnl = bTrades.reduce((acc, t) => acc + (t.net_pnl || 0), 0);
+      const avgTrade = count > 0 ? (netPnl / count) : 0;
+
+      const grossWins = bTrades.filter(t => (t.net_pnl || 0) > 0).reduce((acc, t) => acc + t.net_pnl, 0);
+      const grossLosses = Math.abs(bTrades.filter(t => (t.net_pnl || 0) < 0).reduce((acc, t) => acc + t.net_pnl, 0));
+      const profitFactor = grossLosses > 0 ? (grossWins / grossLosses).toFixed(2) : (grossWins > 0 ? '∞' : '0.00');
+
+      if (count > 0) {
+        if (netPnl > maxPnl) { maxPnl = netPnl; bestBucket = { ...b, netPnl, winRate, count }; }
+        if (netPnl < minPnl) { minPnl = netPnl; worstBucket = { ...b, netPnl, winRate, count }; }
+      }
+
+      // Edge status badge
+      let badgeHtml = '';
+      let borderClass = 'border-borderDark/70 bg-panelDark/40';
+      if (count === 0) {
+        badgeHtml = `<span class="text-[9px] font-sans font-semibold text-slate-500 bg-panelDark border border-borderDark/40 px-2 py-0.5 rounded">0 Trades</span>`;
+      } else if (netPnl > 0 && winRate >= 60) {
+        borderClass = 'border-emerald-500/30 bg-emerald-950/15';
+        badgeHtml = `<span class="text-[9px] font-sans font-bold text-emerald-300 bg-emerald-500/20 border border-emerald-500/40 px-2 py-0.5 rounded">🎯 Prime Edge</span>`;
+      } else if (netPnl > 0) {
+        borderClass = 'border-emerald-500/20 bg-emerald-500/5';
+        badgeHtml = `<span class="text-[9px] font-sans font-bold text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-2 py-0.5 rounded">🟢 Profitable</span>`;
+      } else if (b.id === 'b4' || b.id === 'b3') {
+        borderClass = 'border-rose-500/30 bg-rose-950/20';
+        badgeHtml = `<span class="text-[9px] font-sans font-bold text-rose-300 bg-rose-500/20 border border-rose-500/40 px-2 py-0.5 rounded">🚨 Theta Trap</span>`;
+      } else {
+        borderClass = 'border-rose-500/20 bg-rose-500/5';
+        badgeHtml = `<span class="text-[9px] font-sans font-bold text-rose-400 bg-rose-500/10 border border-rose-500/20 px-2 py-0.5 rounded">Negative Edge</span>`;
+      }
+
+      const pnlColor = netPnl > 0 ? 'text-winGreen' : (netPnl < 0 ? 'text-lossRed' : 'text-slate-400');
+      const avgColor = avgTrade > 0 ? 'text-emerald-400' : (avgTrade < 0 ? 'text-rose-400' : 'text-slate-400');
+
+      return `
+        <div class="p-3.5 rounded-xl border ${borderClass} flex flex-col justify-between gap-3 font-mono transition-all hover:border-indigo-500/40">
+          <div>
+            <div class="flex justify-between items-start gap-1">
+              <span class="text-xs font-bold text-white font-sans flex items-center gap-1.5">
+                <i class="fa-solid ${b.icon}"></i> ${b.name}
+              </span>
+              ${badgeHtml}
+            </div>
+            <p class="text-[10px] text-slate-400 font-sans mt-0.5">${b.sub}</p>
+          </div>
+
+          <div class="space-y-1.5 pt-2 border-t border-borderDark/40">
+            <div class="flex justify-between items-baseline">
+              <span class="text-[10px] text-slate-400 font-sans">Net PnL</span>
+              <span class="text-xs sm:text-sm font-bold ${pnlColor}">${netPnl >= 0 ? '+' : ''}${formatUSD(netPnl)}</span>
+            </div>
+            <div class="flex justify-between items-baseline">
+              <span class="text-[10px] text-slate-400 font-sans">Win Rate</span>
+              <span class="text-xs font-bold text-indigo-300">${count > 0 ? `${winRate}% (${wins}W - ${losses}L)` : '--'}</span>
+            </div>
+            <div class="flex justify-between items-baseline">
+              <span class="text-[10px] text-slate-400 font-sans">Volume</span>
+              <span class="text-[11px] text-slate-300">${count} trades <span class="text-slate-500">(${sharePct}%)</span></span>
+            </div>
+            <div class="flex justify-between items-baseline">
+              <span class="text-[10px] text-slate-400 font-sans">Avg Trade</span>
+              <span class="text-[11px] font-bold ${avgColor}">${count > 0 ? `${avgTrade >= 0 ? '+' : ''}${formatUSD(avgTrade)}` : '--'}</span>
+            </div>
+            <div class="flex justify-between items-baseline">
+              <span class="text-[10px] text-slate-400 font-sans">Profit Factor</span>
+              <span class="text-[11px] text-white font-bold">${count > 0 ? profitFactor : '--'}</span>
+            </div>
+          </div>
+        </div>
+      `;
+    }).join('');
+
+    bucketsContainer.innerHTML = cardsHtml;
+
+    // Run theta leaks analysis using DeltaQuant
+    const leakAnalysis = DeltaQuant.detectThetaLeaks(trades);
+
+    let verdictText = '';
+    if (bestBucket && bestBucket.netPnl > 0) {
+      verdictText = `Your mathematical alpha is concentrated in <strong>${bestBucket.name}</strong> (${bestBucket.netPnl >= 0 ? '+' : ''}${formatUSD(bestBucket.netPnl)} Net, ${bestBucket.winRate}% Win Rate over ${bestBucket.count} trades). `;
+    } else {
+      verdictText = `Review your hold durations to establish a positive risk expectancy. `;
+    }
+
+    if (leakAnalysis.isAsymmetricLeak) {
+      verdictText += `⚠️ <strong>Theta Warning:</strong> You hold losing options on average <strong>${leakAnalysis.holdRatio}x longer</strong> than winners (Avg Loss Hold: ${leakAnalysis.avgLossHoldFormatted} vs Avg Win Hold: ${leakAnalysis.avgWinHoldFormatted}). In Delta BTC options, prolonged holds rapidly suffer theta decay. Cut losing contracts cleanly!`;
+    } else {
+      verdictText += `🛡️ <strong>Discipline Check:</strong> Your average win hold is ${leakAnalysis.avgWinHoldFormatted} and average loss hold is ${leakAnalysis.avgLossHoldFormatted}. You maintain controlled exits and avoid letting options premium decay into terminal losses.`;
+    }
+
+    bannerContainer.innerHTML = `
+      <div class="flex items-start gap-3">
+        <div class="p-2 rounded-xl bg-indigo-600/20 text-indigo-400 border border-indigo-500/30 shrink-0 mt-0.5">
+          <i class="fa-solid fa-brain text-sm"></i>
+        </div>
+        <div class="space-y-1">
+          <h4 class="text-xs font-bold text-white flex items-center gap-2 font-sans">
+            Institutional Quant Verdict: Scalp Duration & Theta Profile
+          </h4>
+          <p class="text-xs text-slate-300 leading-relaxed font-sans">
+            ${verdictText}
+          </p>
+        </div>
+      </div>
+    `;
+  }
+
+  // Sentinel Configuration Modal Handlers
+  function openSentinelConfigModal() {
+    const modal = document.getElementById('sentinelConfigModal');
+    if (!modal) return;
+    const savedMaxLoss = localStorage.getItem(DeltaConfig.STORAGE_KEYS.MAX_DAILY_LOSS) || 200;
+    const savedMaxConsec = localStorage.getItem(DeltaConfig.STORAGE_KEYS.MAX_CONSEC_LOSSES) || 2;
+
+    const lossInput = document.getElementById('inputMaxDailyLoss');
+    const consecInput = document.getElementById('inputMaxConsecLosses');
+
+    if (lossInput) lossInput.value = savedMaxLoss;
+    if (consecInput) consecInput.value = savedMaxConsec;
+
+    modal.classList.remove('hidden');
+  }
+
+  function closeSentinelConfigModal() {
+    const modal = document.getElementById('sentinelConfigModal');
+    if (modal) modal.classList.add('hidden');
+  }
+
+  function saveSentinelConfig() {
+    const lossInput = document.getElementById('inputMaxDailyLoss');
+    const consecInput = document.getElementById('inputMaxConsecLosses');
+
+    const maxLoss = parseFloat(lossInput?.value) || 200;
+    const maxConsec = parseInt(consecInput?.value, 10) || 2;
+
+    localStorage.setItem(DeltaConfig.STORAGE_KEYS.MAX_DAILY_LOSS, maxLoss);
+    localStorage.setItem(DeltaConfig.STORAGE_KEYS.MAX_CONSEC_LOSSES, maxConsec);
+    localStorage.removeItem(DeltaConfig.STORAGE_KEYS.SENTINEL_ACKNOWLEDGED);
+
+    closeSentinelConfigModal();
+    applyGlobalFilter();
+  }
+
+  function acknowledgeSentinel() {
+    localStorage.setItem(DeltaConfig.STORAGE_KEYS.SENTINEL_ACKNOWLEDGED, 'true');
+    applyGlobalFilter();
   }
 
   // -------------------------------------------------------------
@@ -1248,6 +1612,10 @@ window.DeltaApp = (function() {
     hidePeek,
     toggleTradeLogCollapse,
     setTradeFilter,
-    setTradeSort
+    setTradeSort,
+    openSentinelConfigModal,
+    closeSentinelConfigModal,
+    saveSentinelConfig,
+    acknowledgeSentinel
   };
 })();
