@@ -20,7 +20,7 @@
   <script src="vendor/firebase-firestore-compat.js"></script>
 
   <!-- Custom Stylesheets -->
-  <link rel="stylesheet" href="css/app.css?v=3.2.0">
+  <link rel="stylesheet" href="css/app.css?v=3.3.0">
 
   <script>
     tailwind.config = {
@@ -560,6 +560,9 @@
           <span class="text-[9px] uppercase tracking-wider text-slate-400 block font-sans">Delta Option Contract</span>
           <span id="ptContract" class="text-xs font-bold font-mono text-indigo-300">Buy C-BTC-74000 (Target: 200 &rarr; 300)</span>
         </div>
+        <button onclick="DeltaLiveChart.openTradeDetailsModal()" class="mt-2 text-[10px] px-2.5 py-1.5 rounded-lg bg-indigo-600/40 hover:bg-indigo-600 text-indigo-300 hover:text-white border border-indigo-500/50 font-mono font-bold transition-colors flex items-center gap-1.5 shadow-sm">
+          <i class="fa-solid fa-circle-info"></i> Why Was This Taken? (Logic & Playbook)
+        </button>
       </div>
 
       <!-- Chart Toolbar: Active Projection Label & Position Tool Controls -->
@@ -739,6 +742,86 @@
   </div>
 
   <!-- ========================================== -->
+    <!-- ALGORITHMIC TRADE DETAILS & EXECUTION PLAYBOOK MODAL -->
+  <div id="algoTradeModal" class="fixed inset-0 z-50 bg-brandDark/80 backdrop-blur-md hidden items-center justify-center p-4">
+    <div class="bg-cardDark border border-borderDark rounded-2xl w-full max-w-xl max-h-[90vh] overflow-y-auto shadow-2xl flex flex-col p-5 space-y-4">
+      <div class="flex justify-between items-start pb-3 border-b border-borderDark">
+        <div>
+          <div class="flex items-center gap-2">
+            <h3 id="atmModalTitle" class="font-bold text-base text-white font-mono">Confirmed Resistance Rejection</h3>
+            <span id="atmModalOutcomeBadge" class="px-2 py-0.5 rounded text-[10px] font-bold font-mono">WIN (+50%)</span>
+          </div>
+          <p id="atmModalTime" class="text-xs text-slate-400 font-mono mt-0.5"></p>
+        </div>
+        <button onclick="DeltaLiveChart.closeTradeDetailsModal()" class="h-8 w-8 rounded-lg bg-panelDark text-slate-400 hover:text-white flex items-center justify-center border border-borderDark">
+          <i class="fa-solid fa-xmark"></i>
+        </button>
+      </div>
+
+      <!-- Price Target Grid -->
+      <div class="grid grid-cols-4 gap-2 text-center font-mono">
+        <div class="bg-panelDark/60 p-2.5 rounded-xl border border-borderDark/60">
+          <span class="text-[9px] uppercase tracking-wider text-slate-400 block font-sans">Entry Price</span>
+          <span id="atmModalEntry" class="text-xs sm:text-sm font-bold text-white">--</span>
+        </div>
+        <div class="bg-panelDark/60 p-2.5 rounded-xl border border-borderDark/60">
+          <span class="text-[9px] uppercase tracking-wider text-slate-400 block font-sans">Target (TP)</span>
+          <span id="atmModalTp" class="text-xs sm:text-sm font-bold text-winGreen">--</span>
+        </div>
+        <div class="bg-panelDark/60 p-2.5 rounded-xl border border-borderDark/60">
+          <span class="text-[9px] uppercase tracking-wider text-slate-400 block font-sans">Stop Loss</span>
+          <span id="atmModalSl" class="text-xs sm:text-sm font-bold text-lossRed">--</span>
+        </div>
+        <div class="bg-panelDark/60 p-2.5 rounded-xl border border-borderDark/60">
+          <span class="text-[9px] uppercase tracking-wider text-slate-400 block font-sans">Risk : Reward</span>
+          <span id="atmModalRR" class="text-xs sm:text-sm font-bold text-indigo-300">--</span>
+        </div>
+      </div>
+
+      <!-- Institutional Rationale Breakdown -->
+      <div class="bg-brandDark/70 border border-borderDark rounded-xl p-3.5 space-y-2">
+        <h4 class="text-xs font-bold text-white flex items-center gap-2">
+          <i class="fa-solid fa-brain text-indigo-400"></i> Why Was This Trade Marked? (Institutional Confluence)
+        </h4>
+        <div class="text-xs space-y-1.5 font-mono text-slate-300">
+          <div><span class="text-slate-400">Level Tested:</span> <strong id="atmModalLevel" class="text-white">--</strong></div>
+          <div><span class="text-slate-400">Rejection Pattern:</span> <strong id="atmModalPattern" class="text-indigo-300">--</strong></div>
+          <div><span class="text-slate-400">Confirmation Candle:</span> <strong id="atmModalConfirmation" class="text-white">--</strong></div>
+          <div><span class="text-slate-400">Momentum & Flow:</span> <strong id="atmModalRsiRvol" class="text-slate-200">--</strong></div>
+        </div>
+      </div>
+
+      <!-- What Happened Next Narrative -->
+      <div class="bg-brandDark/70 border border-borderDark rounded-xl p-3.5 space-y-1.5">
+        <h4 class="text-xs font-bold text-white flex items-center gap-2">
+          <i class="fa-solid fa-route text-emerald-400"></i> What Happened Next? (Trade Narrative)
+        </h4>
+        <p id="atmModalNarrative" class="text-xs text-slate-300 font-mono leading-relaxed">--</p>
+      </div>
+
+      <!-- Delta Options Execution Playbook -->
+      <div class="bg-indigo-950/30 border border-indigo-500/30 rounded-xl p-3.5 space-y-2">
+        <div class="flex justify-between items-center">
+          <h4 class="text-xs font-bold text-indigo-300 flex items-center gap-2">
+            <i class="fa-solid fa-bolt text-indigo-400"></i> Delta Exchange Options Execution Playbook
+          </h4>
+          <button onclick="DeltaLiveChart.copyDeltaOrderDetails()" class="text-[10px] px-2 py-0.5 rounded bg-indigo-600 hover:bg-indigo-500 text-white font-mono font-bold transition-colors shadow-sm">
+            <i class="fa-solid fa-copy mr-1"></i> Copy Order Details
+          </button>
+        </div>
+        <ul id="atmModalPlaybook" class="space-y-1 list-none">
+          <!-- Populated dynamically -->
+        </ul>
+      </div>
+
+      <div class="flex justify-end gap-2 pt-2 border-t border-borderDark">
+        <button onclick="DeltaLiveChart.closeTradeDetailsModal()" class="px-4 py-2 rounded-xl bg-panelDark text-slate-300 hover:text-white border border-borderDark font-bold text-xs transition-colors">
+          Close
+        </button>
+      </div>
+    </div>
+  </div>
+
   <!-- FLOATING BOTTOM NAVIGATION BAR (3 TABS)    -->
   <!-- ========================================== -->
   <nav class="fixed bottom-4 left-1/2 -translate-x-1/2 z-30 w-[94%] max-w-[440px] bg-cardDark/95 backdrop-blur-md border border-borderDark rounded-2xl p-1.5 shadow-2xl flex items-center gap-1.5 no-select">
@@ -754,18 +837,18 @@
   </nav>
 
   <!-- Application Script Pipeline -->
-  <script src="vendor/lightweight-charts.js?v=3.2.0"></script>
-  <script src="js/config.js?v=3.2.0"></script>
-  <script src="js/smc-strategy.js?v=3.2.0"></script>
-  <script src="js/chart-engine.js?v=3.2.0"></script>
-  <script src="js/db.js?v=3.2.0"></script>
-  <script src="js/quant.js?v=3.2.0"></script>
-  <script src="js/coach.js?v=3.2.0"></script>
-  <script src="js/planner.js?v=3.2.0"></script>
-  <script src="js/app.js?v=3.2.0"></script>
+  <script src="vendor/lightweight-charts.js?v=3.3.0"></script>
+  <script src="js/config.js?v=3.3.0"></script>
+  <script src="js/smc-strategy.js?v=3.3.0"></script>
+  <script src="js/chart-engine.js?v=3.3.0"></script>
+  <script src="js/db.js?v=3.3.0"></script>
+  <script src="js/quant.js?v=3.3.0"></script>
+  <script src="js/coach.js?v=3.3.0"></script>
+  <script src="js/planner.js?v=3.3.0"></script>
+  <script src="js/app.js?v=3.3.0"></script>
   <script>
     if ('serviceWorker' in navigator) {
-      navigator.serviceWorker.register('sw.js?v=3.2.0').then(function(reg) {
+      navigator.serviceWorker.register('sw.js?v=3.3.0').then(function(reg) {
         reg.update();
       });
     }

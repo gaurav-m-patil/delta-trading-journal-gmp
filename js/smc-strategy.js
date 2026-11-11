@@ -3,8 +3,9 @@
  * 
  * Specially engineered for Bitcoin (BTC/USD) and Delta Exchange India Options:
  * - High-Conviction Confluence: Support/Resistance Pivots + Price Action Confirmation + RSI + RVOL + EMA.
- * - Options 200 -> 300 Target Calibration: Calibrated for ATM Options (+220 to +280 spot move = +50% gross / +40% net).
- * - TradingView Position Tool integration: Native Entry, Take Profit, and Stop Loss drawing lines.
+ * - Options 200 -> 300 Target Calibration: Calibrated for ATM Options (+210 to +260 spot move = +50% gross / +40% net).
+ * - Real-time state machine: Accurate WIN, LOSS, TIMEOUT (20+ bars), and ACTIVE status (zero false timeouts).
+ * - Full Institutional Rationale & Delta Execution Playbook for every trade.
  * 
  * Runs 100% locally in-browser: ZERO API costs, ZERO Firebase reads/writes.
  */
@@ -84,6 +85,7 @@ window.DeltaSMCStrategy = (function() {
           wins: 0,
           losses: 0,
           timeouts: 0,
+          active: 0,
           winRate: 0,
           profitFactor: 0,
           maxDrawdownR: 0,
@@ -94,7 +96,6 @@ window.DeltaSMCStrategy = (function() {
     }
 
     const lookback = options.lookback || 24;
-    const highConvictionOnly = options.highConvictionOnly !== false;
 
     // Technical Indicators
     const ema50 = calcEMA(candles, 50);
@@ -104,19 +105,21 @@ window.DeltaSMCStrategy = (function() {
     const trades = [];
     const markers = [];
     let activeSignal = null;
-    const scanLimit = candles.length - 1;
+    const scanLimit = candles.length;
 
     let i = Math.max(30, lookback + 1);
 
     while (i < scanLimit) {
       const cur = candles[i];
       const prev = candles[i - 1];
+      if (!cur || !prev) break;
+
       const curRsi = rsi[i];
       const curRvol = rvol[i];
       const curEma50 = ema50[i];
 
       // Dynamic Support and Resistance Pivots over lookback window
-      const windowCandles = candles.slice(i - lookback - 1, i - 1);
+      const windowCandles = candles.slice(Math.max(0, i - lookback - 1), i - 1);
       const sHigh = Math.max(...windowCandles.map(c => c.high));
       const sLow = Math.min(...windowCandles.map(c => c.low));
 
@@ -128,8 +131,6 @@ window.DeltaSMCStrategy = (function() {
 
       // -------------------------------------------------------------
       // SETUP 1: CONFIRMED RESISTANCE REJECTION & LIQUIDITY SWEEP (PUT OPTION ENTRY)
-      // High-Conviction: Prior candle tested/swept resistance with upper wick,
-      // Current candle confirms with a solid red close breaking down, RSI turning from high.
       // -------------------------------------------------------------
       const isResistanceRejection = (prev.high >= sHigh * 0.9985) && (prevUpperWick >= prevRange * 0.25);
       const isBearishConfirmed = (cur.close < cur.open) && (cur.close < prev.close) && (curRsi > 45);
@@ -140,7 +141,6 @@ window.DeltaSMCStrategy = (function() {
         const slDist = sl - entry;
 
         if (slDist >= 90 && slDist <= 250) {
-          // In Delta Options, +100 premium points (200 -> 300) requires ~220-280 spot move
           const targetDist = Math.round(Math.max(210, slDist * 1.6) * 10) / 10;
           const tp = Math.round((entry - targetDist) * 10) / 10;
           const atmStrike = Math.round(entry / 500) * 500;
@@ -151,7 +151,7 @@ window.DeltaSMCStrategy = (function() {
             time: cur.time,
             direction: "SHORT",
             type: "CONFIRMED_RESISTANCE_REJECTION",
-            name: "Confirmed Resistance Rejection (Bearish)",
+            name: "Confirmed Resistance Rejection",
             entry,
             sl,
             tp,
@@ -162,15 +162,20 @@ window.DeltaSMCStrategy = (function() {
             rsi: curRsi,
             optionStrike: atmStrike,
             optionRecommendation: `Buy P-BTC-${atmStrike} (ATM Put) @ ~200 -> Target 300 (+50% Profit)`,
-            invalidationReason: `Close above resistance wick ($${sl})`
+            invalidationReason: `Price breaks above resistance wick at $${sl}`,
+            meta: {
+              sHigh,
+              sLow,
+              prevRange,
+              prevUpperWick,
+              prevLowerWick
+            }
           };
         }
       }
 
       // -------------------------------------------------------------
       // SETUP 2: CONFIRMED SUPPORT BOUNCE & LIQUIDITY SWEEP (CALL OPTION ENTRY)
-      // High-Conviction: Prior candle tested/swept support with lower wick defense,
-      // Current candle confirms with a solid green close breaking up, RSI turning from low.
       // -------------------------------------------------------------
       const isSupportBounce = (prev.low <= sLow * 1.0015) && (prevLowerWick >= prevRange * 0.25);
       const isBullishConfirmed = (cur.close > cur.open) && (cur.close > prev.close) && (curRsi < 55);
@@ -191,7 +196,7 @@ window.DeltaSMCStrategy = (function() {
             time: cur.time,
             direction: "LONG",
             type: "CONFIRMED_SUPPORT_BOUNCE",
-            name: "Confirmed Support Bounce (Bullish)",
+            name: "Confirmed Support Bounce",
             entry,
             sl,
             tp,
@@ -202,19 +207,27 @@ window.DeltaSMCStrategy = (function() {
             rsi: curRsi,
             optionStrike: atmStrike,
             optionRecommendation: `Buy C-BTC-${atmStrike} (ATM Call) @ ~200 -> Target 300 (+50% Profit)`,
-            invalidationReason: `Close below support wick ($${sl})`
+            invalidationReason: `Price breaks below support wick at $${sl}`,
+            meta: {
+              sHigh,
+              sLow,
+              prevRange,
+              prevUpperWick,
+              prevLowerWick
+            }
           };
         }
       }
 
       // -------------------------------------------------------------
-      // FORWARD RESOLUTION (Timemachine Forward Evaluation)
+      // FORWARD RESOLUTION (Deterministic Forward Walk)
       // -------------------------------------------------------------
       if (setup) {
-        let outcome = "TIMEOUT";
-        let exitIndex = Math.min(candles.length - 1, i + 22);
-        let exitPrice = cur.close;
+        let outcome = "ACTIVE";
+        let exitIndex = candles.length - 1;
+        let exitPrice = candles[candles.length - 1].close;
         let barsHeld = 0;
+        let reachedResolution = false;
 
         for (let j = i + 1; j < Math.min(candles.length, i + 24); j++) {
           barsHeld++;
@@ -225,11 +238,13 @@ window.DeltaSMCStrategy = (function() {
               outcome = "LOSS";
               exitIndex = j;
               exitPrice = setup.sl;
+              reachedResolution = true;
               break;
             } else if (fwd.high >= setup.tp) {
               outcome = "WIN";
               exitIndex = j;
               exitPrice = setup.tp;
+              reachedResolution = true;
               break;
             }
           } else {
@@ -238,13 +253,30 @@ window.DeltaSMCStrategy = (function() {
               outcome = "LOSS";
               exitIndex = j;
               exitPrice = setup.sl;
+              reachedResolution = true;
               break;
             } else if (fwd.low <= setup.tp) {
               outcome = "WIN";
               exitIndex = j;
               exitPrice = setup.tp;
+              reachedResolution = true;
               break;
             }
+          }
+        }
+
+        // If neither TP nor SL was hit:
+        if (!reachedResolution) {
+          // It only times out if held for 20+ candles (5 continuous hours)
+          if (barsHeld >= 20) {
+            outcome = "TIMEOUT";
+            exitIndex = Math.min(candles.length - 1, i + barsHeld);
+            exitPrice = candles[exitIndex]?.close || cur.close;
+          } else {
+            // Still in progress on current live candles!
+            outcome = "ACTIVE";
+            exitIndex = candles.length - 1;
+            exitPrice = candles[candles.length - 1].close;
           }
         }
 
@@ -252,7 +284,7 @@ window.DeltaSMCStrategy = (function() {
         setup.exitIndex = exitIndex;
         setup.exitTime = candles[exitIndex]?.time || cur.time;
         setup.exitPrice = exitPrice;
-        setup.barsHeld = barsHeld;
+        setup.barsHeld = Math.max(1, barsHeld);
 
         // Realistic Delta Option Profit calculation
         if (outcome === "WIN") {
@@ -265,8 +297,14 @@ window.DeltaSMCStrategy = (function() {
           setup.optionPnlPct = "-30.0%";
           setup.netProfitEstimate = "-1.0R Controlled Stop";
           setup.badgeColor = "text-rose-400 bg-rose-500/10 border-rose-500/30";
+        } else if (outcome === "ACTIVE") {
+          const spotDiff = setup.direction === "LONG" ? (candles[exitIndex].close - setup.entry) : (setup.entry - candles[exitIndex].close);
+          setup.pnlR = Number((spotDiff / setup.slDist).toFixed(2));
+          setup.optionPnlPct = setup.pnlR >= 0 ? `+${(setup.pnlR * 25).toFixed(0)}%` : `-${Math.abs(setup.pnlR * 25).toFixed(0)}%`;
+          setup.netProfitEstimate = "Live in market";
+          setup.badgeColor = "text-cyan-400 bg-cyan-500/10 border-cyan-500/30";
         } else {
-          // Timeout / Scratch
+          // Timeout / Scratch after 5 hours
           const spotDiff = setup.direction === "LONG" ? (candles[exitIndex].close - setup.entry) : (setup.entry - candles[exitIndex].close);
           setup.pnlR = Number((spotDiff / setup.slDist).toFixed(2));
           setup.optionPnlPct = setup.pnlR >= 0 ? `+${(setup.pnlR * 25).toFixed(0)}%` : `-${Math.abs(setup.pnlR * 25).toFixed(0)}%`;
@@ -274,95 +312,74 @@ window.DeltaSMCStrategy = (function() {
           setup.badgeColor = "text-slate-400 bg-slate-500/10 border-slate-500/30";
         }
 
+        // Attach Institutional Rationale & Execution Playbook
+        const wickPct = setup.direction === "LONG" 
+          ? Math.round((setup.meta.prevLowerWick / (setup.meta.prevRange || 1)) * 100)
+          : Math.round((setup.meta.prevUpperWick / (setup.meta.prevRange || 1)) * 100);
+
+        setup.rationale = {
+          levelTested: setup.direction === "LONG" ? `Major Support Pivot ($${setup.meta.sLow.toLocaleString()})` : `Major Resistance Pivot ($${setup.meta.sHigh.toLocaleString()})`,
+          pattern: setup.direction === "LONG"
+            ? `Bullish Lower Wick Absorption (${wickPct}% rejection of range)`
+            : `Bearish Upper Wick Rejection (${wickPct}% rejection of range)`,
+          confirmation: setup.direction === "LONG"
+            ? `Confirmation candle closed green ($${setup.entry.toLocaleString()}) breaking above prior bar`
+            : `Confirmation candle closed red ($${setup.entry.toLocaleString()}) breaking below prior bar`,
+          rsi: `RSI was ${setup.rsi} (${setup.rsi > 60 ? 'Overbought Reversal' : (setup.rsi < 40 ? 'Oversold Reversal' : 'Neutral Momentum')})`,
+          rvol: `${setup.rvol}x Relative Volume (Institutional Presence)`,
+          narrative: outcome === "WIN"
+            ? `Price moved aggressively in your favor (+${setup.targetDist} pts) within ${barsHeld} bars, cleanly hitting Take Profit at $${setup.tp.toLocaleString()}. Your ATM Option surged from ~200 to 300 points (+50% gross / +40% net).`
+            : (outcome === "LOSS"
+              ? `Price broke through the invalidation wick at $${setup.sl.toLocaleString()}. Controlled stop loss executed (-1R) to prevent capital bleed.`
+              : (outcome === "ACTIVE"
+                ? `Trade is LIVE right now (${barsHeld} bars in progress). Price is oscillating near Entry ($${setup.entry.toLocaleString()}). Waiting for resolution at Target ($${setup.tp.toLocaleString()}) or Stop ($${setup.sl.toLocaleString()}).`
+                : `Price consolidated sideways for 5+ hours (20 bars). To prevent Theta decay from eating your option premium, the trade was closed at market price as a scratch/breakeven exit.`)),
+          deltaSteps: [
+            `1. Open Delta Exchange India -> BTC Options.`,
+            `2. Select Contract: ${setup.direction === "LONG" ? 'C-BTC-' + setup.optionStrike : 'P-BTC-' + setup.optionStrike} (${setup.direction === "LONG" ? 'ATM Call' : 'ATM Put'}).`,
+            `3. Order Type: Buy at Market / Limit around premium ~200.`,
+            `4. Take Profit GTT Order: Set Limit Exit at 300 points (+50% profit).`,
+            `5. Stop Loss GTT Order: Set Stop Exit at 140 points (Underlying Spot SL: $${setup.sl.toLocaleString()}).`
+          ]
+        };
+
         trades.push(setup);
 
-        // Chart Marker: Clean, un-crowded, professional labels
+        // Chart Marker: Clean labels with accurate status
         const isWin = outcome === "WIN";
         const isLoss = outcome === "LOSS";
+        const isActive = outcome === "ACTIVE";
         const isCall = setup.direction === "LONG";
-        const labelText = isWin ? `${isCall ? 'CALL' : 'PUT'} WIN [+50%]` : (isLoss ? `${isCall ? 'CALL' : 'PUT'} SL [-1R]` : `${isCall ? 'CALL' : 'PUT'} TIMEOUT`);
+        const prefix = isCall ? 'CALL' : 'PUT';
+
+        let labelText = `${prefix} ACTIVE`;
+        let markerColor = isCall ? "#38bdf8" : "#818cf8";
+
+        if (isWin) {
+          labelText = `${prefix} WIN [+50%]`;
+          markerColor = isCall ? "#10b981" : "#f43f5e";
+        } else if (isLoss) {
+          labelText = `${prefix} SL [-1R]`;
+          markerColor = isCall ? "#059669" : "#e11d48";
+        } else if (!isActive) {
+          labelText = `${prefix} TIMEOUT`;
+          markerColor = "#64748b";
+        }
 
         markers.push({
           time: cur.time,
           position: isCall ? "belowBar" : "aboveBar",
-          color: isCall ? (isWin ? "#10b981" : "#059669") : (isWin ? "#f43f5e" : "#e11d48"),
+          color: markerColor,
           shape: isCall ? "arrowUp" : "arrowDown",
           text: labelText,
           size: 1.5,
           tradeRef: setup
         });
 
-        // Fast-forward loop past trade duration to prevent duplicate trigger spam
+        // Fast-forward loop past trade duration
         i += Math.max(4, barsHeld);
       } else {
         i++;
-      }
-    }
-
-    // -------------------------------------------------------------
-    // LIVE ACTIVE SIGNAL DETECTOR (On the current live candle)
-    // -------------------------------------------------------------
-    if (candles.length >= 30) {
-      const latest = candles[candles.length - 1];
-      const prev = candles[candles.length - 2];
-      const latestRsi = rsi[candles.length - 1];
-      const latestRvol = rvol[candles.length - 1];
-
-      const recentWindow = candles.slice(-25, -2);
-      const liveHigh = Math.max(...recentWindow.map(c => c.high));
-      const liveLow = Math.min(...recentWindow.map(c => c.low));
-
-      const prevRange = prev.high - prev.low;
-      const prevUpper = prev.high - Math.max(prev.open, prev.close);
-      const prevLower = Math.min(prev.open, prev.close) - prev.low;
-
-      // Bullish Live Trigger
-      if ((prev.low <= liveLow * 1.0015) && (prevLower >= prevRange * 0.25) && (latest.close > latest.open) && (latestRsi < 55)) {
-        const entry = latest.close;
-        const sl = Math.round((prev.low - 30) * 10) / 10;
-        const slDist = entry - sl;
-        const targetDist = Math.round(Math.max(210, slDist * 1.6) * 10) / 10;
-        const tp = Math.round((entry + targetDist) * 10) / 10;
-        const atm = Math.round(entry / 500) * 500;
-
-        activeSignal = {
-          direction: "BULLISH CALL ENTRY",
-          type: "LONG",
-          name: "Live Support Defense & Confirmation Bounce",
-          entry,
-          sl,
-          tp,
-          targetDist,
-          slDist: Math.round(slDist * 10) / 10,
-          rrRatio: Number((targetDist / slDist).toFixed(2)),
-          strike: `Buy C-BTC-${atm} (ATM Call)`,
-          optionGoal: `Enter @ ~200 -> Target 300 (+50% Profit)`,
-          time: latest.time
-        };
-      }
-      // Bearish Live Trigger
-      else if ((prev.high >= liveHigh * 0.9985) && (prevUpper >= prevRange * 0.25) && (latest.close < latest.open) && (latestRsi > 45)) {
-        const entry = latest.close;
-        const sl = Math.round((prev.high + 30) * 10) / 10;
-        const slDist = sl - entry;
-        const targetDist = Math.round(Math.max(210, slDist * 1.6) * 10) / 10;
-        const tp = Math.round((entry - targetDist) * 10) / 10;
-        const atm = Math.round(entry / 500) * 500;
-
-        activeSignal = {
-          direction: "BEARISH PUT ENTRY",
-          type: "SHORT",
-          name: "Live Resistance Sweep & Rejection",
-          entry,
-          sl,
-          tp,
-          targetDist,
-          slDist: Math.round(slDist * 10) / 10,
-          rrRatio: Number((targetDist / slDist).toFixed(2)),
-          strike: `Buy P-BTC-${atm} (ATM Put)`,
-          optionGoal: `Enter @ ~200 -> Target 300 (+50% Profit)`,
-          time: latest.time
-        };
       }
     }
 
@@ -373,6 +390,7 @@ window.DeltaSMCStrategy = (function() {
     let wins = 0;
     let losses = 0;
     let timeouts = 0;
+    let active = 0;
     let totalGrossWinsR = 0;
     let totalGrossLossesR = 0;
     let peakR = 0;
@@ -386,6 +404,8 @@ window.DeltaSMCStrategy = (function() {
       } else if (t.outcome === "LOSS") {
         losses++;
         totalGrossLossesR += Math.abs(t.pnlR);
+      } else if (t.outcome === "ACTIVE") {
+        active++;
       } else {
         timeouts++;
       }
@@ -416,6 +436,7 @@ window.DeltaSMCStrategy = (function() {
         wins,
         losses,
         timeouts,
+        active,
         winRate: Math.round(winRate),
         profitFactor: Number(profitFactor.toFixed(2)),
         maxDrawdownR: Number(maxDrawdownR.toFixed(1)),

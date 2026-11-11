@@ -1,12 +1,12 @@
-const CACHE_NAME = 'delta-journal-v3.2';
+const CACHE_NAME = 'delta-journal-v3.3';
 
 self.addEventListener('install', (e) => {
-  console.log('[Service Worker] Installed v3.2');
+  console.log('[Service Worker] Installed v3.3');
   self.skipWaiting();
 });
 
 self.addEventListener('activate', (e) => {
-  console.log('[Service Worker] Activated v3.2');
+  console.log('[Service Worker] Activated v3.3');
   e.waitUntil(
     caches.keys().then((keys) => {
       return Promise.all(
