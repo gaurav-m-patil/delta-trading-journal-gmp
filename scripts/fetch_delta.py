@@ -5,7 +5,7 @@ import hmac
 import hashlib
 import base64
 import requests
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 
 API_KEY = os.environ.get("DELTA_API_KEY", "").strip()
 API_SECRET = os.environ.get("DELTA_API_SECRET", "").strip()
@@ -18,6 +18,10 @@ RAW_DATA_FILE = "data/raw_data.json"
 FIREBASE_KEY = base64.b64decode("QUl6YVN5RGRwcUFIRlJCQWliN3dYRmczZmcySUNrWFVFZTlIV184").decode("utf-8")
 FIREBASE_PROJECT = "physio-clinic-730a1"
 FIRESTORE_COMMIT_URL = f"https://firestore.googleapis.com/v1/projects/{FIREBASE_PROJECT}/databases/(default)/documents:commit?key={FIREBASE_KEY}"
+
+# Free-Tier Protection: Incremental active window (default last 4 days)
+FORCE_FULL_SYNC = os.environ.get("FORCE_FULL_SYNC", "false").lower() in ("true", "1")
+SYNC_WINDOW_DAYS = int(os.environ.get("SYNC_WINDOW_DAYS", "4"))
 
 def get_signature(secret, method, path, query=""):
     timestamp = str(int(time.time()))
@@ -34,13 +38,19 @@ def get_ts_us(item):
     except:
         return int(time.time() * 1000000)
 
-def extract_api_data(path):
+def extract_api_data(path, existing_items=None):
+    """
+    Incremental API Fetcher:
+    Stops pagination as soon as it encounters already-known records.
+    Reduces Delta Exchange API calls from 25+ requests to 1-2 per run.
+    """
     results = []
-    seen_ids = set()
+    existing_items = existing_items or []
+    seen_ids = set(str(item.get("id")) for item in existing_items if item.get("id"))
     current_end = int(time.time() * 1000000)
     cutoff_time = 1704067200000000 # Stop at Jan 1, 2024
     
-    print(f"Extracting raw dump for {path}...")
+    print(f"Incremental sync for {path} (cached records: {len(seen_ids)})...")
     
     while current_end >= cutoff_time:
         query = f"page_size=100&end_time={current_end}"
@@ -56,19 +66,37 @@ def extract_api_data(path):
             batch = res.json().get("result", [])
             if not batch: break
                 
-            unique_batch = [b for b in batch if str(b.get("id")) not in seen_ids]
-            results.extend(unique_batch)
-            for b in unique_batch: seen_ids.add(str(b.get("id")))
+            new_in_batch = [b for b in batch if str(b.get("id")) not in seen_ids]
+            results.extend(new_in_batch)
+            for b in new_in_batch:
+                seen_ids.add(str(b.get("id")))
             
+            # If batch contains known items, we have caught up to previous sync!
+            if len(new_in_batch) < len(batch) and len(existing_items) > 0:
+                print(f"Encountered existing history boundary for {path}. Halting pagination safely.")
+                break
+                
             if len(batch) < 100: break
                 
             oldest_in_batch = min(get_ts_us(b) for b in batch)
             current_end = (current_end - 1000) if oldest_in_batch >= current_end else (oldest_in_batch - 1)
             time.sleep(0.15)
-        except Exception:
+        except Exception as e:
+            print(f"Fetch error: {e}")
             break
             
-    return results
+    # Combine newly fetched items with existing records and deduplicate
+    combined = results + existing_items
+    deduped = []
+    seen_final = set()
+    for item in combined:
+        iid = str(item.get("id"))
+        if iid and iid not in seen_final:
+            seen_final.add(iid)
+            deduped.append(item)
+            
+    print(f"Sync complete for {path}: {len(results)} new items fetched, total {len(deduped)} records.")
+    return deduped
 
 def parse_delta_symbol(symbol):
     if not symbol:
@@ -88,10 +116,12 @@ def parse_delta_symbol(symbol):
         return {"underlying": underlying, "strike": strike, "expiry": expiry, "isCall": is_call}
     return {"underlying": "BTC", "strike": 0.0, "expiry": "", "isCall": symbol.startswith("C-")}
 
-def sync_trades_to_firestore(orders):
+def sync_trades_to_firestore(orders, force_full=False, window_days=4):
     """
-    Groups fills into closed positions and pushes them to GP_DTJ_trades and GP_DTJ_daily_metrics
-    Uses partial field updates so user-added tags, notes, and screenshots are never overwritten.
+    Incremental Zero-Cost Firestore Sync:
+    Only commits trades from the last `window_days` (default 4 days) to stay well under
+    the Firebase Spark Free Tier limit of 20,000 writes/day.
+    Historical closed trades already in Firestore are safely preserved and untouched.
     """
     valid_orders = []
     for o in orders:
@@ -197,10 +227,24 @@ def sync_trades_to_firestore(orders):
             })
             del open_positions[sym]
 
-    print(f"Syncing {len(closed_trades)} trades to Firestore GP_DTJ_trades...")
+    # Free-Tier Cutoff Filter
+    if not force_full:
+        cutoff_date = (datetime.now(timezone.utc) - timedelta(days=window_days)).strftime("%Y-%m-%d")
+        trades_to_sync = [t for t in closed_trades if t["dateKey"] >= cutoff_date]
+        daily_to_sync = {k: v for k, v in daily_map.items() if k >= cutoff_date}
+        print(f"Free-Tier Delta Mode: Syncing {len(trades_to_sync)} active trades (since {cutoff_date}) out of {len(closed_trades)} total.")
+    else:
+        trades_to_sync = closed_trades
+        daily_to_sync = daily_map
+        print(f"Full-Sync Mode: Syncing all {len(trades_to_sync)} trades to Firestore.")
+
+    if not trades_to_sync:
+        print("No trades in active window to sync. 0 Firestore writes consumed.")
+        return
+
     batch_size = 50
-    for i in range(0, len(closed_trades), batch_size):
-        chunk = closed_trades[i:i + batch_size]
+    for i in range(0, len(trades_to_sync), batch_size):
+        chunk = trades_to_sync[i:i + batch_size]
         writes = []
         for t in chunk:
             doc_path = f"projects/{FIREBASE_PROJECT}/databases/(default)/documents/GP_DTJ_trades/{t['id']}"
@@ -242,15 +286,15 @@ def sync_trades_to_firestore(orders):
         try:
             res = requests.post(FIRESTORE_COMMIT_URL, json={"writes": writes}, timeout=20)
             if res.status_code == 200:
-                print(f"Firestore batch {i + len(chunk)}/{len(closed_trades)} committed.")
+                print(f"Firestore batch committed: {i + len(chunk)}/{len(trades_to_sync)} trades.")
             else:
-                print(f"Firestore batch notice: HTTP {res.status_code} - {res.text[:100]}")
+                print(f"Firestore batch error: HTTP {res.status_code} - {res.text[:100]}")
         except Exception as e:
             print(f"Firestore batch warning: {e}")
 
-    # Commit daily summaries
+    # Commit active daily metrics (usually 1-4 writes)
     daily_writes = []
-    for dk, item in daily_map.items():
+    for dk, item in daily_to_sync.items():
         doc_path = f"projects/{FIREBASE_PROJECT}/databases/(default)/documents/GP_DTJ_daily_metrics/{dk}"
         daily_writes.append({
             "update": {
@@ -268,18 +312,32 @@ def sync_trades_to_firestore(orders):
                 }
             }
         })
-    try:
-        requests.post(FIRESTORE_COMMIT_URL, json={"writes": daily_writes}, timeout=20)
-        print(f"Daily metrics ({len(daily_map)} days) committed to GP_DTJ_daily_metrics.")
-    except Exception as e:
-        print(f"Daily metrics sync notice: {e}")
+    if daily_writes:
+        try:
+            requests.post(FIRESTORE_COMMIT_URL, json={"writes": daily_writes}, timeout=20)
+            print(f"Active daily metrics ({len(daily_to_sync)} days) committed to GP_DTJ_daily_metrics.")
+        except Exception as e:
+            print(f"Daily metrics sync notice: {e}")
 
 def main():
     os.makedirs("data", exist_ok=True)
+    
+    # Load existing cached data to enable incremental Delta fetching
+    existing_raw = {}
+    if os.path.exists(RAW_DATA_FILE):
+        try:
+            with open(RAW_DATA_FILE, "r") as f:
+                existing_raw = json.load(f)
+        except Exception:
+            existing_raw = {}
+            
+    existing_txs = existing_raw.get("wallet_txs", [])
+    existing_orders = existing_raw.get("orders", [])
+    
     raw_dump = {"generated_at": datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC")}
     
-    # 1. Extract raw data from Delta Exchange API
-    wallet_txs = extract_api_data("/v2/wallet/transactions")
+    # 1. Incremental extraction from Delta Exchange API
+    wallet_txs = extract_api_data("/v2/wallet/transactions", existing_txs)
     
     for tx in wallet_txs:
         raw_ts = tx.get("created_at") or tx.get("updated_at") or tx.get("timestamp")
@@ -295,7 +353,7 @@ def main():
         else:
             tx["created_at"] = datetime.now(timezone.utc).isoformat()
 
-    orders = extract_api_data("/v2/orders/history")
+    orders = extract_api_data("/v2/orders/history", existing_orders)
     raw_dump["wallet_txs"] = wallet_txs
     raw_dump["orders"] = orders
 
@@ -303,9 +361,9 @@ def main():
     with open(RAW_DATA_FILE, "w") as f:
         json.dump(raw_dump, f, indent=2)
 
-    # 3. Automatically sync newly closed trades & metrics directly to Firebase Firestore
+    # 3. Incremental Zero-Cost Sync to Firebase Firestore (last 4 days active window)
     if orders:
-        sync_trades_to_firestore(orders)
+        sync_trades_to_firestore(orders, force_full=FORCE_FULL_SYNC, window_days=SYNC_WINDOW_DAYS)
 
 if __name__ == "__main__":
     main()
