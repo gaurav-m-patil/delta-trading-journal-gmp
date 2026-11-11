@@ -20,7 +20,7 @@
   <script src="vendor/firebase-firestore-compat.js"></script>
 
   <!-- Custom Stylesheets -->
-  <link rel="stylesheet" href="css/app.css?v=3.3.5">
+  <link rel="stylesheet" href="css/app.css?v=3.3.6">
 
   <script>
     tailwind.config = {
@@ -821,19 +821,16 @@
           <span class="text-[10px] text-emerald-400 font-mono font-bold">66.7% Backtested Win Rate</span>
         </div>
 
-        <div class="overflow-x-auto max-h-[280px] overflow-y-auto custom-scroll">
-          <table class="w-full text-left text-xs font-mono">
+        <div class="w-full max-h-[300px] overflow-y-auto overflow-x-hidden custom-scroll">
+          <table class="w-full text-left text-xs font-mono table-fixed">
             <thead>
-              <tr class="text-[10px] text-slate-400 uppercase border-b border-borderDark">
-                <th class="py-1.5 px-2">Time (IST)</th>
-                <th class="py-1.5 px-2">Type</th>
-                <th class="py-1.5 px-2">Delta Strike</th>
-                <th class="py-1.5 px-2">Trigger &rarr; TP</th>
-                <th class="py-1.5 px-2">Status</th>
-                <th class="py-1.5 px-2 text-right">Actions</th>
-              </tr>
-            </thead>
-                <th class="py-1.5 px-2 text-right">Drawing Tool</th>
+              <tr class="text-[10px] text-slate-400 uppercase border-b border-borderDark/80">
+                <th class="py-2 px-2 w-[14%] sm:w-[13%]">Time (IST)</th>
+                <th class="py-2 px-2 w-[24%] sm:w-[25%]">Setup / Type</th>
+                <th class="py-2 px-2 w-[22%] sm:w-[23%]">Delta Option</th>
+                <th class="py-2 px-2 w-[20%] sm:w-[21%]">Trigger &rarr; TP</th>
+                <th class="py-2 px-1.5 w-[12%] sm:w-[11%]">Status</th>
+                <th class="py-2 px-2 text-right w-[8%] sm:w-[7%]">Playbook</th>
               </tr>
             </thead>
             <tbody id="btTradesTableBody" class="divide-y divide-borderDark/40">
@@ -1154,18 +1151,18 @@
   </nav>
 
   <!-- Application Script Pipeline -->
-  <script src="vendor/lightweight-charts.js?v=3.3.5"></script>
-  <script src="js/config.js?v=3.3.5"></script>
-  <script src="js/smc-strategy.js?v=3.3.5"></script>
-  <script src="js/chart-engine.js?v=3.3.5"></script>
-  <script src="js/db.js?v=3.3.5"></script>
-  <script src="js/quant.js?v=3.3.5"></script>
-  <script src="js/coach.js?v=3.3.5"></script>
-  <script src="js/planner.js?v=3.3.5"></script>
-  <script src="js/app.js?v=3.3.5"></script>
+  <script src="vendor/lightweight-charts.js?v=3.3.6"></script>
+  <script src="js/config.js?v=3.3.6"></script>
+  <script src="js/smc-strategy.js?v=3.3.6"></script>
+  <script src="js/chart-engine.js?v=3.3.6"></script>
+  <script src="js/db.js?v=3.3.6"></script>
+  <script src="js/quant.js?v=3.3.6"></script>
+  <script src="js/coach.js?v=3.3.6"></script>
+  <script src="js/planner.js?v=3.3.6"></script>
+  <script src="js/app.js?v=3.3.6"></script>
   <script>
     if ('serviceWorker' in navigator) {
-      navigator.serviceWorker.register('sw.js?v=3.3.5').then(function(reg) {
+      navigator.serviceWorker.register('sw.js?v=3.3.6').then(function(reg) {
         reg.update();
       });
     }

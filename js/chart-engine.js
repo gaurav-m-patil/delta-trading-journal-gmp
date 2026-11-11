@@ -1251,7 +1251,7 @@ Expected Profit: +50% Option Gross / +40% Net`;
     if (!tbody) return;
 
     if (!trades || trades.length === 0) {
-      tbody.innerHTML = `<tr><td colspan="6" class="py-4 text-center text-slate-500 font-mono">No institutional setups triggered in current candle window.</td></tr>`;
+      tbody.innerHTML = `<tr><td colspan="6" class="py-5 text-center text-slate-500 font-mono text-xs">No institutional setups triggered in current candle window.</td></tr>`;
       return;
     }
 
@@ -1268,48 +1268,50 @@ Expected Profit: +50% Option Gross / +40% Net`;
 
       let outcomeBadge = "";
       if (isActive) {
-        outcomeBadge = `<span class="px-2 py-0.5 rounded text-[10px] font-bold bg-cyan-500/10 text-cyan-400 border border-cyan-500/30 flex items-center gap-1 w-fit"><span class="h-1.5 w-1.5 rounded-full bg-cyan-400 animate-ping"></span> ACTIVE (${t.barsHeld}b)</span>`;
+        outcomeBadge = `<span class="px-1.5 sm:px-2 py-0.5 rounded text-[9px] sm:text-[10px] font-bold bg-cyan-500/10 text-cyan-400 border border-cyan-500/30 inline-flex items-center gap-1"><span class="h-1.5 w-1.5 rounded-full bg-cyan-400 animate-ping"></span> LIVE</span>`;
       } else if (isWin) {
-        outcomeBadge = `<span class="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-500/10 text-emerald-400 border border-emerald-500/30">WIN (+50%)</span>`;
+        outcomeBadge = `<span class="px-1.5 sm:px-2 py-0.5 rounded text-[9px] sm:text-[10px] font-bold bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 whitespace-nowrap">WIN (+50%)</span>`;
       } else if (isLoss) {
-        outcomeBadge = `<span class="px-2 py-0.5 rounded text-[10px] font-bold bg-rose-500/10 text-rose-400 border border-rose-500/30">LOSS (-1R)</span>`;
+        outcomeBadge = `<span class="px-1.5 sm:px-2 py-0.5 rounded text-[9px] sm:text-[10px] font-bold bg-rose-500/10 text-rose-400 border border-rose-500/30 whitespace-nowrap">LOSS (-1R)</span>`;
       } else {
-        outcomeBadge = `<span class="px-2 py-0.5 rounded text-[10px] font-bold bg-slate-500/10 text-slate-400 border border-slate-500/30">TIMEOUT</span>`;
+        outcomeBadge = `<span class="px-1.5 sm:px-2 py-0.5 rounded text-[9px] sm:text-[10px] font-bold bg-slate-500/10 text-slate-400 border border-slate-500/30 whitespace-nowrap">TIMEOUT</span>`;
       }
 
       const opt = t.realOption;
       const contractLabel = opt ? opt.symbol : (isCall ? 'C-BTC-' + t.optionStrike : 'P-BTC-' + t.optionStrike);
       const markLabel = opt && opt.markPrice ? `$${opt.markPrice}` : '--';
+      const cleanPatternName = (t.name || '').replace('Confirmed ', '');
 
       const isSelected = selectedTrade && selectedTrade.id === t.id;
 
       return `
         <tr id="row_${t.id}" class="bt-trade-row hover:bg-panelDark/60 transition-colors cursor-pointer ${isSelected ? 'bg-indigo-600/20' : ''}" onclick="DeltaLiveChart.selectTrade('${t.id}')">
-          <td class="py-2.5 px-2 text-slate-200 font-bold whitespace-nowrap">${dateStr}</td>
+          <td class="py-2.5 px-2 text-slate-200 font-bold text-[11px] sm:text-xs">
+            ${dateStr}
+          </td>
           <td class="py-2.5 px-2">
-            <span class="inline-flex items-center gap-1 font-bold ${isCall ? 'text-winGreen' : 'text-lossRed'}">
+            <div class="flex items-center gap-1 font-bold ${isCall ? 'text-winGreen' : 'text-lossRed'} text-xs">
               <i class="fa-solid ${isCall ? 'fa-arrow-up' : 'fa-arrow-down'} text-[10px]"></i>
-              ${isCall ? 'CALL' : 'PUT'}
-            </span>
-            <span class="text-[10px] text-slate-400 ml-1 hidden md:inline">${t.name}</span>
+              <span>${isCall ? 'CALL' : 'PUT'}</span>
+            </div>
+            <span class="text-[10px] text-slate-400 block truncate" title="${t.name}">${cleanPatternName}</span>
           </td>
           <td class="py-2.5 px-2">
-            <span class="text-indigo-300 font-semibold block text-[11px]">${contractLabel}</span>
-            <span class="text-[9px] text-slate-400 hidden sm:inline">Mark: ${markLabel}</span>
+            <span class="text-indigo-300 font-semibold block text-[11px] truncate" title="${contractLabel}">${contractLabel}</span>
+            <span class="text-[9px] text-slate-400 block">Mark: <strong class="text-white">${markLabel}</strong></span>
           </td>
-          <td class="py-2.5 px-2 text-slate-300 whitespace-nowrap">
-            $${t.entry.toLocaleString()} &rarr; <span class="${isWin ? 'text-winGreen font-bold' : ''}">$${t.tp.toLocaleString()}</span>
+          <td class="py-2.5 px-2 text-[11px] sm:text-xs text-slate-300">
+            <div>$${t.entry.toLocaleString()} &rarr; <strong class="${isWin ? 'text-winGreen' : 'text-slate-200'}">$${t.tp.toLocaleString()}</strong></div>
+            <div class="text-[9px] text-slate-400">SL: $${t.sl.toLocaleString()}</div>
           </td>
-          <td class="py-2.5 px-2">${outcomeBadge}</td>
-          <td class="py-2.5 px-2 text-right whitespace-nowrap">
-            <div class="flex items-center justify-end gap-1">
-              <button onclick="event.stopPropagation(); DeltaLiveChart.selectTrade('${t.id}')" title="Center on Chart" class="px-2 py-1 rounded bg-panelDark hover:bg-indigo-600 text-slate-300 hover:text-white font-bold text-[10px] border border-borderDark transition-colors">
-                <i class="fa-solid fa-crosshairs"></i>
-              </button>
-              <button onclick="event.stopPropagation(); DeltaLiveChart.openTradeDetailsModal('${t.id}')" title="Why was this taken?" class="px-2 py-1 rounded bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-[10px] transition-colors shadow-sm flex items-center gap-1">
-                <i class="fa-solid fa-circle-info"></i> Logic
-              </button>
-            </div>
+          <td class="py-2.5 px-1.5">
+            ${outcomeBadge}
+          </td>
+          <td class="py-2.5 px-2 text-right">
+            <button onclick="event.stopPropagation(); DeltaLiveChart.openTradeDetailsModal('${t.id}')" title="View Trade Logic & Playbook" class="px-2 sm:px-2.5 py-1 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-[10px] sm:text-[11px] transition-colors shadow-sm inline-flex items-center gap-1 font-mono">
+              <i class="fa-solid fa-circle-info"></i>
+              <span class="hidden sm:inline">Logic</span>
+            </button>
           </td>
         </tr>
       `;
