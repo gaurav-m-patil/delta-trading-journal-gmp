@@ -20,7 +20,7 @@
   <script src="vendor/firebase-firestore-compat.js"></script>
 
   <!-- Custom Stylesheets -->
-  <link rel="stylesheet" href="css/app.css">
+  <link rel="stylesheet" href="css/app.css?v=3.0.0">
 
   <script>
     tailwind.config = {
@@ -597,11 +597,18 @@
   </nav>
 
   <!-- Application Script Pipeline -->
-  <script src="js/config.js"></script>
-  <script src="js/db.js"></script>
-  <script src="js/quant.js"></script>
-  <script src="js/coach.js"></script>
-  <script src="js/planner.js"></script>
-  <script src="js/app.js"></script>
+  <script src="js/config.js?v=3.0.0"></script>
+  <script src="js/db.js?v=3.0.0"></script>
+  <script src="js/quant.js?v=3.0.0"></script>
+  <script src="js/coach.js?v=3.0.0"></script>
+  <script src="js/planner.js?v=3.0.0"></script>
+  <script src="js/app.js?v=3.0.0"></script>
+  <script>
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.register('sw.js?v=3.0.0').then(function(reg) {
+        reg.update();
+      });
+    }
+  </script>
 </body>
 </html>

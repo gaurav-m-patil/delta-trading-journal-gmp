@@ -23,12 +23,13 @@ Write-Output "Total raw orders in file: $($orders.Count)"
 
 # Helper function to parse Delta Option Symbol
 function Parse-Symbol($sym) {
-    if (-not $sym) { return @{ isCall = $false; strike = 0; expiry = ""; underlying = "BTC" } }
+    if (-not $sym) { return @{ isCall = $false; strike = 0.0; expiry = ""; underlying = "BTC" } }
     $parts = $sym.Split('-')
     if ($parts.Count -ge 4) {
         $isCall = ($parts[0].ToUpper() -eq 'C')
         $underlying = $parts[1].ToUpper()
-        $strike = [double]($parts[2])
+        $strike = 0.0
+        [double]::TryParse($parts[2], [ref]$strike) | Out-Null
         $expiryRaw = $parts[3]
         $expiry = ""
         if ($expiryRaw.Length -eq 6) {
@@ -36,31 +37,46 @@ function Parse-Symbol($sym) {
         }
         return @{ isCall = $isCall; strike = $strike; expiry = $expiry; underlying = $underlying }
     }
-    return @{ isCall = ($sym.StartsWith("C-")); strike = 0; expiry = ""; underlying = "BTC" }
+    return @{ isCall = ($sym.StartsWith("C-")); strike = 0.0; expiry = ""; underlying = "BTC" }
 }
 
 # Normalize & group orders into positions
 $validOrders = @()
 foreach ($o in $orders) {
-    $size = [double]($o.size)
-    $unfilled = [double]($o.unfilled_size)
+    $size = 0.0
+    [double]::TryParse("$($o.size)", [ref]$size) | Out-Null
+    $unfilled = 0.0
+    [double]::TryParse("$($o.unfilled_size)", [ref]$unfilled) | Out-Null
+
     $filledSize = if ($o.state -eq 'closed') { $size } else { [Math]::Max(0.0, ($size - $unfilled)) }
-    $comm = [double]($o.paid_commission)
+    $comm = 0.0
+    [double]::TryParse("$($o.paid_commission)", [ref]$comm) | Out-Null
     $grossPnl = 0.0
-    if ($o.meta_data -and $o.meta_data.pnl) { $grossPnl = [double]($o.meta_data.pnl) }
+    if ($o.meta_data -and $o.meta_data.pnl) {
+        [double]::TryParse("$($o.meta_data.pnl)", [ref]$grossPnl) | Out-Null
+    }
 
     if ($filledSize -gt 0 -or $comm -gt 0 -or $grossPnl -ne 0) {
-        $createdStr = if ($o.updated_at) { $o.updated_at } else { $o.created_at }
+        $createdStr = if ($o.updated_at) { "$($o.updated_at)" } else { "$($o.created_at)" }
         $dt = [DateTime]::Parse($createdStr)
+
+        $avgPriceVal = 0.0
+        if ($o.average_fill_price) {
+            [double]::TryParse("$($o.average_fill_price)", [ref]$avgPriceVal) | Out-Null
+        }
+
+        $symVal = if ($o.product_symbol) { "$($o.product_symbol)" } else { "OPTION" }
+        $sideVal = if ($o.side) { "$($o.side)".ToLower() } else { "" }
+
         $validOrders += [PSCustomObject]@{
             Order = $o
             FilledSize = $filledSize
             Commission = $comm
             GrossPnl = $grossPnl
             ExecTime = $dt
-            Symbol = if ($o.product_symbol) { $o.product_symbol } else { "OPTION" }
-            Side = if ($o.side) { $o.side.ToLower() } else { "" }
-            AvgPrice = [double](if ($o.average_fill_price) { $o.average_fill_price } else { 0 })
+            Symbol = $symVal
+            Side = $sideVal
+            AvgPrice = $avgPriceVal
         }
     }
 }
@@ -70,6 +86,7 @@ Write-Output "Valid execution fills: $($validOrders.Count)"
 
 $openPositions = @{}
 $closedTrades = @()
+$dailyMap = @{}
 
 foreach ($vo in $validOrders) {
     $sym = $vo.Symbol
@@ -109,11 +126,40 @@ foreach ($vo in $validOrders) {
         $netPnl = $pos.GrossPnl - $pos.TotalFee
         $closedSize = [Math]::Max($pos.BuySize, $pos.SellSize)
         $holdSec = [int]([Math]::Max(0, ($pos.LastTime - $pos.StartTime).TotalSeconds))
-        $avgEntry = if ($pos.BuySize -gt 0) { $pos.BuyVal / $pos.BuySize } else { 0 }
-        $avgExit = if ($pos.SellSize -gt 0) { $pos.SellVal / $pos.SellSize } else { 0 }
+        
+        $avgEntry = 0.0
+        if ($pos.BuySize -gt 0) { $avgEntry = $pos.BuyVal / $pos.BuySize }
+        $avgExit = 0.0
+        if ($pos.SellSize -gt 0) { $avgExit = $pos.SellVal / $pos.SellSize }
 
         $parsed = Parse-Symbol $sym
         $tradeId = "trd_" + $sym.Replace("-", "_") + "_" + [DateTimeOffset]::new($pos.LastTime).ToUnixTimeMilliseconds()
+
+        $dateKey = $pos.LastTime.ToString("yyyy-MM-dd")
+        $monthKey = $pos.LastTime.ToString("yyyy-MM")
+
+        # Update daily map
+        if (-not $dailyMap.ContainsKey($dateKey)) {
+            $dailyMap[$dateKey] = @{
+                dateKey = $dateKey
+                gross_pnl = 0.0
+                base_brokerage = 0.0
+                gst = 0.0
+                total_fee = 0.0
+                net_pnl = 0.0
+                trades = 0
+                wins = 0
+                losses = 0
+            }
+        }
+        $d = $dailyMap[$dateKey]
+        $d.gross_pnl += $pos.GrossPnl
+        $d.base_brokerage += $baseBrokerage
+        $d.gst += $gst
+        $d.total_fee += $pos.TotalFee
+        $d.net_pnl += $netPnl
+        $d.trades += 1
+        if ($netPnl -gt 0) { $d.wins += 1 } elseif ($netPnl -lt 0) { $d.losses += 1 }
 
         $closedTrades += [PSCustomObject]@{
             Id = $tradeId
@@ -131,8 +177,8 @@ foreach ($vo in $validOrders) {
             TotalFee = $pos.TotalFee
             NetPnl = $netPnl
             Status = if ($netPnl -gt 0) { "WIN" } elseif ($netPnl -lt 0) { "LOSS" } else { "BE" }
-            DateKey = $pos.LastTime.ToString("yyyy-MM-dd")
-            MonthKey = $pos.LastTime.ToString("yyyy-MM")
+            DateKey = $dateKey
+            MonthKey = $monthKey
             Timestamp = $pos.LastTime.ToString("dd MMM yyyy, hh:mm tt")
             HoldDurationSec = $holdSec
         }
@@ -197,5 +243,33 @@ for ($i = 0; $i -lt $closedTrades.Count; $i += $batchSize) {
         exit 1
     }
 }
+
+# 2. Commit Daily Metrics to GP_DTJ_daily_metrics
+$dailyWrites = @()
+foreach ($dk in $dailyMap.Keys) {
+    $item = $dailyMap[$dk]
+    $docPath = "projects/$projectId/databases/(default)/documents/GP_DTJ_daily_metrics/$dk"
+    $fields = @{
+        dateKey = @{ stringValue = "$dk" }
+        gross_pnl = @{ doubleValue = [double]$item.gross_pnl }
+        base_brokerage = @{ doubleValue = [double]$item.base_brokerage }
+        gst = @{ doubleValue = [double]$item.gst }
+        total_fee = @{ doubleValue = [double]$item.total_fee }
+        net_pnl = @{ doubleValue = [double]$item.net_pnl }
+        trades = @{ integerValue = [int64]$item.trades }
+        wins = @{ integerValue = [int64]$item.wins }
+        losses = @{ integerValue = [int64]$item.losses }
+    }
+    $dailyWrites += @{
+        update = @{
+            name = $docPath
+            fields = $fields
+        }
+    }
+}
+
+$dailyPayload = @{ writes = $dailyWrites } | ConvertTo-Json -Depth 10
+$dailyRes = Invoke-RestMethod -Uri $commitUrl -Method Post -Body $dailyPayload -ContentType "application/json"
+Write-Output "Daily summaries committed to GP_DTJ_daily_metrics: $($dailyMap.Count) days."
 
 Write-Output "=== MIGRATION COMPLETE: $totalMigrated TRADES SECURELY STORED IN GP_DTJ_trades ==="
