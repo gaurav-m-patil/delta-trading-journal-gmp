@@ -653,24 +653,67 @@ window.DeltaApp = (function() {
     const savedMaxConsec = parseInt(localStorage.getItem(DeltaConfig.STORAGE_KEYS.MAX_CONSEC_LOSSES), 10) || 2;
     const isAcknowledged = localStorage.getItem(DeltaConfig.STORAGE_KEYS.SENTINEL_ACKNOWLEDGED) === 'true';
 
-    // Find the relevant trading session: today's date in IST, or the latest active trading day from history
+    // Sentinel strictly audits TODAY'S live trading session
     const todayIst = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' }); // YYYY-MM-DD
-    let sessionTrades = allTrades.filter(t => t.rawDate === todayIst);
-    let isLiveToday = true;
-    let sessionDate = todayIst;
+    const todayTrades = allTrades.filter(t => t.rawDate === todayIst);
 
-    if (sessionTrades.length === 0) {
-      // Find latest trading day in allTrades
-      const sorted = [...allTrades].sort((a, b) => (b.sortTime || 0) - (a.sortTime || 0));
-      if (sorted.length > 0 && sorted[0].rawDate) {
-        sessionDate = sorted[0].rawDate;
-        sessionTrades = allTrades.filter(t => t.rawDate === sessionDate);
-        isLiveToday = false;
-      }
+    // If NO trades were taken today: clean slate, 100% risk budget available, zero warnings!
+    if (todayTrades.length === 0) {
+      container.innerHTML = `
+        <div class="rounded-2xl border border-emerald-500/30 bg-gradient-to-r from-cardDark via-brandDark to-cardDark p-4 sm:p-5 shadow-lg shadow-black/40">
+          <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 pb-3 border-b border-borderDark/60">
+            <div class="flex items-center gap-2.5">
+              <span class="inline-block w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse shrink-0"></span>
+              <div>
+                <h3 class="text-sm sm:text-base font-bold text-white font-sans flex items-center gap-2">
+                  <i class="fa-solid fa-shield-halved text-emerald-400"></i>
+                  Capital Defense Sentinel: <span class="text-emerald-400 font-bold">READY (Zero Trades Today)</span>
+                </h3>
+                <p class="text-[11px] text-slate-400 font-mono">
+                  Today (${todayIst}): Clean slate. Full daily risk budget intact.
+                </p>
+              </div>
+            </div>
+            <div class="flex items-center gap-2 self-end sm:self-auto">
+              <span class="text-[10px] font-mono text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-2 py-0.5 rounded font-bold">
+                Daily Loss Limit: $${savedMaxLoss} | Stop-Outs: ${savedMaxConsec}
+              </span>
+              <button onclick="DeltaApp.openSentinelConfigModal()" class="px-2.5 py-1 text-[11px] font-bold rounded-lg bg-panelDark hover:bg-cardDark text-slate-300 hover:text-white border border-borderDark transition-colors">
+                <i class="fa-solid fa-gear mr-1"></i> Edit Limits
+              </button>
+            </div>
+          </div>
+
+          <!-- Standby Metrics Grid -->
+          <div class="grid grid-cols-2 sm:grid-cols-4 gap-2.5 mt-3 font-mono">
+            <div class="bg-panelDark/50 border border-borderDark/60 p-2.5 rounded-xl">
+              <span class="text-[9px] uppercase tracking-wider text-slate-400 block font-sans">Today's Realized</span>
+              <span class="text-sm sm:text-base font-bold text-white">$0.00</span>
+              <span class="text-[9px] text-slate-500 block mt-0.5">0 closed positions</span>
+            </div>
+            <div class="bg-panelDark/50 border border-borderDark/60 p-2.5 rounded-xl">
+              <span class="text-[9px] uppercase tracking-wider text-slate-400 block font-sans">Available Risk Budget</span>
+              <span class="text-sm sm:text-base font-bold text-emerald-300">$${savedMaxLoss}.00</span>
+              <span class="text-[9px] text-slate-500 block mt-0.5">100% budget intact</span>
+            </div>
+            <div class="bg-panelDark/50 border border-borderDark/60 p-2.5 rounded-xl">
+              <span class="text-[9px] uppercase tracking-wider text-slate-400 block font-sans">Consecutive Losses</span>
+              <span class="text-sm sm:text-base font-bold text-slate-300">0 / ${savedMaxConsec}</span>
+              <span class="text-[9px] text-slate-500 block mt-0.5">${savedMaxConsec} stop-outs allowed</span>
+            </div>
+            <div class="bg-panelDark/50 border border-borderDark/60 p-2.5 rounded-xl">
+              <span class="text-[9px] uppercase tracking-wider text-slate-400 block font-sans">Desk Status</span>
+              <span class="text-sm sm:text-base font-bold text-emerald-400">CLEAN SLATE</span>
+              <span class="text-[9px] text-slate-500 block mt-0.5">Wait for A+ 15m S/R confirmation</span>
+            </div>
+          </div>
+        </div>
+      `;
+      return;
     }
 
-    // Chronological analysis to track consecutive losses
-    const chronological = [...sessionTrades].sort((a, b) => (a.sortTime || 0) - (b.sortTime || 0));
+    // Today has trades: evaluate chronological loss streak and today's Net PnL
+    const chronological = [...todayTrades].sort((a, b) => (a.sortTime || 0) - (b.sortTime || 0));
     let netPnl = 0;
     let wins = 0;
     let losses = 0;
@@ -690,8 +733,7 @@ window.DeltaApp = (function() {
 
     const isBreakerHit = (netPnl <= -savedMaxLoss) || (consecutiveLosses >= savedMaxConsec);
     const remainingRiskBudget = Math.max(0, savedMaxLoss + netPnl);
-
-    const sessionLabel = isLiveToday ? `Today (${todayIst})` : `Latest Session (${sessionDate})`;
+    const sessionLabel = `Today (${todayIst})`;
 
     if (isBreakerHit && !isAcknowledged) {
       // DANGER ALERT STATE
@@ -748,7 +790,7 @@ window.DeltaApp = (function() {
             </div>
             <div class="bg-black/40 border border-rose-500/30 p-2.5 rounded-xl">
               <span class="text-[9px] uppercase tracking-wider text-rose-300/80 block font-sans">Session Record</span>
-              <span class="text-sm sm:text-base font-bold text-white">${sessionTrades.length} Trades (${wins}W - ${losses}L)</span>
+              <span class="text-sm sm:text-base font-bold text-white">${todayTrades.length} Trades (${wins}W - ${losses}L)</span>
               <span class="text-[9px] text-slate-400 block mt-0.5">Save capital for tomorrow</span>
             </div>
           </div>
@@ -795,7 +837,7 @@ window.DeltaApp = (function() {
             <div class="bg-panelDark/50 border border-borderDark/60 p-2.5 rounded-xl">
               <span class="text-[9px] uppercase tracking-wider text-slate-400 block font-sans">Session Realized</span>
               <span class="text-sm sm:text-base font-bold ${pnlColor}">${netPnl >= 0 ? '+' : ''}${formatUSD(netPnl)}</span>
-              <span class="text-[9px] text-slate-500 block mt-0.5">${sessionTrades.length} trades (${wins}W - ${losses}L)</span>
+              <span class="text-[9px] text-slate-500 block mt-0.5">${todayTrades.length} trades (${wins}W - ${losses}L)</span>
             </div>
             <div class="bg-panelDark/50 border border-borderDark/60 p-2.5 rounded-xl">
               <span class="text-[9px] uppercase tracking-wider text-slate-400 block font-sans">Remaining Risk Buffer</span>

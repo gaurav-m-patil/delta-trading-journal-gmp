@@ -945,6 +945,59 @@
         </div>
       </div>
 
+      <!-- DELTA OPTIONS EXECUTION & RESOLUTION TIMELINE (FEATURE UPGRADE) -->
+      <div class="bg-indigo-950/20 border border-indigo-500/30 rounded-xl p-3.5 space-y-3 font-mono">
+        <div class="flex justify-between items-center pb-2 border-b border-borderDark/60">
+          <span class="text-xs font-bold text-white font-sans flex items-center gap-1.5">
+            <i class="fa-solid fa-timeline text-indigo-400"></i> Option Execution & Resolution Timeline
+          </span>
+          <span id="atmModalContractBadge" class="text-[10px] font-bold px-2 py-0.5 rounded bg-indigo-600/30 text-indigo-300 border border-indigo-500/40">
+            --
+          </span>
+        </div>
+
+        <!-- 2-Stage Timeline: Entry vs Resolution -->
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+          <!-- Stage 1: Entry Snapshot -->
+          <div class="bg-panelDark/80 p-3 rounded-xl border border-borderDark/70 space-y-1.5">
+            <div class="flex justify-between items-center text-[10px] text-slate-400 font-sans">
+              <span class="font-bold flex items-center gap-1 text-sky-300"><i class="fa-solid fa-play text-sky-400"></i> 1. Entry Execution</span>
+              <span id="atmModalEntryTime" class="text-slate-300">--</span>
+            </div>
+            <div class="flex justify-between items-baseline text-xs">
+              <span class="text-slate-400 font-sans">BTC Spot:</span>
+              <span id="atmModalEntrySpot" class="font-bold text-white">--</span>
+            </div>
+            <div class="flex justify-between items-baseline pt-1 border-t border-borderDark/40">
+              <span class="text-xs text-indigo-300 font-sans font-bold">Option Premium:</span>
+              <span id="atmModalOptionEntry" class="text-sm font-bold text-sky-400">--</span>
+            </div>
+          </div>
+
+          <!-- Stage 2: Resolution / Exit Snapshot -->
+          <div id="atmModalExitCard" class="bg-panelDark/80 p-3 rounded-xl border border-emerald-500/40 space-y-1.5">
+            <div class="flex justify-between items-center text-[10px] text-slate-400 font-sans">
+              <span class="font-bold flex items-center gap-1" id="atmModalExitTitle"><i class="fa-solid fa-flag-checkered text-emerald-400"></i> 2. Resolution</span>
+              <span id="atmModalExitTime" class="text-slate-300">--</span>
+            </div>
+            <div class="flex justify-between items-baseline text-xs">
+              <span class="text-slate-400 font-sans">BTC Spot Exit:</span>
+              <span id="atmModalExitSpot" class="font-bold text-winGreen">--</span>
+            </div>
+            <div class="flex justify-between items-baseline pt-1 border-t border-borderDark/40">
+              <span class="text-xs text-emerald-300 font-sans font-bold">Option Exit Premium:</span>
+              <span id="atmModalOptionExit" class="text-sm font-bold text-winGreen">--</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Net Take-Home Calculation Strip -->
+        <div id="atmModalNetReturnStrip" class="p-2.5 rounded-lg bg-panelDark/90 border border-borderDark/70 flex justify-between items-center text-xs">
+          <span class="text-slate-300 font-sans text-[11px]">Net PnL (excl. brokerage & GST):</span>
+          <span id="atmModalNetPoints" class="font-bold text-winGreen">--</span>
+        </div>
+      </div>
+
       <!-- Institutional Rationale Breakdown -->
       <div class="bg-brandDark/70 border border-borderDark rounded-xl p-3.5 space-y-2">
         <h4 class="text-xs font-bold text-white flex items-center gap-2">
@@ -1048,18 +1101,18 @@
   </nav>
 
   <!-- Application Script Pipeline -->
-  <script src="vendor/lightweight-charts.js?v=3.3.3"></script>
-  <script src="js/config.js?v=3.3.3"></script>
-  <script src="js/smc-strategy.js?v=3.3.3"></script>
-  <script src="js/chart-engine.js?v=3.3.3"></script>
-  <script src="js/db.js?v=3.3.3"></script>
-  <script src="js/quant.js?v=3.3.3"></script>
-  <script src="js/coach.js?v=3.3.3"></script>
-  <script src="js/planner.js?v=3.3.3"></script>
-  <script src="js/app.js?v=3.3.3"></script>
+  <script src="vendor/lightweight-charts.js?v=3.3.4"></script>
+  <script src="js/config.js?v=3.3.4"></script>
+  <script src="js/smc-strategy.js?v=3.3.4"></script>
+  <script src="js/chart-engine.js?v=3.3.4"></script>
+  <script src="js/db.js?v=3.3.4"></script>
+  <script src="js/quant.js?v=3.3.4"></script>
+  <script src="js/coach.js?v=3.3.4"></script>
+  <script src="js/planner.js?v=3.3.4"></script>
+  <script src="js/app.js?v=3.3.4"></script>
   <script>
     if ('serviceWorker' in navigator) {
-      navigator.serviceWorker.register('sw.js?v=3.3.3').then(function(reg) {
+      navigator.serviceWorker.register('sw.js?v=3.3.4').then(function(reg) {
         reg.update();
       });
     }

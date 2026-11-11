@@ -145,6 +145,9 @@ window.DeltaSMCStrategy = (function() {
           const tp = Math.round((entry - targetDist) * 10) / 10;
           const atmStrike = Math.round(entry / 500) * 500;
 
+          const entryOptEst = Math.round((entry * 0.003) * 10) / 10;
+          const targetOptEst = Math.round((entryOptEst * 1.5) * 10) / 10;
+
           setup = {
             id: `TRADE_${i}_${cur.time}`,
             index: i,
@@ -161,7 +164,9 @@ window.DeltaSMCStrategy = (function() {
             rvol: curRvol,
             rsi: curRsi,
             optionStrike: atmStrike,
-            optionRecommendation: `Buy P-BTC-${atmStrike} (ATM Put) @ ~200 -> Target 300 (+50% Profit)`,
+            entryOptEst,
+            targetOptEst,
+            optionRecommendation: `Buy P-BTC-${atmStrike} (ATM Put) @ $${entryOptEst.toFixed(1)} -> Target $${targetOptEst.toFixed(1)} (+50% Profit)`,
             invalidationReason: `Price breaks above resistance wick at $${sl}`,
             meta: {
               sHigh,
@@ -190,6 +195,9 @@ window.DeltaSMCStrategy = (function() {
           const tp = Math.round((entry + targetDist) * 10) / 10;
           const atmStrike = Math.round(entry / 500) * 500;
 
+          const entryOptEst = Math.round((entry * 0.003) * 10) / 10;
+          const targetOptEst = Math.round((entryOptEst * 1.5) * 10) / 10;
+
           setup = {
             id: `TRADE_${i}_${cur.time}`,
             index: i,
@@ -206,7 +214,9 @@ window.DeltaSMCStrategy = (function() {
             rvol: curRvol,
             rsi: curRsi,
             optionStrike: atmStrike,
-            optionRecommendation: `Buy C-BTC-${atmStrike} (ATM Call) @ ~200 -> Target 300 (+50% Profit)`,
+            entryOptEst,
+            targetOptEst,
+            optionRecommendation: `Buy C-BTC-${atmStrike} (ATM Call) @ $${entryOptEst.toFixed(1)} -> Target $${targetOptEst.toFixed(1)} (+50% Profit)`,
             invalidationReason: `Price breaks below support wick at $${sl}`,
             meta: {
               sHigh,
@@ -286,31 +296,52 @@ window.DeltaSMCStrategy = (function() {
         setup.exitPrice = exitPrice;
         setup.barsHeld = Math.max(1, barsHeld);
 
-        // Realistic Delta Option Profit calculation
+        // Realistic Delta Option Price & Profit calculation
+        const entryOpt = setup.entryOptEst || (Math.round((setup.entry * 0.003) * 10) / 10);
+        let exitOpt = entryOpt;
+        let optPnlPts = 0;
+        let optNetGainPts = 0;
+
         if (outcome === "WIN") {
+          exitOpt = Math.round((entryOpt * 1.50) * 10) / 10;
+          optPnlPts = Math.round((exitOpt - entryOpt) * 10) / 10;
+          optNetGainPts = Math.round((optPnlPts * 0.80) * 10) / 10; // Post-fee take home
           setup.pnlR = setup.rrRatio;
           setup.optionPnlPct = "+50.0%";
-          setup.netProfitEstimate = "+40.0% (Post Fees & 30% Tax)";
+          setup.netProfitEstimate = `+${optNetGainPts} pts (+40% Net Take-Home)`;
           setup.badgeColor = "text-emerald-400 bg-emerald-500/10 border-emerald-500/30";
         } else if (outcome === "LOSS") {
+          exitOpt = Math.round((entryOpt * 0.70) * 10) / 10;
+          optPnlPts = Math.round((exitOpt - entryOpt) * 10) / 10;
+          optNetGainPts = optPnlPts;
           setup.pnlR = -1.0;
           setup.optionPnlPct = "-30.0%";
-          setup.netProfitEstimate = "-1.0R Controlled Stop";
+          setup.netProfitEstimate = `${optPnlPts} pts (-1.0R Stop)`;
           setup.badgeColor = "text-rose-400 bg-rose-500/10 border-rose-500/30";
         } else if (outcome === "ACTIVE") {
           const spotDiff = setup.direction === "LONG" ? (candles[exitIndex].close - setup.entry) : (setup.entry - candles[exitIndex].close);
+          exitOpt = Math.max(10, Math.round((entryOpt + spotDiff * 0.5) * 10) / 10);
+          optPnlPts = Math.round((exitOpt - entryOpt) * 10) / 10;
+          optNetGainPts = optPnlPts;
           setup.pnlR = Number((spotDiff / setup.slDist).toFixed(2));
           setup.optionPnlPct = setup.pnlR >= 0 ? `+${(setup.pnlR * 25).toFixed(0)}%` : `-${Math.abs(setup.pnlR * 25).toFixed(0)}%`;
           setup.netProfitEstimate = "Live in market";
           setup.badgeColor = "text-cyan-400 bg-cyan-500/10 border-cyan-500/30";
         } else {
           // Timeout / Scratch after 5 hours
-          const spotDiff = setup.direction === "LONG" ? (candles[exitIndex].close - setup.entry) : (setup.entry - candles[exitIndex].close);
-          setup.pnlR = Number((spotDiff / setup.slDist).toFixed(2));
-          setup.optionPnlPct = setup.pnlR >= 0 ? `+${(setup.pnlR * 25).toFixed(0)}%` : `-${Math.abs(setup.pnlR * 25).toFixed(0)}%`;
-          setup.netProfitEstimate = "Breakeven / Scratch Exit";
+          exitOpt = Math.round((entryOpt * 0.82) * 10) / 10;
+          optPnlPts = Math.round((exitOpt - entryOpt) * 10) / 10;
+          optNetGainPts = optPnlPts;
+          setup.pnlR = 0;
+          setup.optionPnlPct = "-18.0%";
+          setup.netProfitEstimate = "Breakeven / Theta Scratch";
           setup.badgeColor = "text-slate-400 bg-slate-500/10 border-slate-500/30";
         }
+
+        setup.entryOpt = entryOpt;
+        setup.exitOpt = exitOpt;
+        setup.optPnlPts = optPnlPts;
+        setup.optNetGainPts = optNetGainPts;
 
         // Attach Institutional Rationale & Execution Playbook
         const wickPct = setup.direction === "LONG" 
@@ -328,18 +359,18 @@ window.DeltaSMCStrategy = (function() {
           rsi: `RSI was ${setup.rsi} (${setup.rsi > 60 ? 'Overbought Reversal' : (setup.rsi < 40 ? 'Oversold Reversal' : 'Neutral Momentum')})`,
           rvol: `${setup.rvol}x Relative Volume (Institutional Presence)`,
           narrative: outcome === "WIN"
-            ? `Price moved aggressively in your favor (+${setup.targetDist} pts) within ${barsHeld} bars, cleanly hitting Take Profit at $${setup.tp.toLocaleString()}. Your ATM Option surged from ~200 to 300 points (+50% gross / +40% net).`
+            ? `Price moved aggressively in your favor (+${setup.targetDist} pts) within ${barsHeld} bars, cleanly hitting Take Profit at $${setup.tp.toLocaleString()}. Your Option surged from $${entryOpt.toFixed(1)} to $${exitOpt.toFixed(1)} (+50% gross / +40% net take-home).`
             : (outcome === "LOSS"
-              ? `Price broke through the invalidation wick at $${setup.sl.toLocaleString()}. Controlled stop loss executed (-1R) to prevent capital bleed.`
+              ? `Price broke through the invalidation wick at $${setup.sl.toLocaleString()} within ${barsHeld} bars. Controlled stop loss executed at Option $${exitOpt.toFixed(1)} (-30% / -1R stop) to prevent capital bleed.`
               : (outcome === "ACTIVE"
-                ? `Trade is LIVE right now (${barsHeld} bars in progress). Price is oscillating near Entry ($${setup.entry.toLocaleString()}). Waiting for resolution at Target ($${setup.tp.toLocaleString()}) or Stop ($${setup.sl.toLocaleString()}).`
-                : `Price consolidated sideways for 5+ hours (20 bars). To prevent Theta decay from eating your option premium, the trade was closed at market price as a scratch/breakeven exit.`)),
+                ? `Trade is LIVE right now (${barsHeld} bars in progress). Entered Option at $${entryOpt.toFixed(1)}. Price oscillating near Entry ($${setup.entry.toLocaleString()}). Waiting for resolution at Target ($${setup.tp.toLocaleString()}) or Stop ($${setup.sl.toLocaleString()}).`
+                : `Price consolidated sideways for 5+ hours (20 bars). To prevent Theta decay from eating your option premium, the trade was closed at Option $${exitOpt.toFixed(1)} as a scratch/breakeven exit.`)),
           deltaSteps: [
             `1. Open Delta Exchange India -> BTC Options.`,
             `2. Select Contract: ${setup.direction === "LONG" ? 'C-BTC-' + setup.optionStrike : 'P-BTC-' + setup.optionStrike} (${setup.direction === "LONG" ? 'ATM Call' : 'ATM Put'}).`,
-            `3. Order Type: Buy at Market / Limit around premium ~200.`,
-            `4. Take Profit GTT Order: Set Limit Exit at 300 points (+50% profit).`,
-            `5. Stop Loss GTT Order: Set Stop Exit at 140 points (Underlying Spot SL: $${setup.sl.toLocaleString()}).`
+            `3. Order Type: Buy in zone $${(entryOpt * 0.98).toFixed(1)} - $${(entryOpt * 1.02).toFixed(1)} (Mark ~$${entryOpt.toFixed(1)}).`,
+            `4. Take Profit GTT Order: Set Limit Exit at $${exitOpt.toFixed(1)} (+50% profit target).`,
+            `5. Stop Loss GTT Order: Set Stop Exit at $${(entryOpt * 0.70).toFixed(1)} (Underlying Spot SL: $${setup.sl.toLocaleString()}).`
           ]
         };
 
