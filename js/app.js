@@ -140,6 +140,7 @@ window.DeltaApp = (function() {
       DeltaPlanner.runInrCalculator();
     } else if (tab === 'COACH') {
       renderCoachTab();
+      setTimeout(() => { if (window.DeltaLiveChart) DeltaLiveChart.initChart(); }, 60);
     }
 
     window.scrollTo({ top: 0, behavior: 'smooth' });

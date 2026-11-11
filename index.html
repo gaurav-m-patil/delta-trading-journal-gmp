@@ -488,6 +488,88 @@
   <!-- TAB 3: AI COACH & EDGE ANALYTICS SCREEN    -->
   <!-- ========================================== -->
   <div id="view_COACH" class="hidden max-w-5xl mx-auto space-y-6">
+    <!-- 1. LIVE BTC/USD TICK-BY-TICK EXECUTION TERMINAL -->
+    <section class="bg-cardDark border border-borderDark p-4 sm:p-5 rounded-2xl shadow-md space-y-4">
+      <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 pb-3 border-b border-borderDark/80">
+        <div>
+          <div class="flex items-center gap-2.5">
+            <div class="h-8 w-8 rounded-lg bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center text-indigo-400 font-bold text-sm">
+              <i class="fa-brands fa-bitcoin"></i>
+            </div>
+            <div>
+              <div class="flex items-center gap-2">
+                <h2 class="font-bold text-sm sm:text-base text-white font-mono">BTC/USD Live Terminal</h2>
+                <span id="wsLiveBadge" class="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 flex items-center gap-1.5">
+                  <span class="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-ping"></span> Live Tick Stream
+                </span>
+              </div>
+              <p class="text-[10px] text-slate-400 font-mono">Institutional SMC Setup Radar • Zero-Lag Canvas</p>
+            </div>
+          </div>
+        </div>
+
+        <div class="flex items-center justify-between sm:justify-end w-full sm:w-auto gap-4">
+          <div class="text-left sm:text-right">
+            <span class="text-[9px] uppercase tracking-wider text-slate-400 block font-sans">Index Price (USD)</span>
+            <span id="chartLivePriceHeader" class="text-lg sm:text-2xl font-bold font-mono text-winGreen">$74,000.0</span>
+          </div>
+
+          <!-- Timeframe Selector -->
+          <div class="flex items-center bg-brandDark border border-borderDark rounded-xl p-1 gap-1">
+            <button onclick="DeltaLiveChart.loadTimeframe('1m')" id="btnTf_1m" class="px-2.5 py-1 text-xs font-bold rounded-lg text-slate-400 hover:text-white bg-panelDark font-mono">1m</button>
+            <button onclick="DeltaLiveChart.loadTimeframe('5m')" id="btnTf_5m" class="px-2.5 py-1 text-xs font-bold rounded-lg text-slate-400 hover:text-white bg-panelDark font-mono">5m</button>
+            <button onclick="DeltaLiveChart.loadTimeframe('15m')" id="btnTf_15m" class="px-2.5 py-1 text-xs font-bold rounded-lg bg-indigo-600 text-white font-mono shadow-sm">15m</button>
+            <button onclick="DeltaLiveChart.loadTimeframe('1h')" id="btnTf_1h" class="px-2.5 py-1 text-xs font-bold rounded-lg text-slate-400 hover:text-white bg-panelDark font-mono">1h</button>
+            <button onclick="DeltaLiveChart.loadTimeframe('4h')" id="btnTf_4h" class="px-2.5 py-1 text-xs font-bold rounded-lg text-slate-400 hover:text-white bg-panelDark font-mono">4h</button>
+            <button onclick="DeltaLiveChart.loadTimeframe('1D')" id="btnTf_1D" class="px-2.5 py-1 text-xs font-bold rounded-lg text-slate-400 hover:text-white bg-panelDark font-mono">1D</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Live Signal Radar Banner -->
+      <div id="liveSignalBanner">
+        <div class="p-3 rounded-xl bg-brandDark/40 border border-borderDark/60 flex items-center justify-between text-xs text-slate-400 font-mono">
+          <span class="flex items-center gap-2">
+            <i class="fa-solid fa-radar text-indigo-400"></i> Scanning BTC candles for active Liquidity Sweeps and FVG Imbalances...
+          </span>
+        </div>
+      </div>
+
+      <!-- TradingView Canvas Container -->
+      <div id="tvLiveChartContainer" class="w-full rounded-xl overflow-hidden border border-borderDark bg-[#0b0f17] shadow-inner relative min-h-[420px]"></div>
+
+      <!-- Time-Machine Algorithmic Backtest Scorecard -->
+      <div class="bg-brandDark/80 border border-borderDark rounded-xl p-3.5 space-y-2">
+        <div class="flex justify-between items-center pb-2 border-b border-borderDark/60">
+          <div class="flex items-center gap-2">
+            <span class="text-[10px] font-bold uppercase tracking-wider text-indigo-300 flex items-center gap-1.5">
+              <i class="fa-solid fa-stopwatch text-indigo-400"></i> Quant Time-Machine Simulation (Across Active Bars)
+            </span>
+          </div>
+          <span class="text-[10px] text-slate-400 font-mono" id="btTradeCount">0 setups evaluated</span>
+        </div>
+
+        <div class="grid grid-cols-2 sm:grid-cols-4 gap-2.5 pt-1 text-center font-mono">
+          <div class="bg-panelDark/40 p-2 rounded-lg border border-borderDark/50">
+            <span class="text-[9px] uppercase tracking-wider text-slate-400 block font-sans">Simulated Win Rate</span>
+            <span id="btWinRate" class="text-sm sm:text-base font-bold text-winGreen">--%</span>
+          </div>
+          <div class="bg-panelDark/40 p-2 rounded-lg border border-borderDark/50">
+            <span class="text-[9px] uppercase tracking-wider text-slate-400 block font-sans">Profit Factor</span>
+            <span id="btProfitFactor" class="text-sm sm:text-base font-bold text-white">--</span>
+          </div>
+          <div class="bg-panelDark/40 p-2 rounded-lg border border-borderDark/50">
+            <span class="text-[9px] uppercase tracking-wider text-slate-400 block font-sans">Max Drawdown</span>
+            <span id="btMaxDrawdown" class="text-sm sm:text-base font-bold text-lossRed">--R</span>
+          </div>
+          <div class="bg-panelDark/40 p-2 rounded-lg border border-borderDark/50">
+            <span class="text-[9px] uppercase tracking-wider text-slate-400 block font-sans">Net Expectancy</span>
+            <span id="btExpectancy" class="text-sm sm:text-base font-bold text-winGreen">--R</span>
+          </div>
+        </div>
+      </div>
+    </section>
+
     <!-- Top Cockpit Header -->
     <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 bg-cardDark border border-borderDark p-4 md:p-5 rounded-2xl shadow-md">
       <div>
@@ -597,7 +679,10 @@
   </nav>
 
   <!-- Application Script Pipeline -->
+  <script src="vendor/lightweight-charts.js?v=3.0.0"></script>
   <script src="js/config.js?v=3.0.0"></script>
+  <script src="js/smc-strategy.js?v=3.0.0"></script>
+  <script src="js/chart-engine.js?v=3.0.0"></script>
   <script src="js/db.js?v=3.0.0"></script>
   <script src="js/quant.js?v=3.0.0"></script>
   <script src="js/coach.js?v=3.0.0"></script>
