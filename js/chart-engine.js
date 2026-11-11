@@ -217,12 +217,28 @@ window.DeltaLiveChart = (function() {
    */
   function initChart() {
     const container = document.getElementById('tvLiveChartContainer');
-    if (!container || chart) return;
+    if (!container) return;
+
+    if (chart) {
+      // Container exists and chart already created: refresh layout & ensure candles are loaded
+      const width = container.clientWidth || 360;
+      chart.applyOptions({ width });
+      if (!candleData || candleData.length === 0) {
+        loadTimeframe(activeTimeframe);
+      } else {
+        chart.timeScale().fitContent();
+        renderPositionBox(selectedTrade);
+      }
+      return;
+    }
+
+    const chartHeight = window.innerWidth < 640 ? 350 : 430;
+    const initialWidth = container.clientWidth || (window.innerWidth < 640 ? (window.innerWidth - 32) : 800);
 
     // Create TradingView Chart
     chart = LightweightCharts.createChart(container, {
-      width: container.clientWidth,
-      height: 420,
+      width: initialWidth,
+      height: chartHeight,
       layout: {
         background: { color: '#0b0f17' },
         textColor: '#94a3b8',
@@ -327,68 +343,143 @@ window.DeltaLiveChart = (function() {
     loadTimeframe(activeTimeframe);
   }
 
+  let deltaTickerPollInterval = null;
+
   /**
-   * Loads historical candles and connects live WebSocket for selected timeframe
+   * Loads historical candles and connects live WebSocket for selected timeframe.
+   * Uses Delta Exchange India (Primary - 100% reliable in India) with Binance as secondary fallback.
    */
   async function loadTimeframe(tf) {
     activeTimeframe = tf;
     updateTimeframeButtons(tf);
 
-    // 1. Close existing live WebSocket stream if active
+    // 1. Close existing live WebSocket stream and polling if active
     if (wsConnection) {
       try { wsConnection.close(); } catch (e) {}
       wsConnection = null;
     }
-
-    // 2. Fetch historical OHLCV bars via public Binance REST (Raw UTC timestamps)
-    const interval = TIMEFRAME_MAP[tf] || '15m';
-    const restUrl = `https://api.binance.com/api/v3/klines?symbol=${activeSymbol}&interval=${interval}&limit=500`;
-
-    try {
-      const res = await fetch(restUrl);
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const rawBars = await res.json();
-
-      candleData = rawBars.map(b => {
-        const timeSec = Math.floor(b[0] / 1000);
-        const open = parseFloat(b[1]);
-        const high = parseFloat(b[2]);
-        const low = parseFloat(b[3]);
-        const close = parseFloat(b[4]);
-        const vol = parseFloat(b[5]);
-
-        return {
-          time: timeSec,
-          open,
-          high,
-          low,
-          close,
-          volume: vol
-        };
-      });
-
-      // Update Chart Series
-      candleSeries.setData(candleData);
-
-      const volumeData = candleData.map(c => ({
-        time: c.time,
-        value: c.volume,
-        color: c.close >= c.open ? 'rgba(16, 185, 129, 0.35)' : 'rgba(244, 63, 94, 0.35)'
-      }));
-      volumeSeries.setData(volumeData);
-
-      chart.timeScale().fitContent();
-
-      // 3. Execute Algorithmic SMC Confluence Analysis
-      runSMCAnalysisAndBacktest();
-
-      // 4. Connect Live Tick-by-Tick WebSocket
-      connectLiveWebSocket(interval);
-
-    } catch (err) {
-      console.warn("REST load error, trying Delta Exchange fallback:", err);
-      loadDeltaFallback(tf);
+    if (deltaTickerPollInterval) {
+      clearInterval(deltaTickerPollInterval);
+      deltaTickerPollInterval = null;
     }
+
+    const resMapDelta = { '1m': '1m', '5m': '5m', '15m': '15m', '1h': '1h', '4h': '4h', '1D': '1d' };
+    const deltaRes = resMapDelta[tf] || '15m';
+    const end = Math.floor(Date.now() / 1000);
+    const start = end - (86400 * 4); // 4 days of history (~384 candles)
+
+    let loadedBars = null;
+
+    // 2a. PRIMARY: Delta Exchange India Native Historical Candles (100% unblocked in India)
+    try {
+      const deltaUrl = `https://api.india.delta.exchange/v2/history/candles?resolution=${deltaRes}&symbol=BTCUSD&start=${start}&end=${end}`;
+      const res = await fetch(deltaUrl, { cache: 'no-store' });
+      if (res.ok) {
+        const json = await res.json();
+        if (json && json.result && Array.isArray(json.result) && json.result.length > 0) {
+          // Delta returns newest first; sort ascending for TradingView Lightweight Charts
+          const sorted = json.result.map(c => ({
+            time: c.time,
+            open: parseFloat(c.open),
+            high: parseFloat(c.high),
+            low: parseFloat(c.low),
+            close: parseFloat(c.close),
+            volume: parseFloat(c.volume || 0)
+          })).sort((a, b) => a.time - b.time);
+
+          // Deduplicate and filter out any invalid values
+          const clean = [];
+          const seen = new Set();
+          for (const c of sorted) {
+            if (!seen.has(c.time) && !isNaN(c.close) && c.close > 0) {
+              seen.add(c.time);
+              clean.push(c);
+            }
+          }
+          if (clean.length > 15) {
+            loadedBars = clean;
+          }
+        }
+      }
+    } catch (e) {
+      console.warn("Delta Exchange India candles fetch notice:", e);
+    }
+
+    // 2b. SECONDARY: Binance REST Klines (if Delta was unreachable)
+    if (!loadedBars) {
+      try {
+        const interval = TIMEFRAME_MAP[tf] || '15m';
+        const restUrl = `https://api.binance.com/api/v3/klines?symbol=${activeSymbol}&interval=${interval}&limit=500`;
+        const res = await fetch(restUrl);
+        if (res.ok) {
+          const rawBars = await res.json();
+          loadedBars = rawBars.map(b => ({
+            time: Math.floor(b[0] / 1000),
+            open: parseFloat(b[1]),
+            high: parseFloat(b[2]),
+            low: parseFloat(b[3]),
+            close: parseFloat(b[4]),
+            volume: parseFloat(b[5])
+          }));
+        }
+      } catch (err) {
+        console.warn("Binance REST candles notice:", err);
+      }
+    }
+
+    if (!loadedBars || loadedBars.length === 0) {
+      console.error("Unable to load candles from network providers.");
+      return;
+    }
+
+    candleData = loadedBars;
+
+    // Update Chart Series
+    if (candleSeries) candleSeries.setData(candleData);
+
+    const volumeData = candleData.map(c => ({
+      time: c.time,
+      value: c.volume,
+      color: c.close >= c.open ? 'rgba(16, 185, 129, 0.35)' : 'rgba(244, 63, 94, 0.35)'
+    }));
+    if (volumeSeries) volumeSeries.setData(volumeData);
+
+    if (chart) chart.timeScale().fitContent();
+
+    // Update Header Live Price immediately
+    const latestCandle = candleData[candleData.length - 1];
+    const priceHeader = document.getElementById('chartLivePriceHeader');
+    if (priceHeader && latestCandle) {
+      priceHeader.innerText = `$${latestCandle.close.toLocaleString('en-US', { minimumFractionDigits: 1, maximumFractionDigits: 1 })}`;
+      priceHeader.className = `text-lg sm:text-2xl font-bold font-mono ${latestCandle.close >= latestCandle.open ? 'text-winGreen' : 'text-lossRed'}`;
+    }
+
+    // 3. Execute Algorithmic SMC Confluence Analysis
+    runSMCAnalysisAndBacktest();
+
+    // 4. Connect Live Tick-by-Tick WebSocket & Delta Ticker Fallback
+    const interval = TIMEFRAME_MAP[tf] || '15m';
+    connectLiveWebSocket(interval);
+    startDeltaTickerPoll();
+  }
+
+  function startDeltaTickerPoll() {
+    if (deltaTickerPollInterval) clearInterval(deltaTickerPollInterval);
+    deltaTickerPollInterval = setInterval(async () => {
+      try {
+        const res = await fetch('https://api.india.delta.exchange/v2/tickers/BTCUSD', { cache: 'no-store' });
+        if (res.ok) {
+          const json = await res.json();
+          if (json && json.result && json.result.mark_price) {
+            const markPrice = parseFloat(json.result.mark_price);
+            const priceHeader = document.getElementById('chartLivePriceHeader');
+            if (priceHeader && !isNaN(markPrice)) {
+              priceHeader.innerText = `$${markPrice.toLocaleString('en-US', { minimumFractionDigits: 1, maximumFractionDigits: 1 })}`;
+            }
+          }
+        }
+      } catch (e) {}
+    }, 3500);
   }
 
   /**
@@ -730,9 +821,18 @@ window.DeltaLiveChart = (function() {
    * Opens the deep-dive educational breakdown modal for a trade
    */
   function openTradeDetailsModal(tradeId) {
-    const idToUse = tradeId || (selectedTrade ? selectedTrade.id : null);
-    if (!currentAnalysis || !currentAnalysis.trades) return;
-    const t = currentAnalysis.trades.find(x => x.id === idToUse);
+    if (!currentAnalysis || !currentAnalysis.trades || currentAnalysis.trades.length === 0) return;
+
+    let t = null;
+    if (tradeId) {
+      t = currentAnalysis.trades.find(x => x.id === tradeId);
+    }
+    if (!t && selectedTrade) {
+      t = currentAnalysis.trades.find(x => x.id === selectedTrade.id) || selectedTrade;
+    }
+    if (!t) {
+      t = currentAnalysis.latestActiveTrade || currentAnalysis.trades[currentAnalysis.trades.length - 1];
+    }
     if (!t) return;
 
     const modal = document.getElementById('algoTradeModal');
@@ -740,11 +840,17 @@ window.DeltaLiveChart = (function() {
 
     const isCall = t.direction === "LONG";
     const d = new Date(t.time * 1000);
-    const timeStr = d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true });
-    const dateStr = d.toLocaleDateString([], { month: 'short', day: 'numeric', year: 'numeric' });
+    const timeStr = d.toLocaleTimeString('en-IN', { timeZone: 'Asia/Kolkata', hour: '2-digit', minute: '2-digit', hour12: true });
+    const dateStr = d.toLocaleDateString('en-IN', { timeZone: 'Asia/Kolkata', month: 'short', day: 'numeric', year: 'numeric' });
 
-    document.getElementById('atmModalTitle').innerText = `${t.name} (${isCall ? 'CALL OPTION' : 'PUT OPTION'})`;
-    document.getElementById('atmModalTime').innerText = `${dateStr} at ${timeStr} Local Time`;
+    document.getElementById('atmModalTitle').innerText = t.name;
+    document.getElementById('atmModalTime').innerText = `${dateStr} at ${timeStr} IST (Indian Standard Time)`;
+
+    const dirBadgeEl = document.getElementById('atmModalDirectionBadge');
+    if (dirBadgeEl) {
+      dirBadgeEl.className = `px-2 py-0.5 rounded text-[10px] font-bold font-mono uppercase ${isCall ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' : 'bg-rose-500/20 text-rose-400 border border-rose-500/30'}`;
+      dirBadgeEl.innerHTML = `<i class="fa-solid ${isCall ? 'fa-arrow-trend-up' : 'fa-arrow-trend-down'} mr-1"></i> ${isCall ? 'BUY CALL OPTION' : 'BUY PUT OPTION'}`;
+    }
 
     // Outcome Badge
     const badgeEl = document.getElementById('atmModalOutcomeBadge');
@@ -803,6 +909,71 @@ window.DeltaLiveChart = (function() {
     const durMin = (t.barsHeld || 1) * 15;
     const durStr = durMin >= 60 ? `${Math.floor(durMin / 60)}h ${durMin % 60}m` : `${durMin}m`;
 
+    // Dynamic Action Guidance Banner
+    const actionBanner = document.getElementById('atmModalActionBanner');
+    if (actionBanner) {
+      if (t.outcome === "ACTIVE") {
+        actionBanner.className = "p-3 sm:p-3.5 rounded-xl border border-emerald-500/50 bg-emerald-950/30 text-xs font-mono space-y-1.5";
+        actionBanner.innerHTML = `
+          <div class="flex items-center justify-between">
+            <span class="text-winGreen font-bold flex items-center gap-1.5">
+              <span class="h-2 w-2 rounded-full bg-emerald-400 animate-ping"></span>
+              ⚡ ACTION REQUIRED: ENTER ${isCall ? 'CALL OPTION' : 'PUT OPTION'}
+            </span>
+            <span class="text-[10px] text-slate-400">Order: Buy Limit</span>
+          </div>
+          <div class="text-slate-200">
+            Buy <strong class="text-white bg-indigo-900/60 px-1.5 py-0.5 rounded">${contractSymbol}</strong> in Buy Zone <strong class="text-emerald-400">$${entryOpt.toFixed(1)} - $${(entryOpt * 1.05).toFixed(1)}</strong>.
+          </div>
+          <div class="text-[11px] text-slate-400 pt-1 border-t border-emerald-500/20 flex flex-wrap justify-between gap-1">
+            <span>TP Target: <strong class="text-winGreen">$${exitOpt.toFixed(1)} (+50%)</strong></span>
+            <span>SL Stop: <strong class="text-lossRed">$${(entryOpt * 0.70).toFixed(1)} (-30%)</strong></span>
+            <span>Spot Invalidation: <strong class="text-slate-300">$${t.sl.toLocaleString()}</strong></span>
+          </div>
+        `;
+      } else if (t.outcome === "WIN") {
+        actionBanner.className = "p-3 sm:p-3.5 rounded-xl border border-emerald-500/30 bg-emerald-950/20 text-xs font-mono space-y-1";
+        actionBanner.innerHTML = `
+          <div class="flex items-center justify-between">
+            <span class="text-winGreen font-bold flex items-center gap-1.5">
+              <i class="fa-solid fa-circle-check"></i> TARGET REACHED (+50% GROSS / +40% NET)
+            </span>
+            <span class="text-[10px] text-slate-400 font-sans">${exitTimeStr} IST</span>
+          </div>
+          <div class="text-slate-300 text-[11px]">
+            Target hit at BTC Spot <strong>$${t.tp.toLocaleString()}</strong>. Option surged from <strong>$${entryOpt.toFixed(1)}</strong> to <strong>$${exitOpt.toFixed(1)}</strong> (+${pnlDiff.toFixed(1)} pts).
+          </div>
+        `;
+      } else if (t.outcome === "LOSS") {
+        actionBanner.className = "p-3 sm:p-3.5 rounded-xl border border-rose-500/30 bg-rose-950/20 text-xs font-mono space-y-1";
+        actionBanner.innerHTML = `
+          <div class="flex items-center justify-between">
+            <span class="text-lossRed font-bold flex items-center gap-1.5">
+              <i class="fa-solid fa-circle-xmark"></i> STOP LOSS HIT (-30% PRESERVATION EXIT)
+            </span>
+            <span class="text-[10px] text-slate-400 font-sans">${exitTimeStr} IST</span>
+          </div>
+          <div class="text-slate-300 text-[11px]">
+            Price touched invalidation at <strong>$${t.sl.toLocaleString()}</strong>. Controlled stop closed option at <strong>$${exitOpt.toFixed(1)}</strong>, protecting 70% of capital.
+          </div>
+        `;
+      } else {
+        // TIMEOUT
+        actionBanner.className = "p-3 sm:p-3.5 rounded-xl border border-slate-500/30 bg-panelDark/60 text-xs font-mono space-y-1";
+        actionBanner.innerHTML = `
+          <div class="flex items-center justify-between">
+            <span class="text-slate-300 font-bold flex items-center gap-1.5">
+              <i class="fa-solid fa-hourglass-end text-amber-400"></i> TIMEOUT SCRATCH (THETA DECAY DEFENSE)
+            </span>
+            <span class="text-[10px] text-slate-400 font-sans">${exitTimeStr} IST</span>
+          </div>
+          <div class="text-slate-300 text-[11px]">
+            Sideways consolidation for 5+ hours (${t.barsHeld} bars). Closed position cleanly to avoid compounding theta erosion.
+          </div>
+        `;
+      }
+    }
+
     const contractBadge = document.getElementById('atmModalContractBadge');
     if (contractBadge) contractBadge.innerText = `${contractSymbol} (${strikeTier})`;
 
@@ -822,7 +993,7 @@ window.DeltaLiveChart = (function() {
     const optionExitEl = document.getElementById('atmModalOptionExit');
     const netReturnEl = document.getElementById('atmModalNetPoints');
 
-    if (exitTimeEl) exitTimeEl.innerText = `${exitTimeStr} IST (Held ${durStr} / ${t.barsHeld} bars)`;
+    if (exitTimeEl) exitTimeEl.innerText = `${exitTimeStr} IST (${durStr} hold)`;
     if (exitSpotEl) exitSpotEl.innerText = `$${t.exitPrice.toLocaleString()}`;
     if (optionExitEl) {
       const pnlPct = ((pnlDiff / entryOpt) * 100).toFixed(1);
@@ -883,7 +1054,6 @@ window.DeltaLiveChart = (function() {
     document.getElementById('atmModalNarrative').innerText = dynamicNarrative;
 
     // Playbook steps with real Delta contract
-    const opt = t.realOption;
     const stepsContainer = document.getElementById('atmModalPlaybook');
     if (stepsContainer) {
       if (opt && opt.isLive) {
@@ -1090,7 +1260,7 @@ Expected Profit: +50% Option Gross / +40% Net`;
 
     tbody.innerHTML = sorted.map(t => {
       const d = new Date(t.time * 1000);
-      const dateStr = d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true });
+      const dateStr = d.toLocaleTimeString('en-IN', { timeZone: 'Asia/Kolkata', hour: '2-digit', minute: '2-digit', hour12: true });
       const isCall = t.direction === "LONG";
       const isWin = t.outcome === "WIN";
       const isLoss = t.outcome === "LOSS";
@@ -1156,41 +1326,6 @@ Expected Profit: +50% Option Gross / +40% Net`;
         btn.className = "px-2.5 py-1 text-xs font-bold rounded-lg text-slate-400 hover:text-white bg-panelDark font-mono shrink-0";
       }
     });
-  }
-
-  /**
-   * Fallback for historical candles using Delta Exchange public endpoint
-   */
-  async function loadDeltaFallback(tf) {
-    const resMap = { '1m': '1', '5m': '5', '15m': '15', '1h': '60', '4h': '240', '1D': '1D' };
-    const resolution = resMap[tf] || '15';
-    const end = Math.floor(Date.now() / 1000);
-    const start = end - (86400 * 3);
-    const url = `https://api.india.delta.exchange/v2/chart/history?symbol=BTCUSD&resolution=${resolution}&from=${start}&to=${end}`;
-
-    try {
-      const res = await fetch(url);
-      const data = await res.json();
-      if (!data.result || !data.result.c) return;
-
-      const r = data.result;
-      candleData = [];
-      for (let i = 0; i < r.t.length; i++) {
-        candleData.push({
-          time: r.t[i],
-          open: r.o[i],
-          high: r.h[i],
-          low: r.l[i],
-          close: r.c[i],
-          volume: r.v[i] || 0
-        });
-      }
-      candleSeries.setData(candleData);
-      chart.timeScale().fitContent();
-      runSMCAnalysisAndBacktest();
-    } catch (e) {
-      console.error("Delta fallback error:", e);
-    }
   }
 
   return {

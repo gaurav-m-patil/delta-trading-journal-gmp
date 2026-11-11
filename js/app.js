@@ -171,8 +171,8 @@ window.DeltaApp = (function() {
       const tag = (e.target.tagName || '').toLowerCase();
       if (drawerOpen || settingsOpen || algoModalOpen || tag === 'input' || tag === 'textarea' || tag === 'select') return;
 
-      // Never switch tabs if touching or dragging on the live chart, tables, or scrollable elements
-      if (e.target.closest('#tvLiveChartContainer') || e.target.closest('#tvPositionBoxSvg') || e.target.closest('.tv-lightweight-charts') || e.target.closest('.overflow-x-auto') || e.target.closest('table')) return;
+      // Never switch tabs if touching within the Coach / Live Chart tab, interactive components, tables, or scrollable elements
+      if (currentMainTab === 'COACH' || e.target.closest('#mainTab_COACH') || e.target.closest('#tvLiveChartContainer') || e.target.closest('#tvPositionBoxSvg') || e.target.closest('.tv-lightweight-charts') || e.target.closest('.overflow-x-auto') || e.target.closest('table')) return;
 
       const dx = e.changedTouches[0].clientX - touchStartX;
       const dy = e.changedTouches[0].clientY - touchStartY;
