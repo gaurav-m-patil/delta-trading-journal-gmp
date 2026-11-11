@@ -152,17 +152,27 @@ window.DeltaApp = (function() {
 
     document.addEventListener('touchstart', (e) => {
       if (e.touches.length !== 1) return;
+      // Do not initiate tab swipe if touching the chart canvas, modals, tables, or scrollable containers
+      if (e.target.closest('#tvLiveChartContainer') || e.target.closest('#tvPositionBoxSvg') || e.target.closest('#algoTradeModal') || e.target.closest('.tv-lightweight-charts') || e.target.closest('.overflow-x-auto') || e.target.closest('table')) {
+        touchStartX = 0;
+        touchStartY = 0;
+        return;
+      }
       touchStartX = e.touches[0].clientX;
       touchStartY = e.touches[0].clientY;
     }, { passive: true });
 
     document.addEventListener('touchend', (e) => {
-      if (e.changedTouches.length !== 1) return;
+      if (e.changedTouches.length !== 1 || touchStartX === 0) return;
 
       const drawerOpen = document.getElementById('tradeDrawer')?.classList.contains('drawer-open');
       const settingsOpen = !document.getElementById('ghSettingsModal')?.classList.contains('opacity-0');
+      const algoModalOpen = !document.getElementById('algoTradeModal')?.classList.contains('hidden');
       const tag = (e.target.tagName || '').toLowerCase();
-      if (drawerOpen || settingsOpen || tag === 'input' || tag === 'textarea' || tag === 'select') return;
+      if (drawerOpen || settingsOpen || algoModalOpen || tag === 'input' || tag === 'textarea' || tag === 'select') return;
+
+      // Never switch tabs if touching or dragging on the live chart, tables, or scrollable elements
+      if (e.target.closest('#tvLiveChartContainer') || e.target.closest('#tvPositionBoxSvg') || e.target.closest('.tv-lightweight-charts') || e.target.closest('.overflow-x-auto') || e.target.closest('table')) return;
 
       const dx = e.changedTouches[0].clientX - touchStartX;
       const dy = e.changedTouches[0].clientY - touchStartY;

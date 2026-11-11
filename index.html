@@ -514,14 +514,14 @@
             <span id="chartLivePriceHeader" class="text-lg sm:text-2xl font-bold font-mono text-winGreen">$74,000.0</span>
           </div>
 
-          <!-- Timeframe Selector -->
-          <div class="flex items-center bg-brandDark border border-borderDark rounded-xl p-1 gap-1">
-            <button onclick="DeltaLiveChart.loadTimeframe('1m')" id="btnTf_1m" class="px-2.5 py-1 text-xs font-bold rounded-lg text-slate-400 hover:text-white bg-panelDark font-mono">1m</button>
-            <button onclick="DeltaLiveChart.loadTimeframe('5m')" id="btnTf_5m" class="px-2.5 py-1 text-xs font-bold rounded-lg text-slate-400 hover:text-white bg-panelDark font-mono">5m</button>
-            <button onclick="DeltaLiveChart.loadTimeframe('15m')" id="btnTf_15m" class="px-2.5 py-1 text-xs font-bold rounded-lg bg-indigo-600 text-white font-mono shadow-sm">15m</button>
-            <button onclick="DeltaLiveChart.loadTimeframe('1h')" id="btnTf_1h" class="px-2.5 py-1 text-xs font-bold rounded-lg text-slate-400 hover:text-white bg-panelDark font-mono">1h</button>
-            <button onclick="DeltaLiveChart.loadTimeframe('4h')" id="btnTf_4h" class="px-2.5 py-1 text-xs font-bold rounded-lg text-slate-400 hover:text-white bg-panelDark font-mono">4h</button>
-            <button onclick="DeltaLiveChart.loadTimeframe('1D')" id="btnTf_1D" class="px-2.5 py-1 text-xs font-bold rounded-lg text-slate-400 hover:text-white bg-panelDark font-mono">1D</button>
+                    <!-- Timeframe Selector -->
+          <div class="flex items-center bg-brandDark border border-borderDark rounded-xl p-1 gap-1 overflow-x-auto no-scrollbar shrink-0 max-w-full">
+            <button onclick="DeltaLiveChart.loadTimeframe('1m')" id="btnTf_1m" class="px-2.5 py-1 text-xs font-bold rounded-lg text-slate-400 hover:text-white bg-panelDark font-mono shrink-0">1m</button>
+            <button onclick="DeltaLiveChart.loadTimeframe('5m')" id="btnTf_5m" class="px-2.5 py-1 text-xs font-bold rounded-lg text-slate-400 hover:text-white bg-panelDark font-mono shrink-0">5m</button>
+            <button onclick="DeltaLiveChart.loadTimeframe('15m')" id="btnTf_15m" class="px-2.5 py-1 text-xs font-bold rounded-lg bg-indigo-600 text-white font-mono shadow-sm shrink-0">15m</button>
+            <button onclick="DeltaLiveChart.loadTimeframe('1h')" id="btnTf_1h" class="px-2.5 py-1 text-xs font-bold rounded-lg text-slate-400 hover:text-white bg-panelDark font-mono shrink-0">1h</button>
+            <button onclick="DeltaLiveChart.loadTimeframe('4h')" id="btnTf_4h" class="px-2.5 py-1 text-xs font-bold rounded-lg text-slate-400 hover:text-white bg-panelDark font-mono shrink-0">4h</button>
+            <button onclick="DeltaLiveChart.loadTimeframe('1D')" id="btnTf_1D" class="px-2.5 py-1 text-xs font-bold rounded-lg text-slate-400 hover:text-white bg-panelDark font-mono shrink-0">1D</button>
           </div>
         </div>
       </div>
@@ -535,34 +535,72 @@
         </div>
       </div>
 
-      <!-- TradingView Position Tool Cockpit Box (Draws Target, SL, Entry) -->
-      <div id="tvPositionToolCockpit" class="p-3.5 rounded-xl bg-brandDark/90 border border-borderDark flex flex-col md:flex-row justify-between items-start md:items-center gap-3 shadow-inner">
-        <div class="flex items-center gap-3">
-          <div id="ptDirectionBadge" class="h-9 w-9 rounded-xl bg-winGreen/20 text-winGreen flex items-center justify-center font-bold text-base shrink-0">
-            <i class="fa-solid fa-crosshairs"></i>
-          </div>
-          <div>
-            <div class="flex items-center gap-2">
-              <span id="ptSetupName" class="text-xs font-bold text-white">Confirmed Support Bounce</span>
-              <span id="ptOutcomeBadge" class="text-[10px] font-bold font-mono px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/30">
-                <i class="fa-solid fa-circle-check mr-1"></i> TARGET HIT (+50% OPTION)
-              </span>
+      <!-- TradingView Position Tool Cockpit Box (Draws Target, SL, Entry & Real Delta Option) -->
+      <div id="tvPositionToolCockpit" class="p-3.5 sm:p-4 rounded-2xl bg-brandDark/95 border border-borderDark shadow-lg space-y-3">
+        <!-- Top Row: Setup Name, Status Badge, and Playbook Trigger -->
+        <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 pb-2.5 border-b border-borderDark/60">
+          <div class="flex items-center gap-2.5">
+            <div id="ptDirectionBadge" class="h-8 w-8 sm:h-9 sm:w-9 rounded-xl bg-winGreen/20 text-winGreen flex items-center justify-center font-bold text-sm sm:text-base shrink-0">
+              <i class="fa-solid fa-crosshairs"></i>
             </div>
-            <p class="text-[11px] text-slate-300 font-mono mt-0.5 flex flex-wrap gap-x-3">
-              <span>Entry: <strong id="ptEntry" class="text-white">$73,950.0</strong></span>
-              <span>Target (TP): <strong id="ptTp" class="text-winGreen">$74,210.0 (+260 pts)</strong></span>
-              <span>Stop Loss (SL): <strong id="ptSl" class="text-lossRed">$73,810.0 (-140 pts)</strong></span>
-              <span>R:R: <strong id="ptRR" class="text-indigo-300">1:1.85</strong></span>
-            </p>
+            <div>
+              <div class="flex flex-wrap items-center gap-1.5 sm:gap-2">
+                <span id="ptSetupName" class="text-xs sm:text-sm font-bold text-white">Confirmed Setup</span>
+                <span id="ptOutcomeBadge" class="text-[10px] font-bold font-mono px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/30">
+                  <i class="fa-solid fa-circle-check mr-1"></i> ACTIVE
+                </span>
+              </div>
+            </div>
+          </div>
+          <button onclick="DeltaLiveChart.openTradeDetailsModal()" class="w-full sm:w-auto text-[11px] px-3 py-1.5 rounded-xl bg-indigo-600/30 hover:bg-indigo-600 text-indigo-200 hover:text-white border border-indigo-500/40 font-mono font-bold transition-all flex items-center justify-center gap-1.5 shadow-sm">
+            <i class="fa-solid fa-brain text-indigo-400"></i> Trade Logic & Playbook <i class="fa-solid fa-chevron-right text-[9px] ml-0.5"></i>
+          </button>
+        </div>
+
+        <!-- 2-Column Responsive Execution Cards -->
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+          <!-- Card 1: Underlying BTC Spot Trigger Plan -->
+          <div class="bg-panelDark/60 border border-borderDark/70 rounded-xl p-3 space-y-2">
+            <div class="flex justify-between items-center text-[10px] uppercase tracking-wider text-slate-400 font-bold">
+              <span class="flex items-center gap-1.5"><i class="fa-brands fa-bitcoin text-amber-400"></i> BTC Spot Trigger Plan</span>
+              <span class="font-mono text-slate-400">R:R <strong id="ptRR" class="text-indigo-300">1:1.8</strong></span>
+            </div>
+            <div class="grid grid-cols-3 gap-2 font-mono text-xs">
+              <div class="bg-brandDark/70 p-2 rounded-lg border border-borderDark/50">
+                <span class="text-[9px] uppercase tracking-wider text-slate-400 block font-sans">Entry</span>
+                <span id="ptEntry" class="font-bold text-white text-[11px] sm:text-xs">$74,000.0</span>
+              </div>
+              <div class="bg-brandDark/70 p-2 rounded-lg border border-borderDark/50">
+                <span class="text-[9px] uppercase tracking-wider text-slate-400 block font-sans">Target (TP)</span>
+                <span id="ptTp" class="font-bold text-winGreen text-[11px] sm:text-xs">$74,210.0</span>
+              </div>
+              <div class="bg-brandDark/70 p-2 rounded-lg border border-borderDark/50">
+                <span class="text-[9px] uppercase tracking-wider text-slate-400 block font-sans">Stop (SL)</span>
+                <span id="ptSl" class="font-bold text-lossRed text-[11px] sm:text-xs">$73,810.0</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Card 2: Real Delta Exchange India Option Recommendation -->
+          <div class="bg-indigo-950/20 border border-indigo-500/30 rounded-xl p-3 space-y-2">
+            <div class="flex justify-between items-center">
+              <span class="text-[10px] uppercase tracking-wider text-indigo-300 font-bold flex items-center gap-1.5">
+                <i class="fa-solid fa-bolt text-indigo-400"></i> Delta India Option Contract
+              </span>
+              <span id="ptDeltaLiveTag" class="text-[9px] font-mono px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 font-bold">Live Delta Feed</span>
+            </div>
+            <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 font-mono">
+              <div>
+                <span id="ptContractSymbol" class="text-xs sm:text-sm font-bold text-white tracking-wide block">C-BTC-74000</span>
+                <span class="text-[10px] text-slate-400 font-sans">Buy Zone: <strong id="ptDeltaBuyZone" class="text-indigo-200 font-mono">$210.0 - $225.0</strong></span>
+              </div>
+              <div class="flex sm:flex-col items-center sm:items-end justify-between w-full sm:w-auto text-right">
+                <div class="text-[10px] text-slate-400">Mark: <strong id="ptDeltaMark" class="text-white font-mono">$220.0</strong></div>
+                <div class="text-xs font-bold text-winGreen font-mono">Target: <strong id="ptDeltaTarget" class="text-winGreen">$330.0 (+50%)</strong></div>
+              </div>
+            </div>
           </div>
         </div>
-        <div class="bg-panelDark px-3 py-1.5 rounded-lg border border-borderDark/80 text-left md:text-right w-full md:w-auto">
-          <span class="text-[9px] uppercase tracking-wider text-slate-400 block font-sans">Delta Option Contract</span>
-          <span id="ptContract" class="text-xs font-bold font-mono text-indigo-300">Buy C-BTC-74000 (Target: 200 &rarr; 300)</span>
-        </div>
-        <button onclick="DeltaLiveChart.openTradeDetailsModal()" class="mt-2 text-[10px] px-2.5 py-1.5 rounded-lg bg-indigo-600/40 hover:bg-indigo-600 text-indigo-300 hover:text-white border border-indigo-500/50 font-mono font-bold transition-colors flex items-center gap-1.5 shadow-sm">
-          <i class="fa-solid fa-circle-info"></i> Why Was This Taken? (Logic & Playbook)
-        </button>
       </div>
 
       <!-- Chart Toolbar: Active Projection Label & Position Tool Controls -->
