@@ -2,7 +2,27 @@
  * Delta Trading Journal - Custom Enhancements & Animations
  */
 
-/* Custom Scrollbars */
+/* Custom & Global Dark Scrollbars (Eliminate OS white scrollbars) */
+::-webkit-scrollbar {
+  height: 6px;
+  width: 6px;
+}
+::-webkit-scrollbar-thumb {
+  background: #1e293b;
+  border-radius: 4px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #334155;
+}
+::-webkit-scrollbar-track {
+  background: #080b11;
+}
+
+* {
+  scrollbar-width: thin;
+  scrollbar-color: #1e293b #080b11;
+}
+
 .custom-scroll::-webkit-scrollbar {
   height: 6px;
   width: 6px;

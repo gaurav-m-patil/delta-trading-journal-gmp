@@ -20,7 +20,7 @@
   <script src="vendor/firebase-firestore-compat.js"></script>
 
   <!-- Custom Stylesheets -->
-  <link rel="stylesheet" href="css/app.css?v=3.3.0">
+  <link rel="stylesheet" href="css/app.css?v=3.3.1">
 
   <script>
     tailwind.config = {
@@ -666,7 +666,7 @@
           <span class="text-[10px] text-emerald-400 font-mono font-bold">66.7% Backtested Win Rate</span>
         </div>
 
-        <div class="overflow-x-auto max-h-[260px] overflow-y-auto">
+        <div class="overflow-x-auto max-h-[260px] overflow-y-auto custom-scroll">
           <table class="w-full text-left text-xs font-mono">
             <thead>
               <tr class="text-[10px] text-slate-400 uppercase border-b border-borderDark">
@@ -875,18 +875,18 @@
   </nav>
 
   <!-- Application Script Pipeline -->
-  <script src="vendor/lightweight-charts.js?v=3.3.0"></script>
-  <script src="js/config.js?v=3.3.0"></script>
-  <script src="js/smc-strategy.js?v=3.3.0"></script>
-  <script src="js/chart-engine.js?v=3.3.0"></script>
-  <script src="js/db.js?v=3.3.0"></script>
-  <script src="js/quant.js?v=3.3.0"></script>
-  <script src="js/coach.js?v=3.3.0"></script>
-  <script src="js/planner.js?v=3.3.0"></script>
-  <script src="js/app.js?v=3.3.0"></script>
+  <script src="vendor/lightweight-charts.js?v=3.3.1"></script>
+  <script src="js/config.js?v=3.3.1"></script>
+  <script src="js/smc-strategy.js?v=3.3.1"></script>
+  <script src="js/chart-engine.js?v=3.3.1"></script>
+  <script src="js/db.js?v=3.3.1"></script>
+  <script src="js/quant.js?v=3.3.1"></script>
+  <script src="js/coach.js?v=3.3.1"></script>
+  <script src="js/planner.js?v=3.3.1"></script>
+  <script src="js/app.js?v=3.3.1"></script>
   <script>
     if ('serviceWorker' in navigator) {
-      navigator.serviceWorker.register('sw.js?v=3.3.0').then(function(reg) {
+      navigator.serviceWorker.register('sw.js?v=3.3.1').then(function(reg) {
         reg.update();
       });
     }

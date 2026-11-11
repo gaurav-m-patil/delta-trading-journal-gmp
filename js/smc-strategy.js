@@ -352,17 +352,17 @@ window.DeltaSMCStrategy = (function() {
         const isCall = setup.direction === "LONG";
         const prefix = isCall ? 'CALL' : 'PUT';
 
-        let labelText = `${prefix} ACTIVE`;
+        let labelText = prefix;
         let markerColor = isCall ? "#38bdf8" : "#818cf8";
 
         if (isWin) {
-          labelText = `${prefix} WIN [+50%]`;
+          labelText = "+50%";
           markerColor = isCall ? "#10b981" : "#f43f5e";
         } else if (isLoss) {
-          labelText = `${prefix} SL [-1R]`;
+          labelText = "-1R";
           markerColor = isCall ? "#059669" : "#e11d48";
         } else if (!isActive) {
-          labelText = `${prefix} TIMEOUT`;
+          labelText = "Scratch";
           markerColor = "#64748b";
         }
 
@@ -372,7 +372,7 @@ window.DeltaSMCStrategy = (function() {
           color: markerColor,
           shape: isCall ? "arrowUp" : "arrowDown",
           text: labelText,
-          size: 1.5,
+          size: 1,
           tradeRef: setup
         });
 

@@ -61,16 +61,21 @@ window.DeltaLiveChart = (function() {
   }
 
   /**
-   * Resolves the smartest, real-world active Delta Exchange India option contract for a setup
+   * Resolves the smartest, real-world active Delta Exchange India option contract for a setup.
+   * Strictly evaluates:
+   * 1. Nearest unexpired active settlement date (e.g. today / tomorrow 17:30 IST).
+   * 2. Either Exact ATM (Delta ~0.50, closest strike to spot) or Next Strike OTM (within 1 strike).
+   * 3. Absolutely ZERO far OTM contracts.
    */
   function resolveRealDeltaContract(direction, spotPrice, tickers) {
     const isCall = direction === "LONG";
-    const atmStrike = Math.round(spotPrice / 500) * 500;
+    const atmStrikeEstimate = Math.round(spotPrice / 200) * 200;
 
     if (!tickers || tickers.length === 0) {
       return {
-        symbol: isCall ? `C-BTC-${atmStrike}` : `P-BTC-${atmStrike}`,
-        strike: atmStrike,
+        symbol: isCall ? `C-BTC-${atmStrikeEstimate}` : `P-BTC-${atmStrikeEstimate}`,
+        strike: atmStrikeEstimate,
+        strikeTier: "Exact ATM (Delta ~0.50)",
         markPrice: 220.0,
         buyZone: "$210.0 - $225.0",
         targetPrice: 330.0,
@@ -84,36 +89,107 @@ window.DeltaLiveChart = (function() {
     const type = isCall ? "call_options" : "put_options";
     const candidates = tickers.filter(t => t.contract_type === type);
 
-    // Filter near ATM (within 1.8% of spot) with active mark price
-    const nearAtm = candidates.filter(t => {
-      const strike = parseFloat(t.strike_price);
-      const mark = parseFloat(t.mark_price || 0);
-      return Math.abs(strike - spotPrice) <= (spotPrice * 0.018) && mark >= 80 && mark <= 450;
-    });
+    // 1. Filter out already-expired contracts and group by expiration timestamp
+    const now = Date.now();
+    const activeWithExpiry = [];
 
-    // Sort to find the contract closest to the $200-$250 sweet spot
-    nearAtm.sort((a, b) => {
-      const distA = Math.abs(parseFloat(a.mark_price || 0) - 220);
-      const distB = Math.abs(parseFloat(b.mark_price || 0) - 220);
+    for (const c of candidates) {
+      if (!c.symbol) continue;
+      const parts = c.symbol.split('-');
+      if (parts.length >= 4) {
+        const dStr = parts[3];
+        if (dStr && dStr.length === 6) {
+          const day = parseInt(dStr.substring(0, 2), 10);
+          const month = parseInt(dStr.substring(2, 4), 10) - 1;
+          const year = 2000 + parseInt(dStr.substring(4, 6), 10);
+          // Delta Exchange options expire at 12:00 UTC (17:30 IST)
+          const expiryTs = Date.UTC(year, month, day, 12, 0, 0);
+          if (expiryTs > now) {
+            activeWithExpiry.push({ contract: c, expiryTs });
+          }
+        }
+      }
+    }
+
+    if (activeWithExpiry.length === 0) {
+      return {
+        symbol: isCall ? `C-BTC-${atmStrikeEstimate}` : `P-BTC-${atmStrikeEstimate}`,
+        strike: atmStrikeEstimate,
+        strikeTier: "Exact ATM (Delta ~0.50)",
+        markPrice: 220.0,
+        buyZone: "$210.0 - $225.0",
+        targetPrice: 330.0,
+        stopPrice: 154.0,
+        targetGainPct: "+50.0%",
+        stopLossPct: "-30.0%",
+        isLive: false
+      };
+    }
+
+    // 2. Find the nearest upcoming active expiration date
+    activeWithExpiry.sort((a, b) => a.expiryTs - b.expiryTs);
+    const nearestExpiryTs = activeWithExpiry[0].expiryTs;
+    const nearestContracts = activeWithExpiry
+      .filter(x => x.expiryTs === nearestExpiryTs)
+      .map(x => x.contract);
+
+    // 3. Find Exact ATM and Next Strike (OTM-1)
+    // Sort all nearest contracts by strike distance to spot
+    nearestContracts.sort((a, b) => {
+      const distA = Math.abs(parseFloat(a.strike_price) - spotPrice);
+      const distB = Math.abs(parseFloat(b.strike_price) - spotPrice);
       return distA - distB;
     });
 
-    const best = nearAtm.length > 0 ? nearAtm[0] : (candidates.length > 0 ? candidates[0] : null);
+    const atmCandidate = nearestContracts[0];
+
+    // Find the next strike (1 strike OTM: higher strike for CALL, lower strike for PUT)
+    const nextOtmCandidate = nearestContracts.find(c => {
+      const s = parseFloat(c.strike_price);
+      if (isCall) {
+        return s > spotPrice && (s - spotPrice) <= 450;
+      } else {
+        return s < spotPrice && (spotPrice - s) <= 450;
+      }
+    });
+
+    // 4. Intelligent Selection:
+    // If ATM has valid mark price <= 750, ATM is prime (Delta ~0.50, moves 1:2 with BTC spot).
+    // If ATM is above 750 or next OTM offers superior risk/reward, next OTM is chosen.
+    let best = atmCandidate;
+    let tier = "Exact ATM (Delta ~0.50)";
+
+    if (atmCandidate) {
+      const atmMark = parseFloat(atmCandidate.mark_price || 0);
+      if (atmMark > 750 && nextOtmCandidate) {
+        best = nextOtmCandidate;
+        tier = "Next Strike OTM (Delta ~0.42)";
+      }
+    } else if (nextOtmCandidate) {
+      best = nextOtmCandidate;
+      tier = "Next Strike OTM (Delta ~0.42)";
+    }
 
     if (best) {
-      const mark = Math.round(parseFloat(best.mark_price) * 10) / 10;
+      const mark = Math.round((parseFloat(best.mark_price) || 220) * 10) / 10;
       const target = Math.round((mark * 1.5) * 10) / 10;
       const stop = Math.round((mark * 0.7) * 10) / 10;
       const bestBid = parseFloat(best.best_bid) || mark;
       const bestAsk = parseFloat(best.best_ask) || mark;
 
+      const spreadValid = (bestAsk > 0 && bestBid > 0 && (bestAsk - bestBid) <= (mark * 0.15));
+      const buyZone = spreadValid 
+        ? `$${Math.min(bestBid, mark).toFixed(1)} - $${Math.max(bestAsk, mark).toFixed(1)}`
+        : `$${(mark * 0.98).toFixed(1)} - $${(mark * 1.02).toFixed(1)}`;
+
       return {
         symbol: best.symbol,
         strike: parseFloat(best.strike_price),
+        strikeTier: tier,
         markPrice: mark,
         bestBid: bestBid > 0 ? bestBid : mark,
         bestAsk: bestAsk > 0 ? bestAsk : mark,
-        buyZone: `$${Math.min(bestBid, mark).toFixed(1)} - $${Math.max(bestAsk, mark).toFixed(1)}`,
+        buyZone,
         targetPrice: target,
         stopPrice: stop,
         targetGainPct: "+50.0%",
@@ -123,8 +199,9 @@ window.DeltaLiveChart = (function() {
     }
 
     return {
-      symbol: isCall ? `C-BTC-${atmStrike}` : `P-BTC-${atmStrike}`,
-      strike: atmStrike,
+      symbol: isCall ? `C-BTC-${atmStrikeEstimate}` : `P-BTC-${atmStrikeEstimate}`,
+      strike: atmStrikeEstimate,
+      strikeTier: "Exact ATM (Delta ~0.50)",
       markPrice: 220.0,
       buyZone: "$210.0 - $225.0",
       targetPrice: 330.0,
@@ -456,44 +533,54 @@ window.DeltaLiveChart = (function() {
       lossHeight = Math.max(6, yEntry - ySl);
     }
 
-    const profitFill = isActive ? "rgba(16, 185, 129, 0.28)" : "rgba(16, 185, 129, 0.22)";
-    const profitStroke = "rgba(16, 185, 129, 0.95)";
-    const lossFill = isActive ? "rgba(244, 63, 94, 0.28)" : "rgba(244, 63, 94, 0.22)";
-    const lossStroke = "rgba(244, 63, 94, 0.95)";
+    // Ultra-clean translucent fills so candlesticks and wicks are 100% visible beneath
+    const profitFill = "rgba(16, 185, 129, 0.08)";
+    const profitStroke = "rgba(16, 185, 129, 0.55)";
+    const lossFill = "rgba(244, 63, 94, 0.08)";
+    const lossStroke = "rgba(244, 63, 94, 0.55)";
 
     const opt = trade.realOption || {};
-    const targetOptLabel = opt.targetPrice ? `Option: $${opt.targetPrice}` : `+50% Option`;
-    const stopOptLabel = opt.stopPrice ? `Option: $${opt.stopPrice}` : `-30% Option`;
+    const targetOptLabel = opt.targetPrice ? ` (Opt: $${opt.targetPrice})` : ` (+50%)`;
+    const stopOptLabel = opt.stopPrice ? ` (Opt: $${opt.stopPrice})` : ` (-30%)`;
 
-    const targetLabel = `TP: $${trade.tp.toLocaleString()} (+${trade.targetDist} pts | ${targetOptLabel})`;
-    const stopLabel = `SL: $${trade.sl.toLocaleString()} (-${trade.slDist} pts | ${stopOptLabel})`;
+    // Position badges at the FAR RIGHT edge so they NEVER overlap or obscure the entry candlesticks!
+    const containerWidth = svg.clientWidth || 800;
+    const badgeW = 125;
+    let badgeX = x1 + boxWidth + 4;
+    if (badgeX + badgeW > containerWidth) {
+      badgeX = Math.max(x1 + 65, x1 + boxWidth - badgeW - 4);
+    }
 
     svg.innerHTML = `
-      <!-- Green Take Profit Zone -->
+      <!-- Green Take Profit Zone (Translucent) -->
       <rect x="${x1}" y="${profitY}" width="${boxWidth}" height="${profitHeight}"
-            fill="${profitFill}" stroke="${profitStroke}" stroke-width="1.5" rx="4" />
+            fill="${profitFill}" stroke="${profitStroke}" stroke-width="1" stroke-dasharray="3,2" rx="3" />
 
-      <!-- Red Stop Loss Zone -->
+      <!-- Red Stop Loss Zone (Translucent) -->
       <rect x="${x1}" y="${lossY}" width="${boxWidth}" height="${lossHeight}"
-            fill="${lossFill}" stroke="${lossStroke}" stroke-width="1.5" rx="4" />
+            fill="${lossFill}" stroke="${lossStroke}" stroke-width="1" stroke-dasharray="3,2" rx="3" />
 
-      <!-- Dashed Entry Level Line -->
-      <line x1="${x1}" y1="${yEntry}" x2="${x1 + boxWidth}" y2="${yEntry}"
-            stroke="#38bdf8" stroke-width="2" stroke-dasharray="5,3" />
+      <!-- Dashed Level Guidelines Connecting Entry to Labels -->
+      <line x1="${x1}" y1="${yEntry}" x2="${badgeX}" y2="${yEntry}"
+            stroke="#38bdf8" stroke-width="1.2" stroke-dasharray="4,3" opacity="0.8" />
+      <line x1="${x1}" y1="${yTp}" x2="${badgeX}" y2="${yTp}"
+            stroke="#10b981" stroke-width="1" stroke-dasharray="3,3" opacity="0.6" />
+      <line x1="${x1}" y1="${ySl}" x2="${badgeX}" y2="${ySl}"
+            stroke="#f43f5e" stroke-width="1" stroke-dasharray="3,3" opacity="0.6" />
 
-      <!-- Labels & Badges on the Position Box -->
-      <g font-family="-apple-system, BlinkMacSystemFont, monospace" font-size="10" font-weight="bold">
+      <!-- Compact Price Badges Floating on the Right (Candles completely unobstructed) -->
+      <g font-family="-apple-system, BlinkMacSystemFont, monospace" font-size="9" font-weight="bold">
         <!-- Target Price Tag -->
-        <rect x="${x1 + 6}" y="${profitY + 4}" width="${Math.min(boxWidth - 12, 240)}" height="18" fill="rgba(11, 15, 23, 0.9)" rx="3" stroke="rgba(16, 185, 129, 0.4)" stroke-width="1" />
-        <text x="${x1 + 10}" y="${profitY + 17}" fill="#10b981">🎯 ${targetLabel}</text>
+        <rect x="${badgeX}" y="${profitY + 2}" width="${badgeW}" height="16" fill="rgba(8, 11, 17, 0.85)" rx="3" stroke="rgba(16, 185, 129, 0.5)" stroke-width="1" />
+        <text x="${badgeX + 6}" y="${profitY + 13}" fill="#10b981">TP: $${trade.tp.toLocaleString()}${targetOptLabel}</text>
 
         <!-- Entry Price Tag -->
-        <rect x="${x1 + 6}" y="${yEntry - 20}" width="${Math.min(boxWidth - 12, 140)}" height="18" fill="rgba(11, 15, 23, 0.9)" rx="3" stroke="rgba(56, 189, 248, 0.4)" stroke-width="1" />
-        <text x="${x1 + 10}" y="${yEntry - 7}" fill="#38bdf8">⚪ Entry: $${trade.entry.toLocaleString()}</text>
+        <rect x="${badgeX}" y="${yEntry - 18}" width="${badgeW}" height="16" fill="rgba(8, 11, 17, 0.85)" rx="3" stroke="rgba(56, 189, 248, 0.5)" stroke-width="1" />
+        <text x="${badgeX + 6}" y="${yEntry - 7}" fill="#38bdf8">Entry: $${trade.entry.toLocaleString()}</text>
 
         <!-- Stop Loss Price Tag -->
-        <rect x="${x1 + 6}" y="${isCall ? (lossY + lossHeight - 22) : (lossY + 4)}" width="${Math.min(boxWidth - 12, 230)}" height="18" fill="rgba(11, 15, 23, 0.9)" rx="3" stroke="rgba(244, 63, 94, 0.4)" stroke-width="1" />
-        <text x="${x1 + 10}" y="${isCall ? (lossY + lossHeight - 9) : (lossY + 17)}" fill="#f43f5e">🛑 ${stopLabel}</text>
+        <rect x="${badgeX}" y="${isCall ? (lossY + lossHeight - 18) : (lossY + 2)}" width="${badgeW}" height="16" fill="rgba(8, 11, 17, 0.85)" rx="3" stroke="rgba(244, 63, 94, 0.5)" stroke-width="1" />
+        <text x="${badgeX + 6}" y="${isCall ? (lossY + lossHeight - 7) : (lossY + 13)}" fill="#f43f5e">SL: $${trade.sl.toLocaleString()}${stopOptLabel}</text>
       </g>
     `;
   }
