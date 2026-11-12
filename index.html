@@ -330,6 +330,11 @@
       </div>
     </section>
 
+    <!-- BREAKING HIGH-IMPACT MACRO & CATALYST SENTINEL -->
+    <div id="macroCatalystContainer" class="mb-5">
+      <!-- Populated dynamically via DeltaMacroSentinel.renderMacroBanner() -->
+    </div>
+
     <!-- CAPITAL DEFENSE SENTINEL & TILT BREAKER ALERT (FEATURE 4) -->
     <div id="riskSentinelContainer" class="mb-5">
       <!-- Populated dynamically via DeltaApp.renderRiskSentinel() -->
@@ -709,6 +714,9 @@
           </div>
         </div>
       </div>
+
+      <!-- BREAKING HIGH-IMPACT MACRO & CATALYST SENTINEL -->
+      <div id="macroCatalystCoachContainer"></div>
 
       <!-- Live Signal Radar Banner -->
       <div id="liveSignalBanner">
@@ -1274,18 +1282,19 @@
   </nav>
 
   <!-- Application Script Pipeline -->
-  <script src="vendor/lightweight-charts.js?v=3.3.8"></script>
-  <script src="js/config.js?v=3.3.8"></script>
-  <script src="js/smc-strategy.js?v=3.3.8"></script>
-  <script src="js/chart-engine.js?v=3.3.8"></script>
-  <script src="js/db.js?v=3.3.8"></script>
-  <script src="js/quant.js?v=3.3.8"></script>
-  <script src="js/coach.js?v=3.3.8"></script>
-  <script src="js/planner.js?v=3.3.8"></script>
-  <script src="js/app.js?v=3.3.8"></script>
+  <script src="vendor/lightweight-charts.js?v=3.3.9"></script>
+  <script src="js/config.js?v=3.3.9"></script>
+  <script src="js/smc-strategy.js?v=3.3.9"></script>
+  <script src="js/macro-sentinel.js?v=3.3.9"></script>
+  <script src="js/chart-engine.js?v=3.3.9"></script>
+  <script src="js/db.js?v=3.3.9"></script>
+  <script src="js/quant.js?v=3.3.9"></script>
+  <script src="js/coach.js?v=3.3.9"></script>
+  <script src="js/planner.js?v=3.3.9"></script>
+  <script src="js/app.js?v=3.3.9"></script>
   <script>
     if ('serviceWorker' in navigator) {
-      navigator.serviceWorker.register('sw.js?v=3.3.8').then(function(reg) {
+      navigator.serviceWorker.register('sw.js?v=3.3.9').then(function(reg) {
         reg.update();
       });
     }

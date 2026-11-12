@@ -1276,6 +1276,11 @@ Expected Profit: +50% Option Gross / +40% Net`;
             if (window.DeltaApp && typeof DeltaApp.checkAndSendTelegramSignal === 'function') {
               DeltaApp.checkAndSendTelegramSignal(t);
             }
+          } else if (t.outcome !== "ACTIVE" && t.realOption) {
+            // If resolved, check if outcome alert should be dispatched to Telegram
+            if (window.DeltaApp && typeof DeltaApp.checkAndSendTelegramOutcome === 'function') {
+              DeltaApp.checkAndSendTelegramOutcome(t, currentAnalysis.trades);
+            }
           }
         });
 
