@@ -63,7 +63,11 @@ window.DeltaConfig = {
     CURRENT_TAB: "dtj_active_tab",
     MAX_DAILY_LOSS: "dtj_max_daily_loss",
     MAX_CONSEC_LOSSES: "dtj_max_consec_losses",
-    SENTINEL_ACKNOWLEDGED: "dtj_sentinel_acknowledged"
+    SENTINEL_ACKNOWLEDGED: "dtj_sentinel_acknowledged",
+    TELEGRAM_BOT_TOKEN: "dtj_telegram_bot_token",
+    TELEGRAM_CHAT_ID: "dtj_telegram_chat_id",
+    TELEGRAM_ENABLED: "dtj_telegram_enabled",
+    LOCKED_ACTIVE_PLAN: "dtj_locked_active_plan"
   },
 
   // Default Tax & Brokerage Parameters for Delta India

@@ -67,6 +67,7 @@ window.DeltaApp = (function() {
     if (savedOwner && document.getElementById('ghOwnerInput')) document.getElementById('ghOwnerInput').value = savedOwner;
     if (savedRepo && document.getElementById('ghRepoInput')) document.getElementById('ghRepoInput').value = savedRepo;
     if (savedGeminiKey && document.getElementById('geminiKeyInput')) document.getElementById('geminiKeyInput').value = savedGeminiKey;
+    updateTelegramBadge();
   }
 
   function onDatabaseEvent(event) {
@@ -144,6 +145,256 @@ window.DeltaApp = (function() {
     }
 
     window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
+
+  // -------------------------------------------------------------
+  // SUB-TAB NAVIGATION (Unified Views - Reduced Vertical Scrolling)
+  // -------------------------------------------------------------
+  let currentInsightsSubTab = 'CHARTS';
+  function switchInsightsSubTab(tab) {
+    currentInsightsSubTab = tab;
+    const subViews = {
+      CHARTS: document.getElementById('subView_CHARTS'),
+      EDGE: document.getElementById('subView_EDGE'),
+      LOG: document.getElementById('subView_LOG')
+    };
+
+    const subBtns = {
+      CHARTS: document.getElementById('subTabBtn_CHARTS'),
+      EDGE: document.getElementById('subTabBtn_EDGE'),
+      LOG: document.getElementById('subTabBtn_LOG')
+    };
+
+    const activeCls = "flex-1 py-2 px-3 text-xs font-bold rounded-xl transition-all bg-indigo-600 text-white flex items-center justify-center gap-1.5 shadow-md shrink-0";
+    const inactiveCls = "flex-1 py-2 px-3 text-xs font-bold rounded-xl transition-all text-slate-400 hover:text-white bg-transparent flex items-center justify-center gap-1.5 shrink-0";
+
+    Object.keys(subViews).forEach(k => {
+      if (!subViews[k]) return;
+      if (k === tab) subViews[k].classList.remove('hidden');
+      else subViews[k].classList.add('hidden');
+    });
+
+    Object.keys(subBtns).forEach(k => {
+      if (!subBtns[k]) return;
+      subBtns[k].className = (k === tab) ? activeCls : inactiveCls;
+    });
+
+    if (tab === 'CHARTS') {
+      setTimeout(() => { window.dispatchEvent(new Event('resize')); }, 60);
+    }
+  }
+
+  let currentCoachSubTab = 'RADAR';
+  function switchCoachSubTab(tab) {
+    currentCoachSubTab = tab;
+    const views = {
+      RADAR: document.getElementById('subViewCoach_RADAR'),
+      AI: document.getElementById('subViewCoach_AI')
+    };
+    const btns = {
+      RADAR: document.getElementById('subTabCoachBtn_RADAR'),
+      AI: document.getElementById('subTabCoachBtn_AI')
+    };
+
+    const activeCls = "flex-1 py-2 px-3 text-xs font-bold rounded-xl transition-all bg-indigo-600 text-white flex items-center justify-center gap-1.5 shadow-md";
+    const inactiveCls = "flex-1 py-2 px-3 text-xs font-bold rounded-xl transition-all text-slate-400 hover:text-white bg-transparent flex items-center justify-center gap-1.5";
+
+    Object.keys(views).forEach(k => {
+      if (!views[k]) return;
+      if (k === tab) views[k].classList.remove('hidden');
+      else views[k].classList.add('hidden');
+    });
+
+    Object.keys(btns).forEach(k => {
+      if (!btns[k]) return;
+      btns[k].className = (k === tab) ? activeCls : inactiveCls;
+    });
+  }
+
+  // -------------------------------------------------------------
+  // TELEGRAM INSTANT TRADE ALERTS INTEGRATION
+  // -------------------------------------------------------------
+  function getTelegramConfig() {
+    return {
+      botToken: localStorage.getItem(DeltaConfig.STORAGE_KEYS.TELEGRAM_BOT_TOKEN) || '',
+      chatId: localStorage.getItem(DeltaConfig.STORAGE_KEYS.TELEGRAM_CHAT_ID) || '',
+      enabled: localStorage.getItem(DeltaConfig.STORAGE_KEYS.TELEGRAM_ENABLED) === 'true'
+    };
+  }
+
+  function openTelegramModal() {
+    const modal = document.getElementById('telegramConfigModal');
+    if (!modal) return;
+    const cfg = getTelegramConfig();
+    const tokenInput = document.getElementById('inputTgToken');
+    const chatInput = document.getElementById('inputTgChatId');
+    const toggle = document.getElementById('toggleTgEnabled');
+    const statusEl = document.getElementById('tgTestStatus');
+
+    if (tokenInput) tokenInput.value = cfg.botToken;
+    if (chatInput) chatInput.value = cfg.chatId;
+    if (toggle) toggle.checked = cfg.enabled;
+    if (statusEl) statusEl.innerText = '';
+
+    modal.classList.remove('hidden');
+    modal.classList.add('flex');
+  }
+
+  function closeTelegramModal() {
+    const modal = document.getElementById('telegramConfigModal');
+    if (modal) {
+      modal.classList.add('hidden');
+      modal.classList.remove('flex');
+    }
+  }
+
+  function saveTelegramConfig() {
+    const tokenInput = document.getElementById('inputTgToken');
+    const chatInput = document.getElementById('inputTgChatId');
+    const toggle = document.getElementById('toggleTgEnabled');
+
+    const token = (tokenInput?.value || '').trim();
+    const chatId = (chatInput?.value || '').trim();
+    const enabled = toggle ? toggle.checked : false;
+
+    localStorage.setItem(DeltaConfig.STORAGE_KEYS.TELEGRAM_BOT_TOKEN, token);
+    localStorage.setItem(DeltaConfig.STORAGE_KEYS.TELEGRAM_CHAT_ID, chatId);
+    localStorage.setItem(DeltaConfig.STORAGE_KEYS.TELEGRAM_ENABLED, enabled ? 'true' : 'false');
+
+    closeTelegramModal();
+    updateTelegramBadge();
+  }
+
+  function updateTelegramBadge() {
+    const badge = document.getElementById('tgStatusBadge');
+    if (!badge) return;
+    const cfg = getTelegramConfig();
+    if (cfg.enabled && cfg.botToken && cfg.chatId) {
+      badge.className = "px-2 py-0.5 rounded text-[10px] font-bold bg-[#229ED9]/20 text-[#229ED9] border border-[#229ED9]/40 flex items-center gap-1 font-mono";
+      badge.innerHTML = `<span class="h-1.5 w-1.5 rounded-full bg-[#229ED9] animate-ping"></span> Telegram Active`;
+    } else {
+      badge.className = "hidden";
+    }
+  }
+
+  async function sendTelegramMessage(textHtml) {
+    const cfg = getTelegramConfig();
+    if (!cfg.enabled || !cfg.botToken || !cfg.chatId) return false;
+
+    try {
+      const url = `https://api.telegram.org/bot${cfg.botToken}/sendMessage`;
+      const res = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          chat_id: cfg.chatId,
+          text: textHtml,
+          parse_mode: 'HTML',
+          disable_web_page_preview: true
+        })
+      });
+      return res.ok;
+    } catch (e) {
+      console.warn("Telegram alert notice:", e);
+      return false;
+    }
+  }
+
+  async function sendTestTelegramAlert() {
+    const tokenInput = document.getElementById('inputTgToken');
+    const chatInput = document.getElementById('inputTgChatId');
+    const statusEl = document.getElementById('tgTestStatus');
+
+    const token = (tokenInput?.value || '').trim();
+    const chatId = (chatInput?.value || '').trim();
+
+    if (!token || !chatId) {
+      if (statusEl) {
+        statusEl.className = "text-xs font-mono text-lossRed";
+        statusEl.innerText = "Please enter both Bot Token and Chat ID first.";
+      }
+      return;
+    }
+
+    if (statusEl) {
+      statusEl.className = "text-xs font-mono text-indigo-300";
+      statusEl.innerText = "Sending test message to Telegram...";
+    }
+
+    const testMsg = `🚀 <b>Delta Trading Journal: Connected Successfully!</b>\n━━━━━━━━━━━━━━━━━━━━━━\nYour Telegram trade signal alerts are active.\nWhenever an institutional SMC reversal setup triggers on Delta Exchange India, you will receive real-time execution orders directly on your phone.\n\n⏰ <b>Time:</b> ${new Date().toLocaleTimeString('en-IN', { timeZone: 'Asia/Kolkata' })} IST\n🔗 <a href="https://delta-trading-journal-gmp.vercel.app/">Open Delta Live Terminal</a>`;
+
+    try {
+      const res = await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          chat_id: chatId,
+          text: testMsg,
+          parse_mode: 'HTML'
+        })
+      });
+
+      if (res.ok) {
+        if (statusEl) {
+          statusEl.className = "text-xs font-mono text-winGreen font-bold";
+          statusEl.innerHTML = `<i class="fa-solid fa-circle-check mr-1"></i> Success! Check your Telegram app.`;
+        }
+      } else {
+        const errJson = await res.json();
+        if (statusEl) {
+          statusEl.className = "text-xs font-mono text-lossRed";
+          statusEl.innerText = `Telegram Error: ${errJson.description || 'Invalid credentials'}`;
+        }
+      }
+    } catch (err) {
+      if (statusEl) {
+        statusEl.className = "text-xs font-mono text-lossRed";
+        statusEl.innerText = "Network error connecting to Telegram API.";
+      }
+    }
+  }
+
+  function checkAndSendTelegramSignal(trade) {
+    if (!trade || trade.outcome !== 'ACTIVE') return;
+    const lastAlertedId = localStorage.getItem('dtj_last_alerted_trade_id');
+    if (lastAlertedId === trade.id) return;
+
+    const cfg = getTelegramConfig();
+    if (!cfg.enabled || !cfg.botToken || !cfg.chatId) return;
+
+    const isCall = trade.direction === "LONG";
+    const opt = trade.realOption;
+    const contract = opt ? opt.symbol : (isCall ? `C-BTC-${trade.optionStrike}` : `P-BTC-${trade.optionStrike}`);
+    const buyZone = opt ? opt.buyZone : `$${trade.entryOpt || 200}`;
+    const targetOpt = opt ? `$${opt.targetPrice.toFixed(1)} (+50%)` : '+50% Target';
+    const stopOpt = opt ? `$${opt.stopPrice.toFixed(1)} (-30%)` : '-30% Stop';
+    const timeStr = new Date(trade.time * 1000).toLocaleTimeString('en-IN', { timeZone: 'Asia/Kolkata', hour: '2-digit', minute: '2-digit', hour12: true });
+
+    const msg = `⚡ <b>DELTA INDIA SMC TRADE SIGNAL</b>
+━━━━━━━━━━━━━━━━━━━━━━
+🎯 <b>Action:</b> ${isCall ? '🟢 BUY CALL OPTION' : '🔴 BUY PUT OPTION'}
+📌 <b>Setup Pattern:</b> ${trade.name}
+🏷️ <b>Delta Contract:</b> <code>${contract}</code>
+
+💵 <b>Recommended Buy Zone:</b> <b>${buyZone}</b>
+🎯 <b>Option Target (+50%):</b> <b>${targetOpt}</b>
+🛑 <b>Option Stop Loss (-30%):</b> <b>${stopOpt}</b>
+
+📊 <b>Underlying BTC Spot:</b>
+• Entry Trigger: $${trade.entry.toLocaleString()}
+• Take Profit: $${trade.tp.toLocaleString()} (+${trade.targetDist} pts)
+• Invalidation Stop: $${trade.sl.toLocaleString()} (-${trade.slDist} pts)
+• Risk-to-Reward: 1 : ${trade.rrRatio}
+
+⏰ <b>Triggered:</b> ${timeStr} IST
+🔗 <a href="https://delta-trading-journal-gmp.vercel.app/">View Live Position on Delta Terminal</a>`;
+
+    sendTelegramMessage(msg).then(ok => {
+      if (ok) {
+        localStorage.setItem('dtj_last_alerted_trade_id', trade.id);
+        console.log(`[Telegram] Alert dispatched for ${trade.id} (${contract})`);
+      }
+    });
   }
 
   function initSwipeNavigation() {
@@ -1658,6 +1909,14 @@ window.DeltaApp = (function() {
     openSentinelConfigModal,
     closeSentinelConfigModal,
     saveSentinelConfig,
-    acknowledgeSentinel
+    acknowledgeSentinel,
+    switchInsightsSubTab,
+    switchCoachSubTab,
+    openTelegramModal,
+    closeTelegramModal,
+    saveTelegramConfig,
+    sendTestTelegramAlert,
+    checkAndSendTelegramSignal,
+    getTelegramConfig
   };
 })();

@@ -67,21 +67,52 @@ window.DeltaLiveChart = (function() {
    * 2. Either Exact ATM (Delta ~0.50, closest strike to spot) or Next Strike OTM (within 1 strike).
    * 3. Absolutely ZERO far OTM contracts.
    */
-  function resolveRealDeltaContract(direction, spotPrice, tickers) {
+  function resolveRealDeltaContract(direction, spotPrice, tickers, lockedPlan) {
     const isCall = direction === "LONG";
     const atmStrikeEstimate = Math.round(spotPrice / 200) * 200;
 
+    // IF A TRADE ALREADY HAS A LOCKED PLAN (from signal inception):
+    // We preserve its original contract symbol, entry price, buy zone, target (+50%), and stop (-30%)!
+    // ONLY the live mark price and unrealized PnL move with the live ticker!
+    if (lockedPlan && lockedPlan.symbol && (lockedPlan.entryPrice || lockedPlan.markPrice)) {
+      const fixedEntry = lockedPlan.entryPrice || lockedPlan.markPrice;
+      const matched = tickers ? tickers.find(t => t.symbol === lockedPlan.symbol) : null;
+      const currentLiveMark = matched ? (Math.round((parseFloat(matched.mark_price) || fixedEntry) * 10) / 10) : (lockedPlan.markPrice || fixedEntry);
+      const unrealizedPts = Math.round((currentLiveMark - fixedEntry) * 10) / 10;
+      const unrealizedPct = Number(((unrealizedPts / fixedEntry) * 100).toFixed(1));
+
+      return {
+        symbol: lockedPlan.symbol,
+        strike: lockedPlan.strike || atmStrikeEstimate,
+        strikeTier: lockedPlan.strikeTier || "Exact ATM (Delta ~0.50)",
+        entryPrice: fixedEntry,
+        markPrice: currentLiveMark,
+        buyZone: lockedPlan.buyZone || `$${(fixedEntry * 0.98).toFixed(1)} - $${(fixedEntry * 1.02).toFixed(1)}`,
+        targetPrice: lockedPlan.targetPrice || Math.round((fixedEntry * 1.5) * 10) / 10,
+        stopPrice: lockedPlan.stopPrice || Math.round((fixedEntry * 0.7) * 10) / 10,
+        targetGainPct: "+50.0%",
+        stopLossPct: "-30.0%",
+        unrealizedPts,
+        unrealizedPct,
+        isLive: !!matched
+      };
+    }
+
     if (!tickers || tickers.length === 0) {
+      const simEntry = 220.0;
       return {
         symbol: isCall ? `C-BTC-${atmStrikeEstimate}` : `P-BTC-${atmStrikeEstimate}`,
         strike: atmStrikeEstimate,
         strikeTier: "Exact ATM (Delta ~0.50)",
-        markPrice: 220.0,
+        entryPrice: simEntry,
+        markPrice: simEntry,
         buyZone: "$210.0 - $225.0",
         targetPrice: 330.0,
         stopPrice: 154.0,
         targetGainPct: "+50.0%",
         stopLossPct: "-30.0%",
+        unrealizedPts: 0,
+        unrealizedPct: 0,
         isLive: false
       };
     }
@@ -112,16 +143,20 @@ window.DeltaLiveChart = (function() {
     }
 
     if (activeWithExpiry.length === 0) {
+      const simEntry = 220.0;
       return {
         symbol: isCall ? `C-BTC-${atmStrikeEstimate}` : `P-BTC-${atmStrikeEstimate}`,
         strike: atmStrikeEstimate,
         strikeTier: "Exact ATM (Delta ~0.50)",
-        markPrice: 220.0,
+        entryPrice: simEntry,
+        markPrice: simEntry,
         buyZone: "$210.0 - $225.0",
         targetPrice: 330.0,
         stopPrice: 154.0,
         targetGainPct: "+50.0%",
         stopLossPct: "-30.0%",
+        unrealizedPts: 0,
+        unrealizedPct: 0,
         isLive: false
       };
     }
@@ -134,7 +169,6 @@ window.DeltaLiveChart = (function() {
       .map(x => x.contract);
 
     // 3. Find Exact ATM and Next Strike (OTM-1)
-    // Sort all nearest contracts by strike distance to spot
     nearestContracts.sort((a, b) => {
       const distA = Math.abs(parseFloat(a.strike_price) - spotPrice);
       const distB = Math.abs(parseFloat(b.strike_price) - spotPrice);
@@ -143,7 +177,6 @@ window.DeltaLiveChart = (function() {
 
     const atmCandidate = nearestContracts[0];
 
-    // Find the next strike (1 strike OTM: higher strike for CALL, lower strike for PUT)
     const nextOtmCandidate = nearestContracts.find(c => {
       const s = parseFloat(c.strike_price);
       if (isCall) {
@@ -153,9 +186,6 @@ window.DeltaLiveChart = (function() {
       }
     });
 
-    // 4. Intelligent Selection:
-    // If ATM has valid mark price <= 750, ATM is prime (Delta ~0.50, moves 1:2 with BTC spot).
-    // If ATM is above 750 or next OTM offers superior risk/reward, next OTM is chosen.
     let best = atmCandidate;
     let tier = "Exact ATM (Delta ~0.50)";
 
@@ -186,6 +216,7 @@ window.DeltaLiveChart = (function() {
         symbol: best.symbol,
         strike: parseFloat(best.strike_price),
         strikeTier: tier,
+        entryPrice: mark,
         markPrice: mark,
         bestBid: bestBid > 0 ? bestBid : mark,
         bestAsk: bestAsk > 0 ? bestAsk : mark,
@@ -194,20 +225,26 @@ window.DeltaLiveChart = (function() {
         stopPrice: stop,
         targetGainPct: "+50.0%",
         stopLossPct: "-30.0%",
+        unrealizedPts: 0,
+        unrealizedPct: 0,
         isLive: true
       };
     }
 
+    const simEntry = 220.0;
     return {
       symbol: isCall ? `C-BTC-${atmStrikeEstimate}` : `P-BTC-${atmStrikeEstimate}`,
       strike: atmStrikeEstimate,
       strikeTier: "Exact ATM (Delta ~0.50)",
-      markPrice: 220.0,
+      entryPrice: simEntry,
+      markPrice: simEntry,
       buyZone: "$210.0 - $225.0",
       targetPrice: 330.0,
       stopPrice: 154.0,
       targetGainPct: "+50.0%",
       stopLossPct: "-30.0%",
+      unrealizedPts: 0,
+      unrealizedPct: 0,
       isLive: false
     };
   }
@@ -752,14 +789,21 @@ window.DeltaLiveChart = (function() {
 
     if (opt) {
       if (symEl) symEl.innerText = opt.symbol;
-      if (markEl) markEl.innerText = `$${opt.markPrice.toFixed(1)}`;
+      if (markEl) {
+        if (opt.unrealizedPts !== undefined && trade.outcome === 'ACTIVE') {
+          const sign = opt.unrealizedPts >= 0 ? '+' : '';
+          markEl.innerHTML = `$${opt.markPrice.toFixed(1)} <span class="text-[9px] ${opt.unrealizedPts >= 0 ? 'text-winGreen' : 'text-lossRed'}">(${sign}${opt.unrealizedPts} pts / ${sign}${opt.unrealizedPct}%)</span>`;
+        } else {
+          markEl.innerText = `$${opt.markPrice.toFixed(1)}`;
+        }
+      }
       if (buyZoneEl) buyZoneEl.innerText = opt.buyZone;
       if (targetEl) targetEl.innerText = `$${opt.targetPrice.toFixed(1)} (${opt.targetGainPct})`;
       if (liveTagEl) {
         liveTagEl.className = opt.isLive 
           ? "text-[9px] font-mono px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 font-bold"
           : "text-[9px] font-mono px-1.5 py-0.5 rounded bg-indigo-500/10 text-indigo-300 border border-indigo-500/30 font-bold";
-        liveTagEl.innerText = opt.isLive ? "Live Delta Feed" : "Simulated Strike";
+        liveTagEl.innerText = opt.isLive ? (trade.outcome === 'ACTIVE' ? "Locked Entry Plan" : "Live Delta Feed") : "Simulated Strike";
       }
     } else {
       if (symEl) symEl.innerText = isCall ? `C-BTC-${trade.optionStrike}` : `P-BTC-${trade.optionStrike}`;
@@ -879,23 +923,23 @@ window.DeltaLiveChart = (function() {
     const contractSymbol = opt ? opt.symbol : (t.direction === "LONG" ? 'C-BTC-' + t.optionStrike : 'P-BTC-' + t.optionStrike);
     const strikeTier = opt ? opt.strikeTier : "Exact ATM (Delta ~0.50)";
 
-    const entryOpt = (opt && opt.markPrice > 0) ? opt.markPrice : (t.entryOpt || Math.round((t.entry * 0.003) * 10) / 10);
+    const entryOpt = (opt && opt.entryPrice) ? opt.entryPrice : ((opt && opt.markPrice > 0) ? opt.markPrice : (t.entryOpt || Math.round((t.entry * 0.003) * 10) / 10));
     let exitOpt = entryOpt;
     let pnlDiff = 0;
     let netTakeHome = 0;
 
     if (t.outcome === "WIN") {
-      exitOpt = Math.round((entryOpt * 1.50) * 10) / 10;
+      exitOpt = (opt && opt.targetPrice) ? opt.targetPrice : Math.round((entryOpt * 1.50) * 10) / 10;
       pnlDiff = Math.round((exitOpt - entryOpt) * 10) / 10;
       netTakeHome = Math.round((pnlDiff * 0.80) * 10) / 10;
     } else if (t.outcome === "LOSS") {
-      exitOpt = Math.round((entryOpt * 0.70) * 10) / 10;
+      exitOpt = (opt && opt.stopPrice) ? opt.stopPrice : Math.round((entryOpt * 0.70) * 10) / 10;
       pnlDiff = Math.round((exitOpt - entryOpt) * 10) / 10;
       netTakeHome = pnlDiff;
     } else if (t.outcome === "ACTIVE") {
-      const spotDiff = t.direction === "LONG" ? (t.exitPrice - t.entry) : (t.entry - t.exitPrice);
-      exitOpt = Math.max(10, Math.round((entryOpt + spotDiff * 0.5) * 10) / 10);
-      pnlDiff = Math.round((exitOpt - entryOpt) * 10) / 10;
+      const currentLive = (opt && opt.markPrice) ? opt.markPrice : entryOpt;
+      exitOpt = currentLive;
+      pnlDiff = Math.round((currentLive - entryOpt) * 10) / 10;
       netTakeHome = pnlDiff;
     } else {
       // TIMEOUT
@@ -913,22 +957,27 @@ window.DeltaLiveChart = (function() {
     const actionBanner = document.getElementById('atmModalActionBanner');
     if (actionBanner) {
       if (t.outcome === "ACTIVE") {
+        const targetPriceVal = (opt && opt.targetPrice) ? opt.targetPrice : Math.round(entryOpt * 1.5 * 10) / 10;
+        const stopPriceVal = (opt && opt.stopPrice) ? opt.stopPrice : Math.round(entryOpt * 0.7 * 10) / 10;
+        const currentLiveVal = (opt && opt.markPrice) ? opt.markPrice : entryOpt;
+        const pnlPctStr = ((pnlDiff / entryOpt) * 100).toFixed(1);
+
         actionBanner.className = "p-3 sm:p-3.5 rounded-xl border border-emerald-500/50 bg-emerald-950/30 text-xs font-mono space-y-1.5";
         actionBanner.innerHTML = `
           <div class="flex items-center justify-between">
             <span class="text-winGreen font-bold flex items-center gap-1.5">
               <span class="h-2 w-2 rounded-full bg-emerald-400 animate-ping"></span>
-              ⚡ ACTION REQUIRED: ENTER ${isCall ? 'CALL OPTION' : 'PUT OPTION'}
+              ⚡ ACTIVE SETUP: ENTER ${isCall ? 'CALL OPTION' : 'PUT OPTION'}
             </span>
-            <span class="text-[10px] text-slate-400">Order: Buy Limit</span>
+            <span class="text-[10px] text-slate-400 font-sans">Locked Inception Order</span>
           </div>
           <div class="text-slate-200">
-            Buy <strong class="text-white bg-indigo-900/60 px-1.5 py-0.5 rounded">${contractSymbol}</strong> in Buy Zone <strong class="text-emerald-400">$${entryOpt.toFixed(1)} - $${(entryOpt * 1.05).toFixed(1)}</strong>.
+            Buy <strong class="text-white bg-indigo-900/60 px-1.5 py-0.5 rounded">${contractSymbol}</strong> in Buy Zone <strong class="text-emerald-400">${opt.buyZone || `$${(entryOpt * 0.98).toFixed(1)} - $${(entryOpt * 1.02).toFixed(1)}`}</strong>.
           </div>
           <div class="text-[11px] text-slate-400 pt-1 border-t border-emerald-500/20 flex flex-wrap justify-between gap-1">
-            <span>TP Target: <strong class="text-winGreen">$${exitOpt.toFixed(1)} (+50%)</strong></span>
-            <span>SL Stop: <strong class="text-lossRed">$${(entryOpt * 0.70).toFixed(1)} (-30%)</strong></span>
-            <span>Spot Invalidation: <strong class="text-slate-300">$${t.sl.toLocaleString()}</strong></span>
+            <span>TP Target: <strong class="text-winGreen">$${targetPriceVal.toFixed(1)} (+50%)</strong></span>
+            <span>SL Stop: <strong class="text-lossRed">$${stopPriceVal.toFixed(1)} (-30%)</strong></span>
+            <span>Current Mark: <strong class="${pnlDiff >= 0 ? 'text-winGreen' : 'text-lossRed'}">$${currentLiveVal.toFixed(1)} (${pnlDiff >= 0 ? '+' : ''}${pnlPctStr}%)</strong></span>
           </div>
         `;
       } else if (t.outcome === "WIN") {
@@ -1182,12 +1231,51 @@ Expected Profit: +50% Option Gross / +40% Net`;
     // Fetch live Delta Exchange India tickers and enrich all trades asynchronously
     getLiveDeltaTickers().then(tickers => {
       if (tickers && tickers.length > 0 && currentAnalysis && currentAnalysis.trades) {
+        // Retrieve any saved active trade plan so entry price & buy zone NEVER shift as market moves
+        let savedActivePlan = null;
+        try {
+          const raw = localStorage.getItem('dtj_locked_active_plan');
+          if (raw) savedActivePlan = JSON.parse(raw);
+        } catch (e) {}
+
         currentAnalysis.trades.forEach(t => {
-          t.realOption = resolveRealDeltaContract(t.direction, t.entry, tickers);
+          let locked = t.realOption;
+          if (!locked && t.outcome === "ACTIVE" && savedActivePlan && savedActivePlan.id === t.id) {
+            locked = savedActivePlan;
+          }
+          if (!locked && t.entryOpt) {
+            locked = {
+              symbol: t.direction === "LONG" ? `C-BTC-${t.optionStrike}` : `P-BTC-${t.optionStrike}`,
+              entryPrice: t.entryOpt,
+              buyZone: `$${(t.entryOpt * 0.98).toFixed(1)} - $${(t.entryOpt * 1.02).toFixed(1)}`,
+              targetPrice: Math.round((t.entryOpt * 1.5) * 10) / 10,
+              stopPrice: Math.round((t.entryOpt * 0.7) * 10) / 10,
+              strikeTier: "ATM (Delta ~0.50)"
+            };
+          }
+          t.realOption = resolveRealDeltaContract(t.direction, t.entry, tickers, locked);
+
+          // If active trade, lock its initial execution plan and trigger Telegram Alert
+          if (t.outcome === "ACTIVE") {
+            try {
+              localStorage.setItem('dtj_locked_active_plan', JSON.stringify({
+                id: t.id,
+                ...t.realOption
+              }));
+            } catch (e) {}
+
+            // Send instant real-time Telegram signal
+            if (window.DeltaApp && typeof DeltaApp.checkAndSendTelegramSignal === 'function') {
+              DeltaApp.checkAndSendTelegramSignal(t);
+            }
+          }
         });
 
         if (selectedTrade) {
-          selectedTrade.realOption = resolveRealDeltaContract(selectedTrade.direction, selectedTrade.entry, tickers);
+          const match = currentAnalysis.trades.find(x => x.id === selectedTrade.id);
+          if (match && match.realOption) {
+            selectedTrade.realOption = match.realOption;
+          }
           updatePositionToolCockpit(selectedTrade);
           renderPositionBox(selectedTrade);
         }
