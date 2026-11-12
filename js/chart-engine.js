@@ -28,6 +28,14 @@ window.DeltaLiveChart = (function() {
   let cachedDeltaTickers = null;
   let lastDeltaTickersFetchTime = 0;
 
+  // Purge any stale corrupted active plan (e.g. from 500-step strike bug)
+  try {
+    const rawSaved = localStorage.getItem('dtj_locked_active_plan');
+    if (rawSaved && rawSaved.includes('73500')) {
+      localStorage.removeItem('dtj_locked_active_plan');
+    }
+  } catch (e) {}
+
   const TIMEFRAME_MAP = {
     '1m': '1m',
     '5m': '5m',
@@ -74,7 +82,7 @@ window.DeltaLiveChart = (function() {
     // IF A TRADE ALREADY HAS A LOCKED PLAN (from signal inception):
     // We preserve its original contract symbol, entry price, buy zone, target (+50%), and stop (-30%)!
     // ONLY the live mark price and unrealized PnL move with the live ticker!
-    if (lockedPlan && lockedPlan.symbol && (lockedPlan.entryPrice || lockedPlan.markPrice)) {
+    if (lockedPlan && lockedPlan.symbol && !lockedPlan.symbol.includes('73500') && (lockedPlan.entryPrice || lockedPlan.markPrice)) {
       const fixedEntry = lockedPlan.entryPrice || lockedPlan.markPrice;
       const matched = tickers ? tickers.find(t => t.symbol === lockedPlan.symbol) : null;
       const currentLiveMark = matched ? (Math.round((parseFloat(matched.mark_price) || fixedEntry) * 10) / 10) : (lockedPlan.markPrice || fixedEntry);
@@ -1235,31 +1243,31 @@ Expected Profit: +50% Option Gross / +40% Net`;
         let savedActivePlan = null;
         try {
           const raw = localStorage.getItem('dtj_locked_active_plan');
-          if (raw) savedActivePlan = JSON.parse(raw);
+          if (raw) {
+            const parsed = JSON.parse(raw);
+            if (parsed && parsed.symbol && !parsed.symbol.includes('73500')) {
+              savedActivePlan = parsed;
+            } else {
+              localStorage.removeItem('dtj_locked_active_plan');
+            }
+          }
         } catch (e) {}
 
         currentAnalysis.trades.forEach(t => {
-          let locked = t.realOption;
-          if (!locked && t.outcome === "ACTIVE" && savedActivePlan && savedActivePlan.id === t.id) {
+          let locked = null;
+          // Only use locked plan if this trade is ACTIVE and corresponds to our saved active plan
+          if (t.outcome === "ACTIVE" && savedActivePlan && (savedActivePlan.id === t.id || savedActivePlan.time === t.time)) {
             locked = savedActivePlan;
           }
-          if (!locked && t.entryOpt) {
-            locked = {
-              symbol: t.direction === "LONG" ? `C-BTC-${t.optionStrike}` : `P-BTC-${t.optionStrike}`,
-              entryPrice: t.entryOpt,
-              buyZone: `$${(t.entryOpt * 0.98).toFixed(1)} - $${(t.entryOpt * 1.02).toFixed(1)}`,
-              targetPrice: Math.round((t.entryOpt * 1.5) * 10) / 10,
-              stopPrice: Math.round((t.entryOpt * 0.7) * 10) / 10,
-              strikeTier: "ATM (Delta ~0.50)"
-            };
-          }
+
           t.realOption = resolveRealDeltaContract(t.direction, t.entry, tickers, locked);
 
-          // If active trade, lock its initial execution plan and trigger Telegram Alert
-          if (t.outcome === "ACTIVE") {
+          // If active trade, lock its real Delta India execution plan and trigger Telegram Alert
+          if (t.outcome === "ACTIVE" && t.realOption && t.realOption.isLive) {
             try {
               localStorage.setItem('dtj_locked_active_plan', JSON.stringify({
                 id: t.id,
+                time: t.time,
                 ...t.realOption
               }));
             } catch (e) {}

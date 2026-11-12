@@ -143,7 +143,8 @@ window.DeltaSMCStrategy = (function() {
         if (slDist >= 90 && slDist <= 250) {
           const targetDist = Math.round(Math.max(210, slDist * 1.6) * 10) / 10;
           const tp = Math.round((entry - targetDist) * 10) / 10;
-          const atmStrike = Math.round(entry / 500) * 500;
+          // Delta Exchange India lists BTC options strikes every $200 around ATM
+          const atmStrike = Math.round(entry / 200) * 200;
 
           const entryOptEst = Math.round((entry * 0.003) * 10) / 10;
           const targetOptEst = Math.round((entryOptEst * 1.5) * 10) / 10;
@@ -193,7 +194,8 @@ window.DeltaSMCStrategy = (function() {
         if (slDist >= 90 && slDist <= 250) {
           const targetDist = Math.round(Math.max(210, slDist * 1.6) * 10) / 10;
           const tp = Math.round((entry + targetDist) * 10) / 10;
-          const atmStrike = Math.round(entry / 500) * 500;
+          // Delta Exchange India lists BTC options strikes every $200 around ATM
+          const atmStrike = Math.round(entry / 200) * 200;
 
           const entryOptEst = Math.round((entry * 0.003) * 10) / 10;
           const targetOptEst = Math.round((entryOptEst * 1.5) * 10) / 10;
