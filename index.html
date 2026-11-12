@@ -136,6 +136,9 @@
               <input type="text" id="ghRepoInput" placeholder="delta-trading-journal-gmp" class="w-full bg-panelDark border border-borderDark rounded-lg px-3 py-1.5 text-xs text-white focus:outline-none focus:border-indigo-500 font-mono">
             </div>
           </div>
+          <button id="btnForcePull" onclick="DeltaApp.forceSyncFromRawData()" class="w-full bg-indigo-600/20 hover:bg-indigo-600/30 text-indigo-300 border border-indigo-500/30 text-xs font-bold py-2 rounded-lg transition-colors flex items-center justify-center gap-1.5 shadow-sm mt-1">
+            <i class="fa-solid fa-arrows-rotate"></i> Pull Latest Trades from Cloud
+          </button>
         </div>
 
         <!-- Firebase Firestore Standard Status -->
@@ -1282,19 +1285,19 @@
   </nav>
 
   <!-- Application Script Pipeline -->
-  <script src="vendor/lightweight-charts.js?v=3.3.9"></script>
-  <script src="js/config.js?v=3.3.9"></script>
-  <script src="js/smc-strategy.js?v=3.3.9"></script>
-  <script src="js/macro-sentinel.js?v=3.3.9"></script>
-  <script src="js/chart-engine.js?v=3.3.9"></script>
-  <script src="js/db.js?v=3.3.9"></script>
-  <script src="js/quant.js?v=3.3.9"></script>
-  <script src="js/coach.js?v=3.3.9"></script>
-  <script src="js/planner.js?v=3.3.9"></script>
-  <script src="js/app.js?v=3.3.9"></script>
+  <script src="vendor/lightweight-charts.js?v=3.3.10"></script>
+  <script src="js/config.js?v=3.3.10"></script>
+  <script src="js/smc-strategy.js?v=3.3.10"></script>
+  <script src="js/macro-sentinel.js?v=3.3.10"></script>
+  <script src="js/chart-engine.js?v=3.3.10"></script>
+  <script src="js/db.js?v=3.3.10"></script>
+  <script src="js/quant.js?v=3.3.10"></script>
+  <script src="js/coach.js?v=3.3.10"></script>
+  <script src="js/planner.js?v=3.3.10"></script>
+  <script src="js/app.js?v=3.3.10"></script>
   <script>
     if ('serviceWorker' in navigator) {
-      navigator.serviceWorker.register('sw.js?v=3.3.9').then(function(reg) {
+      navigator.serviceWorker.register('sw.js?v=3.3.10').then(function(reg) {
         reg.update();
       });
     }

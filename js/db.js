@@ -344,46 +344,96 @@ window.DeltaDB = (function() {
   }
 
   // -------------------------------------------------------------
-  // 5. DATABASE INITIALIZATION & HYDRATION
+  // 5. DATABASE INITIALIZATION & CONTINUOUS HYDRATION
   // -------------------------------------------------------------
   async function init() {
     await openDatabase();
 
-    // 1. Load existing records from local IndexedDB (zero network latency!)
+    // 1. Instantly load existing records from local IndexedDB (zero network latency!)
     let localTrades = await getAllFromStore(STORE_TRADES);
 
-    // 2. If IndexedDB is empty, hydrate from raw_data.json
-    if (localTrades.length === 0) {
-      try {
-        console.log("Hydrating initial database from raw_data.json...");
-        const res = await fetch(DeltaConfig.RAW_DATA_URL + "?t=" + Date.now());
-        if (res.ok) {
-          const rawDump = await res.json();
-          const parsed = processRawDumpToTrades(rawDump);
-          if (parsed.length > 0) {
-            await bulkInsertTrades(parsed);
-            localTrades = parsed;
-          }
-        }
-      } catch (err) {
-        console.warn("Bootstrap hydration notice:", err);
-      }
+    if (localTrades.length > 0) {
+      inMemoryTrades = localTrades.sort((a, b) => b.sortTime - a.sortTime);
+      const { dailyMap, monthlyMap } = buildAggregations(inMemoryTrades);
+      inMemoryDailyMap = dailyMap;
+      inMemoryMonthlyMap = monthlyMap;
+      notifyListeners({ type: "ready", count: inMemoryTrades.length });
     }
 
-    // 3. Populate in-memory state
-    inMemoryTrades = localTrades.sort((a, b) => b.sortTime - a.sortTime);
-    const { dailyMap, monthlyMap } = buildAggregations(inMemoryTrades);
-    inMemoryDailyMap = dailyMap;
-    inMemoryMonthlyMap = monthlyMap;
+    // 2. Continuous Hydration: Check raw_data.json to merge any new trades from recent sync runs!
+    await syncFromRawData(localTrades.length === 0);
 
-    // 4. Initialize Firebase in background if configured
+    // 3. Initialize Firebase in background if configured
     const fbConfig = getFirebaseConfig();
     if (fbConfig && fbConfig.projectId) {
       initFirebase(fbConfig);
     }
 
-    notifyListeners({ type: "ready", count: inMemoryTrades.length });
     return inMemoryTrades;
+  }
+
+  /**
+   * Fetches the latest data/raw_data.json (bypassing cache) and merges newly synced trades into IndexedDB
+   */
+  async function syncFromRawData(forceNotify = false) {
+    try {
+      console.log("Checking raw_data.json for new trades...");
+      const res = await fetch(DeltaConfig.RAW_DATA_URL + "?t=" + Date.now(), {
+        cache: 'no-store'
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+
+      const rawDump = await res.json();
+      const freshTrades = processRawDumpToTrades(rawDump);
+
+      if (!freshTrades || freshTrades.length === 0) return 0;
+
+      let localTrades = await getAllFromStore(STORE_TRADES);
+      const localMap = new Map();
+      localTrades.forEach(t => localMap.set(t.id, t));
+
+      let newlyAdded = 0;
+      let updatedCount = 0;
+
+      for (const t of freshTrades) {
+        const existing = localMap.get(t.id);
+        if (!existing) {
+          // Brand new trade (e.g. today's newly synced trade)
+          await putToStore(STORE_TRADES, t);
+          localMap.set(t.id, t);
+          newlyAdded++;
+        } else {
+          // Check if status or PnL was updated from an open to closed position
+          if (existing.status !== t.status || Math.abs((existing.net_pnl || 0) - (t.net_pnl || 0)) > 0.01) {
+            const merged = {
+              ...t,
+              tags: existing.tags || [],
+              notes: existing.notes || "",
+              screenshots: existing.screenshots || [],
+              executionDiscipline: existing.executionDiscipline || 5
+            };
+            await putToStore(STORE_TRADES, merged);
+            localMap.set(t.id, merged);
+            updatedCount++;
+          }
+        }
+      }
+
+      if (newlyAdded > 0 || updatedCount > 0 || forceNotify || inMemoryTrades.length === 0) {
+        inMemoryTrades = Array.from(localMap.values()).sort((a, b) => b.sortTime - a.sortTime);
+        const { dailyMap, monthlyMap } = buildAggregations(inMemoryTrades);
+        inMemoryDailyMap = dailyMap;
+        inMemoryMonthlyMap = monthlyMap;
+
+        console.log(`[DeltaDB] Sync complete: ${newlyAdded} new trades added, ${updatedCount} updated. Total: ${inMemoryTrades.length}`);
+        notifyListeners({ type: "ready", count: inMemoryTrades.length, newlyAdded, updatedCount });
+      }
+
+      return newlyAdded + updatedCount;
+    } catch (err) {
+      console.warn("Raw data hydration notice:", err);
+      return 0;
+    }
   }
 
   // -------------------------------------------------------------
@@ -666,6 +716,7 @@ window.DeltaDB = (function() {
 
   return {
     init,
+    syncFromRawData,
     getTrades: () => inMemoryTrades,
     getDailyMap: () => inMemoryDailyMap,
     getMonthlyMap: () => inMemoryMonthlyMap,

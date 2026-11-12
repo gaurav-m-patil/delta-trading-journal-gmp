@@ -1904,19 +1904,38 @@ window.DeltaApp = (function() {
     const owner = localStorage.getItem(DeltaConfig.STORAGE_KEYS.GH_OWNER);
     const repo = localStorage.getItem(DeltaConfig.STORAGE_KEYS.GH_REPO);
 
-    if (!token || !owner || !repo) {
-      toggleGhSettings();
-      alert("Please configure your GitHub PAT, Username, and Repo Name in Settings first.");
-      return;
-    }
-
     const btn = document.getElementById('syncWorkflowBtn');
     if (btn) {
-      btn.innerHTML = `<i class="fa-solid fa-circle-notch fa-spin"></i> Triggering...`;
+      btn.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> Checking Cloud...`;
       btn.disabled = true;
     }
 
+    // Step 1: Immediately pull latest raw_data.json into local database
     try {
+      const count = await DeltaDB.syncFromRawData(true);
+      if (count > 0) {
+        applyGlobalFilter();
+        console.log(`[Sync] Loaded ${count} new/updated trades immediately.`);
+      }
+    } catch (e) {
+      console.warn("Pre-sync check notice:", e);
+    }
+
+    if (!token || !owner || !repo) {
+      if (btn) {
+        btn.innerHTML = `<i class="fa-solid fa-play"></i> Run Sync`;
+        btn.disabled = false;
+      }
+      toggleGhSettings();
+      alert("Local data updated from cloud! To run automated live API ingestion from Delta Exchange, please ensure your GitHub PAT is saved in Settings.");
+      return;
+    }
+
+    try {
+      if (btn) {
+        btn.innerHTML = `<i class="fa-solid fa-circle-notch fa-spin"></i> Triggering Action...`;
+      }
+
       const res = await fetch(`https://api.github.com/repos/${owner}/${repo}/actions/workflows/daily_sync.yml/dispatches`, {
         method: 'POST',
         headers: {
@@ -1931,12 +1950,52 @@ window.DeltaApp = (function() {
         const errText = await res.text();
         throw new Error(`GitHub API Error: ${res.status} - ${errText}`);
       }
-      alert("Workflow triggered! Wait ~45 seconds, then click Refresh.");
+
+      // Automated countdown & auto-refresh
+      let secondsLeft = 35;
+      const interval = setInterval(async () => {
+        secondsLeft -= 5;
+        if (btn) {
+          btn.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> Ingesting (${secondsLeft}s)...`;
+        }
+        if (secondsLeft <= 0) {
+          clearInterval(interval);
+          if (btn) btn.innerHTML = `<i class="fa-solid fa-cloud-arrow-down fa-bounce"></i> Pulling...`;
+          const synced = await DeltaDB.syncFromRawData(true);
+          applyGlobalFilter();
+          if (btn) {
+            btn.innerHTML = `<i class="fa-solid fa-circle-check text-emerald-400"></i> Synced!`;
+            setTimeout(() => {
+              btn.innerHTML = `<i class="fa-solid fa-play"></i> Run Sync`;
+              btn.disabled = false;
+            }, 3000);
+          }
+        }
+      }, 5000);
     } catch (err) {
       alert(`Failed to trigger workflow: ${err.message}`);
-    } finally {
       if (btn) {
         btn.innerHTML = `<i class="fa-solid fa-play"></i> Run Sync`;
+        btn.disabled = false;
+      }
+    }
+  }
+
+  async function forceSyncFromRawData() {
+    const btn = document.getElementById('btnForcePull');
+    if (btn) {
+      btn.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> Pulling...`;
+      btn.disabled = true;
+    }
+    try {
+      const count = await DeltaDB.syncFromRawData(true);
+      applyGlobalFilter();
+      alert(`Local Journal Updated! Loaded ${count} new/updated trades from cloud repository.`);
+    } catch (err) {
+      alert(`Sync notice: ${err.message}`);
+    } finally {
+      if (btn) {
+        btn.innerHTML = `<i class="fa-solid fa-arrows-rotate"></i> Pull Latest Trades from Cloud`;
         btn.disabled = false;
       }
     }
@@ -2006,6 +2065,7 @@ window.DeltaApp = (function() {
     saveAppSettings,
     triggerFirebaseSync,
     triggerGitHubWorkflow,
+    forceSyncFromRawData,
     showPeek,
     hidePeek,
     toggleTradeLogCollapse,
