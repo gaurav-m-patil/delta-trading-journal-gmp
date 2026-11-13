@@ -7,5 +7,6 @@
     "trades_given": 0,
     "wins": 0,
     "losses": 0
-  }
+  },
+  "telegram_handshake_sent": true
 }
