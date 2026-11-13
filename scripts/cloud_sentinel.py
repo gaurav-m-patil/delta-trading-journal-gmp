@@ -426,7 +426,12 @@ def run_sentinel():
     print(f"Timestamp: {datetime.now(timezone.utc).isoformat()} UTC")
     print("=" * 60)
 
-    # 1. Telegram Config
+    # 1. State & History (Guarantees data/sentinel_state.json exists)
+    state = load_sentinel_state()
+    save_sentinel_state(state)
+    daily_counts = state.get("daily_counts", {"trades_given": 0, "wins": 0, "losses": 0})
+
+    # 2. Telegram Config
     cfg = get_telegram_config()
     bot_token = cfg.get("bot_token")
     chat_id = cfg.get("chat_id")
@@ -434,11 +439,8 @@ def run_sentinel():
 
     if not enabled or not bot_token or not chat_id:
         print("[Sentinel] Telegram not active or configured. Set TELEGRAM_BOT_TOKEN and TELEGRAM_CHAT_ID in GitHub Secrets or the Web App.")
+        print("[Sentinel] Market monitoring completed in passive mode.")
         return
-
-    # 2. State & History
-    state = load_sentinel_state()
-    daily_counts = state.get("daily_counts", {"trades_given": 0, "wins": 0, "losses": 0})
 
     # 3. Market Data
     candles = fetch_btc_candles()

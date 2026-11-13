@@ -1,0 +1,11 @@
+{
+  "last_alerted_trade_id": null,
+  "active_trade": null,
+  "last_alerted_catalyst_guid": null,
+  "daily_counts": {
+    "date": "2026-11-13",
+    "trades_given": 0,
+    "wins": 0,
+    "losses": 0
+  }
+}
