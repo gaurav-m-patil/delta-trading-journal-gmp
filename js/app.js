@@ -189,17 +189,19 @@ window.DeltaApp = (function() {
     currentCoachSubTab = tab;
     const views = {
       RADAR: document.getElementById('subViewCoach_RADAR'),
+      PORTFOLIO: document.getElementById('subViewCoach_PORTFOLIO'),
       ENGINE: document.getElementById('subViewCoach_ENGINE'),
       AI: document.getElementById('subViewCoach_AI')
     };
     const btns = {
       RADAR: document.getElementById('subTabCoachBtn_RADAR'),
+      PORTFOLIO: document.getElementById('subTabCoachBtn_PORTFOLIO'),
       ENGINE: document.getElementById('subTabCoachBtn_ENGINE'),
       AI: document.getElementById('subTabCoachBtn_AI')
     };
 
-    const activeCls = "flex-1 py-2 px-3 text-xs font-bold rounded-xl transition-all bg-indigo-600 text-white flex items-center justify-center gap-1.5 shadow-md";
-    const inactiveCls = "flex-1 py-2 px-3 text-xs font-bold rounded-xl transition-all text-slate-400 hover:text-white bg-transparent flex items-center justify-center gap-1.5";
+    const activeCls = "flex-1 py-2 px-2.5 sm:px-3 text-xs font-bold rounded-xl transition-all bg-indigo-600 text-white flex items-center justify-center gap-1.5 shadow-md shrink-0 whitespace-nowrap";
+    const inactiveCls = "flex-1 py-2 px-2.5 sm:px-3 text-xs font-bold rounded-xl transition-all text-slate-400 hover:text-white bg-transparent flex items-center justify-center gap-1.5 shrink-0 whitespace-nowrap";
 
     Object.keys(views).forEach(k => {
       if (!views[k]) return;
@@ -214,6 +216,10 @@ window.DeltaApp = (function() {
 
     if (tab === 'ENGINE') {
       populateSelfImprovingEngineUI();
+    } else if (tab === 'PORTFOLIO') {
+      if (window.DeltaLiveChart && typeof DeltaLiveChart.refreshPaperUI === 'function') {
+        DeltaLiveChart.refreshPaperUI();
+      }
     }
   }
 

@@ -759,6 +759,8 @@ window.DeltaDB = (function() {
         optionSymbol: symbol,
         optionStrike: strike,
         optionEntryMark: entryOpt, // IMMUTABLE FROZEN ENTRY PRICE
+        optionBuyPrice: entryOpt,
+        optionSellPrice: t.outcome === 'WIN' ? targetPrice : (t.outcome === 'LOSS' ? stopPrice : (t.outcome === 'TIMEOUT' ? Math.round(entryOpt * 0.82 * 10) / 10 : (t.realOption?.markPrice || entryOpt))),
         buyZone: buyZone,
         optionTargetPrice: targetPrice,
         optionTargetGainPct: targetGainPct,
@@ -767,7 +769,7 @@ window.DeltaDB = (function() {
         outcome: t.outcome, // ACTIVE, WIN, LOSS, THETA_TIMEOUT
         exitTime: t.exitTime || null,
         exitBtcPrice: t.exitPrice || null, // BTC close price when TP/SL hit
-        exitOptionPrice: t.exitOpt || null,
+        exitOptionPrice: t.exitOpt || (t.outcome === 'WIN' ? targetPrice : (t.outcome === 'LOSS' ? stopPrice : entryOpt)),
         optionPnlPct: t.optionPnlPct || (t.outcome === 'WIN' ? targetGainPct : (t.outcome === 'LOSS' ? '-30.0%' : '0%')),
         liveMarkPrice: t.realOption?.markPrice || entryOpt,
         unrealizedPts: t.realOption?.unrealizedPts || 0,

@@ -1439,7 +1439,7 @@ Expected Profit: +50% Option Gross / +40% Net`;
   /**
    * Renders the interactive trade list under the chart
    * Shows trades filtered to the last 2 days (48 hours) as requested
-   * Displays immutable entry mark price vs live mark price and spot close price
+   * Displays immutable entry mark price vs exit sell price and ₹100,000 Paper Fund returns
    */
   function renderTradesTable(trades) {
     const tbody = document.getElementById('btTradesTableBody');
@@ -1457,6 +1457,20 @@ Expected Profit: +50% Option Gross / +40% Net`;
     // Fallback: If 0 setups in last 48h (e.g. over weekend), show latest 3 so table is never blank
     if (displayTrades.length === 0) {
       displayTrades = trades.slice(-3);
+    }
+
+    // Calculate ₹100,000 Institutional Paper Fund Progression
+    const portfolio = (window.DeltaPaperFund && typeof DeltaPaperFund.calculatePortfolio === 'function')
+      ? DeltaPaperFund.calculatePortfolio(displayTrades)
+      : null;
+
+    if (portfolio) {
+      if (typeof DeltaPaperFund.renderExecutiveBanner === 'function') {
+        DeltaPaperFund.renderExecutiveBanner('paperFundExecutiveBannerContainer', portfolio);
+      }
+      if (typeof DeltaPaperFund.renderPaperPortfolioTab === 'function') {
+        DeltaPaperFund.renderPaperPortfolioTab('subViewCoach_PORTFOLIO', portfolio);
+      }
     }
 
     // Update win rate element in table header
@@ -1482,9 +1496,35 @@ Expected Profit: +50% Option Gross / +40% Net`;
 
       const opt = t.realOption;
       const contractLabel = opt ? opt.symbol : (isCall ? 'C-BTC-' + t.optionStrike : 'P-BTC-' + t.optionStrike);
-      const entryMark = (opt && opt.entryPrice) ? opt.entryPrice : (t.entryOpt || Math.round(t.entry * 0.003 * 10) / 10);
-      const liveMark = (opt && opt.markPrice) ? opt.markPrice : entryMark;
       const targetGainPct = t.optionPnlPct || opt?.targetGainPct || t.targetGainPct || "+50%";
+
+      // Calculate Option Buy vs Sell / Mark Price
+      const buyPrice = (opt && opt.entryPrice > 0) ? opt.entryPrice : (t.optionEntryMark || t.entryOpt || 220);
+      let sellPrice = buyPrice;
+      let pnlDiff = 0;
+      let optGainPct = "+0.0%";
+
+      if (isWin) {
+        sellPrice = (opt && opt.targetPrice > 0) ? opt.targetPrice : (t.exitOpt || Math.round(buyPrice * 1.5 * 10) / 10);
+        pnlDiff = Math.round((sellPrice - buyPrice) * 10) / 10;
+        optGainPct = `+${Math.round((pnlDiff / buyPrice) * 100)}%`;
+      } else if (isLoss) {
+        sellPrice = (opt && opt.stopPrice > 0) ? opt.stopPrice : Math.round(buyPrice * 0.7 * 10) / 10;
+        pnlDiff = Math.round((sellPrice - buyPrice) * 10) / 10;
+        optGainPct = `-30%`;
+      } else if (t.outcome === "TIMEOUT") {
+        sellPrice = Math.round(buyPrice * 0.82 * 10) / 10;
+        pnlDiff = Math.round((sellPrice - buyPrice) * 10) / 10;
+        optGainPct = `-18%`;
+      } else {
+        // ACTIVE
+        sellPrice = (opt && opt.markPrice > 0) ? opt.markPrice : buyPrice;
+        pnlDiff = Math.round((sellPrice - buyPrice) * 10) / 10;
+        optGainPct = `${pnlDiff >= 0 ? '+' : ''}${Math.round((pnlDiff / buyPrice) * 100)}%`;
+      }
+
+      // Paper trade match
+      const paperTrade = portfolio ? portfolio.trades.find(x => x.id === t.id) : null;
 
       let outcomeBadge = "";
       if (isActive) {
@@ -1517,17 +1557,31 @@ Expected Profit: +50% Option Gross / +40% Net`;
           </td>
           <td class="py-2.5 px-2">
             <span class="text-indigo-300 font-semibold block text-[11px] truncate" title="${contractLabel}">${contractLabel}</span>
-            <div class="flex items-center gap-2 text-[9px]">
-              <span class="text-slate-400">Entry: <strong class="text-white">$${entryMark.toFixed(1)}</strong></span>
-              <span class="text-slate-400">Live: <strong class="${liveMark >= entryMark ? 'text-winGreen' : 'text-lossRed'}">$${liveMark.toFixed(1)}</strong></span>
+            <div class="text-[9px] mt-0.5 space-y-0.5">
+              <div class="flex items-center gap-1">
+                <span class="text-slate-400">Buy: <strong class="text-white">$${buyPrice.toFixed(1)}</strong></span>
+                <span class="text-slate-500">&rarr;</span>
+                <span class="text-slate-400">${isActive ? 'Live' : 'Sell'}: <strong class="${isWin ? 'text-winGreen' : (isLoss ? 'text-lossRed' : 'text-slate-200')}">$${sellPrice.toFixed(1)}</strong></span>
+              </div>
+              <div class="${pnlDiff >= 0 ? 'text-winGreen' : 'text-lossRed'} font-semibold font-mono">
+                ${pnlDiff >= 0 ? '+' : ''}${pnlDiff.toFixed(1)} pts (${optGainPct})
+              </div>
             </div>
           </td>
           <td class="py-2.5 px-2 text-[11px] sm:text-xs text-slate-300">
             <div>$${t.entry.toLocaleString()} &rarr; <strong class="${isWin ? 'text-winGreen' : 'text-slate-200'}">${closedSpot}</strong></div>
             <div class="text-[9px] text-slate-400">SL: $${t.sl.toLocaleString()}</div>
           </td>
-          <td class="py-2.5 px-1.5">
-            ${outcomeBadge}
+          <td class="py-2.5 px-2 text-[11px] font-mono">
+            ${paperTrade ? (isActive ? `
+              <span class="text-cyan-400 font-bold text-[10px]"><span class="h-1.5 w-1.5 rounded-full bg-cyan-400 animate-ping inline-block mr-1"></span>ACTIVE</span>
+              <div class="text-[9px] text-slate-400">₹${paperTrade.allocatedInr.toLocaleString('en-IN')} Margin</div>
+            ` : `
+              <div class="font-bold ${paperTrade.netPnlInr >= 0 ? 'text-winGreen' : 'text-lossRed'}">
+                ${paperTrade.netPnlInr >= 0 ? '+' : ''}₹${paperTrade.netPnlInr.toLocaleString('en-IN')}
+              </div>
+              <div class="text-[9px] text-slate-400">Bal: ₹${paperTrade.capitalAfterTrade.toLocaleString('en-IN')}</div>
+            `) : '--'}
           </td>
           <td class="py-2.5 px-2 text-right">
             <button onclick="event.stopPropagation(); DeltaLiveChart.openTradeDetailsModal('${t.id}')" title="View Trade Logic & Playbook" class="px-2 sm:px-2.5 py-1 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-[10px] sm:text-[11px] transition-colors shadow-sm inline-flex items-center gap-1 font-mono">
@@ -1552,6 +1606,12 @@ Expected Profit: +50% Option Gross / +40% Net`;
     });
   }
 
+  function refreshPaperUI() {
+    if (currentAnalysis && currentAnalysis.trades) {
+      renderTradesTable(currentAnalysis.trades);
+    }
+  }
+
   return {
     initChart,
     loadTimeframe,
@@ -1563,6 +1623,7 @@ Expected Profit: +50% Option Gross / +40% Net`;
     closeTradeDetailsModal,
     copyDeltaOrderDetails,
     getCurrentAnalysis: () => currentAnalysis,
-    getTradeRegistry
+    getTradeRegistry,
+    refreshPaperUI
   };
 })();
