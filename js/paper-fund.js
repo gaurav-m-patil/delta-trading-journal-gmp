@@ -301,7 +301,118 @@ window.DeltaPaperFund = (function() {
             <span class="text-[10px] text-slate-400 font-mono">${portfolio.trades.length} setups processed</span>
           </div>
 
-          <div class="w-full max-h-[380px] overflow-y-auto overflow-x-hidden custom-scroll">
+          <!-- Mobile Cards Stream for Paper Trades (Shown on < md) -->
+          <div class="grid grid-cols-1 gap-2.5 md:hidden max-h-[420px] overflow-y-auto custom-scroll">
+            ${reversedTrades.length === 0 ? `
+              <div class="py-6 text-center text-slate-500 text-xs">No paper trades executed in current 48h candle window.</div>
+            ` : reversedTrades.map(t => {
+              const d = new Date(t.time * 1000);
+              const timeStr = d.toLocaleTimeString('en-IN', { timeZone: 'Asia/Kolkata', hour: '2-digit', minute: '2-digit', hour12: true });
+              const dateStr = d.toLocaleDateString('en-IN', { timeZone: 'Asia/Kolkata', month: 'short', day: 'numeric' });
+              const isCall = t.direction === 'LONG';
+              const isWin = t.outcome === 'WIN';
+              const isLoss = t.outcome === 'LOSS';
+              const isActive = t.outcome === 'ACTIVE';
+
+              const pnlClass = t.netPnlInr >= 0 ? 'text-winGreen' : 'text-lossRed';
+              const pnlSign = t.netPnlInr >= 0 ? '+' : '';
+
+              let outcomeBadge = "";
+              if (isActive) {
+                outcomeBadge = `<span class="px-2 py-0.5 rounded text-[9px] font-bold bg-cyan-500/15 text-cyan-400 border border-cyan-500/30 inline-flex items-center gap-1"><span class="h-1.5 w-1.5 rounded-full bg-cyan-400 animate-ping"></span> LIVE</span>`;
+              } else if (isWin) {
+                outcomeBadge = `<span class="px-2 py-0.5 rounded text-[9px] font-bold bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 whitespace-nowrap">WIN (${t.pnlPctStr})</span>`;
+              } else if (isLoss) {
+                outcomeBadge = `<span class="px-2 py-0.5 rounded text-[9px] font-bold bg-rose-500/15 text-rose-400 border border-rose-500/30 whitespace-nowrap">LOSS (${t.pnlPctStr})</span>`;
+              } else {
+                outcomeBadge = `<span class="px-2 py-0.5 rounded text-[9px] font-bold bg-slate-500/15 text-slate-400 border border-slate-500/30 whitespace-nowrap">TIMEOUT</span>`;
+              }
+
+              return `
+                <div class="p-3 rounded-xl bg-panelDark/90 border border-borderDark/80 space-y-2 font-mono shadow-sm">
+                  <!-- Header: Badge + Symbol + Outcome -->
+                  <div class="flex items-center justify-between pb-1.5 border-b border-borderDark/40">
+                    <div class="flex items-center gap-1.5 min-w-0">
+                      <span class="px-2 py-0.5 rounded text-[10px] font-bold ${isCall ? 'bg-winGreen/15 text-winGreen border border-winGreen/30' : 'bg-lossRed/15 text-lossRed border border-lossRed/30'} flex items-center gap-1 shrink-0">
+                        <i class="fa-solid ${isCall ? 'fa-arrow-up' : 'fa-arrow-down'} text-[9px]"></i>
+                        ${isCall ? 'CALL' : 'PUT'}
+                      </span>
+                      <span class="text-indigo-300 font-bold text-[11px] truncate" title="${t.realOption?.symbol || t.optionSymbol}">
+                        ${t.realOption?.symbol || t.optionSymbol}
+                      </span>
+                    </div>
+                    <div class="shrink-0">
+                      ${outcomeBadge}
+                    </div>
+                  </div>
+
+                  <!-- Subheader: IST Time + Allocated Margin -->
+                  <div class="flex items-center justify-between text-[11px]">
+                    <div class="text-[10px] text-slate-400 shrink-0">
+                      <i class="fa-regular fa-clock text-[9px] text-slate-500 mr-1"></i>${timeStr} · ${dateStr}
+                    </div>
+                    <div class="text-[10px] text-slate-300">
+                      <span class="text-slate-500">Margin:</span> <strong class="text-slate-200">₹${t.allocatedInr.toLocaleString('en-IN')}</strong>
+                    </div>
+                  </div>
+
+                  <!-- 2-Column Metrics Grid -->
+                  <div class="grid grid-cols-2 gap-2 text-[11px]">
+                    <div class="bg-brandDark/80 p-2 rounded-lg border border-borderDark/60 space-y-1">
+                      <div class="text-[9px] uppercase tracking-wider text-slate-400 font-semibold flex items-center justify-between">
+                        <span>Option Price</span>
+                        <span class="${t.pnlPts >= 0 ? 'text-winGreen' : 'text-lossRed'} font-bold">${t.pnlPctStr}</span>
+                      </div>
+                      <div class="flex items-center justify-between text-[10px]">
+                        <span class="text-slate-400">Buy:</span>
+                        <strong class="text-white">$${t.buyPrice.toFixed(1)}</strong>
+                      </div>
+                      <div class="flex items-center justify-between text-[10px]">
+                        <span class="text-slate-400">${isActive ? 'Live' : 'Sell'}:</span>
+                        <strong class="${isWin ? 'text-winGreen' : (isLoss ? 'text-lossRed' : 'text-slate-200')}">$${t.sellPrice.toFixed(1)}</strong>
+                      </div>
+                      <div class="flex items-center justify-between text-[10px] pt-1 border-t border-borderDark/40">
+                        <span class="text-slate-400">Points PnL:</span>
+                        <strong class="${t.pnlPts >= 0 ? 'text-winGreen' : 'text-lossRed'}">${t.pnlPts >= 0 ? '+' : ''}${t.pnlPts.toFixed(1)} pts</strong>
+                      </div>
+                    </div>
+
+                    <div class="bg-brandDark/80 p-2 rounded-lg border border-borderDark/60 space-y-1">
+                      <div class="text-[9px] uppercase tracking-wider text-slate-400 font-semibold flex items-center justify-between">
+                        <span>₹100k Impact</span>
+                        <span class="text-slate-500 text-[8px]">Fee ₹${t.feeInr}</span>
+                      </div>
+                      <div class="flex items-center justify-between text-[10px]">
+                        <span class="text-slate-400">Net Return:</span>
+                        ${isActive ? `
+                          <strong class="text-cyan-400 text-[10px]">LIVE</strong>
+                        ` : `
+                          <strong class="${pnlClass}">${pnlSign}₹${t.netPnlInr.toLocaleString('en-IN')}</strong>
+                        `}
+                      </div>
+                      <div class="flex items-center justify-between text-[10px]">
+                        <span class="text-slate-400">Brokerage:</span>
+                        <span class="text-slate-400">₹${t.feeInr} (incl. GST)</span>
+                      </div>
+                      <div class="flex items-center justify-between text-[10px] pt-1 border-t border-borderDark/40">
+                        <span class="text-slate-400">Post-Trade:</span>
+                        <strong class="text-white">₹${t.capitalAfterTrade.toLocaleString('en-IN')}</strong>
+                      </div>
+                    </div>
+                  </div>
+
+                  <!-- Footer: Capital Balance -->
+                  <div class="flex items-center justify-between pt-1 border-t border-borderDark/40 text-[11px]">
+                    <span class="text-slate-400 text-[10px]">Capital Balance After Trade:</span>
+                    <strong class="text-white text-xs">₹${t.capitalAfterTrade.toLocaleString('en-IN')}</strong>
+                  </div>
+                </div>
+              `;
+            }).join('')}
+          </div>
+
+          <!-- Desktop Table (Shown on md:) -->
+          <div class="hidden md:block w-full max-h-[380px] overflow-y-auto overflow-x-hidden custom-scroll">
             <table class="w-full text-left text-xs font-mono table-fixed">
               <thead>
                 <tr class="text-[10px] text-slate-400 uppercase border-b border-borderDark/80">

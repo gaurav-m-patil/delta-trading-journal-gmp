@@ -952,6 +952,12 @@ window.DeltaLiveChart = (function() {
       rows.forEach(r => r.classList.remove('bg-indigo-600/20', 'border-indigo-500'));
       const activeRow = document.getElementById(`row_${tradeId}`);
       if (activeRow) activeRow.classList.add('bg-indigo-600/20');
+
+      // Highlight mobile card
+      const mcards = document.querySelectorAll('.bt-trade-mcard');
+      mcards.forEach(c => c.classList.remove('ring-2', 'ring-indigo-500', 'bg-indigo-950/30'));
+      const activeMcard = document.getElementById(`mcard_${tradeId}`);
+      if (activeMcard) activeMcard.classList.add('ring-2', 'ring-indigo-500', 'bg-indigo-950/30');
     }
   }
 
@@ -1443,10 +1449,12 @@ Expected Profit: +50% Option Gross / +40% Net`;
    */
   function renderTradesTable(trades) {
     const tbody = document.getElementById('btTradesTableBody');
-    if (!tbody) return;
+    const mobileContainer = document.getElementById('btTradesMobileCards');
+    if (!tbody && !mobileContainer) return;
 
     if (!trades || trades.length === 0) {
-      tbody.innerHTML = `<tr><td colspan="6" class="py-5 text-center text-slate-500 font-mono text-xs">No institutional setups triggered in current candle window.</td></tr>`;
+      if (tbody) tbody.innerHTML = `<tr><td colspan="6" class="py-5 text-center text-slate-500 font-mono text-xs">No institutional setups triggered in current candle window.</td></tr>`;
+      if (mobileContainer) mobileContainer.innerHTML = `<div class="py-6 text-center text-slate-500 font-mono text-xs">No institutional setups triggered in current candle window.</div>`;
       return;
     }
 
@@ -1485,113 +1493,257 @@ Expected Profit: +50% Option Gross / +40% Net`;
     // Sort descending by time
     const sorted = [...displayTrades].reverse();
 
-    tbody.innerHTML = sorted.map(t => {
-      const d = new Date(t.time * 1000);
-      const timeStr = d.toLocaleTimeString('en-IN', { timeZone: 'Asia/Kolkata', hour: '2-digit', minute: '2-digit', hour12: true });
-      const dateStr = d.toLocaleDateString('en-IN', { timeZone: 'Asia/Kolkata', month: 'short', day: 'numeric' });
-      const isCall = t.direction === "LONG";
-      const isWin = t.outcome === "WIN";
-      const isLoss = t.outcome === "LOSS";
-      const isActive = t.outcome === "ACTIVE";
+    // Render Desktop Table Rows
+    if (tbody) {
+      tbody.innerHTML = sorted.map(t => {
+        const d = new Date(t.time * 1000);
+        const timeStr = d.toLocaleTimeString('en-IN', { timeZone: 'Asia/Kolkata', hour: '2-digit', minute: '2-digit', hour12: true });
+        const dateStr = d.toLocaleDateString('en-IN', { timeZone: 'Asia/Kolkata', month: 'short', day: 'numeric' });
+        const isCall = t.direction === "LONG";
+        const isWin = t.outcome === "WIN";
+        const isLoss = t.outcome === "LOSS";
+        const isActive = t.outcome === "ACTIVE";
 
-      const opt = t.realOption;
-      const contractLabel = opt ? opt.symbol : (isCall ? 'C-BTC-' + t.optionStrike : 'P-BTC-' + t.optionStrike);
-      const targetGainPct = t.optionPnlPct || opt?.targetGainPct || t.targetGainPct || "+50%";
+        const opt = t.realOption;
+        const contractLabel = opt ? opt.symbol : (isCall ? 'C-BTC-' + t.optionStrike : 'P-BTC-' + t.optionStrike);
+        const targetGainPct = t.optionPnlPct || opt?.targetGainPct || t.targetGainPct || "+50%";
 
-      // Calculate Option Buy vs Sell / Mark Price
-      const buyPrice = (opt && opt.entryPrice > 0) ? opt.entryPrice : (t.optionEntryMark || t.entryOpt || 220);
-      let sellPrice = buyPrice;
-      let pnlDiff = 0;
-      let optGainPct = "+0.0%";
+        // Calculate Option Buy vs Sell / Mark Price
+        const buyPrice = (opt && opt.entryPrice > 0) ? opt.entryPrice : (t.optionEntryMark || t.entryOpt || 220);
+        let sellPrice = buyPrice;
+        let pnlDiff = 0;
+        let optGainPct = "+0.0%";
 
-      if (isWin) {
-        sellPrice = (opt && opt.targetPrice > 0) ? opt.targetPrice : (t.exitOpt || Math.round(buyPrice * 1.5 * 10) / 10);
-        pnlDiff = Math.round((sellPrice - buyPrice) * 10) / 10;
-        optGainPct = `+${Math.round((pnlDiff / buyPrice) * 100)}%`;
-      } else if (isLoss) {
-        sellPrice = (opt && opt.stopPrice > 0) ? opt.stopPrice : Math.round(buyPrice * 0.7 * 10) / 10;
-        pnlDiff = Math.round((sellPrice - buyPrice) * 10) / 10;
-        optGainPct = `-30%`;
-      } else if (t.outcome === "TIMEOUT") {
-        sellPrice = Math.round(buyPrice * 0.82 * 10) / 10;
-        pnlDiff = Math.round((sellPrice - buyPrice) * 10) / 10;
-        optGainPct = `-18%`;
-      } else {
-        // ACTIVE
-        sellPrice = (opt && opt.markPrice > 0) ? opt.markPrice : buyPrice;
-        pnlDiff = Math.round((sellPrice - buyPrice) * 10) / 10;
-        optGainPct = `${pnlDiff >= 0 ? '+' : ''}${Math.round((pnlDiff / buyPrice) * 100)}%`;
-      }
+        if (isWin) {
+          sellPrice = (opt && opt.targetPrice > 0) ? opt.targetPrice : (t.exitOpt || Math.round(buyPrice * 1.5 * 10) / 10);
+          pnlDiff = Math.round((sellPrice - buyPrice) * 10) / 10;
+          optGainPct = `+${Math.round((pnlDiff / buyPrice) * 100)}%`;
+        } else if (isLoss) {
+          sellPrice = (opt && opt.stopPrice > 0) ? opt.stopPrice : Math.round(buyPrice * 0.7 * 10) / 10;
+          pnlDiff = Math.round((sellPrice - buyPrice) * 10) / 10;
+          optGainPct = `-30%`;
+        } else if (t.outcome === "TIMEOUT") {
+          sellPrice = Math.round(buyPrice * 0.82 * 10) / 10;
+          pnlDiff = Math.round((sellPrice - buyPrice) * 10) / 10;
+          optGainPct = `-18%`;
+        } else {
+          // ACTIVE
+          sellPrice = (opt && opt.markPrice > 0) ? opt.markPrice : buyPrice;
+          pnlDiff = Math.round((sellPrice - buyPrice) * 10) / 10;
+          optGainPct = `${pnlDiff >= 0 ? '+' : ''}${Math.round((pnlDiff / buyPrice) * 100)}%`;
+        }
 
-      // Paper trade match
-      const paperTrade = portfolio ? portfolio.trades.find(x => x.id === t.id) : null;
+        // Paper trade match
+        const paperTrade = portfolio ? portfolio.trades.find(x => x.id === t.id) : null;
 
-      let outcomeBadge = "";
-      if (isActive) {
-        outcomeBadge = `<span class="px-1.5 sm:px-2 py-0.5 rounded text-[9px] sm:text-[10px] font-bold bg-cyan-500/10 text-cyan-400 border border-cyan-500/30 inline-flex items-center gap-1"><span class="h-1.5 w-1.5 rounded-full bg-cyan-400 animate-ping"></span> LIVE</span>`;
-      } else if (isWin) {
-        outcomeBadge = `<span class="px-1.5 sm:px-2 py-0.5 rounded text-[9px] sm:text-[10px] font-bold bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 whitespace-nowrap">WIN (${targetGainPct})</span>`;
-      } else if (isLoss) {
-        outcomeBadge = `<span class="px-1.5 sm:px-2 py-0.5 rounded text-[9px] sm:text-[10px] font-bold bg-rose-500/10 text-rose-400 border border-rose-500/30 whitespace-nowrap">LOSS (-1R)</span>`;
-      } else {
-        outcomeBadge = `<span class="px-1.5 sm:px-2 py-0.5 rounded text-[9px] sm:text-[10px] font-bold bg-slate-500/10 text-slate-400 border border-slate-500/30 whitespace-nowrap">TIMEOUT</span>`;
-      }
+        let outcomeBadge = "";
+        if (isActive) {
+          outcomeBadge = `<span class="px-1.5 sm:px-2 py-0.5 rounded text-[9px] sm:text-[10px] font-bold bg-cyan-500/10 text-cyan-400 border border-cyan-500/30 inline-flex items-center gap-1"><span class="h-1.5 w-1.5 rounded-full bg-cyan-400 animate-ping"></span> LIVE</span>`;
+        } else if (isWin) {
+          outcomeBadge = `<span class="px-1.5 sm:px-2 py-0.5 rounded text-[9px] sm:text-[10px] font-bold bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 whitespace-nowrap">WIN (${targetGainPct})</span>`;
+        } else if (isLoss) {
+          outcomeBadge = `<span class="px-1.5 sm:px-2 py-0.5 rounded text-[9px] sm:text-[10px] font-bold bg-rose-500/10 text-rose-400 border border-rose-500/30 whitespace-nowrap">LOSS (-1R)</span>`;
+        } else {
+          outcomeBadge = `<span class="px-1.5 sm:px-2 py-0.5 rounded text-[9px] sm:text-[10px] font-bold bg-slate-500/10 text-slate-400 border border-slate-500/30 whitespace-nowrap">TIMEOUT</span>`;
+        }
 
-      const cleanPatternName = (t.name || '').replace('Confirmed ', '');
-      const isSelected = selectedTrade && selectedTrade.id === t.id;
-      const closedSpot = t.exitPrice ? `$${t.exitPrice.toLocaleString()}` : `$${t.tp.toLocaleString()}`;
+        const cleanPatternName = (t.name || '').replace('Confirmed ', '');
+        const isSelected = selectedTrade && selectedTrade.id === t.id;
+        const closedSpot = t.exitPrice ? `$${t.exitPrice.toLocaleString()}` : `$${t.tp.toLocaleString()}`;
 
-      return `
-        <tr id="row_${t.id}" class="bt-trade-row hover:bg-panelDark/60 transition-colors cursor-pointer ${isSelected ? 'bg-indigo-600/20' : ''}" onclick="DeltaLiveChart.selectTrade('${t.id}')">
-          <td class="py-2.5 px-2 text-slate-200 font-bold text-[11px] sm:text-xs">
-            <div>${timeStr}</div>
-            <div class="text-[9px] text-slate-400 font-normal">${dateStr}</div>
-          </td>
-          <td class="py-2.5 px-2">
-            <div class="flex items-center gap-1 font-bold ${isCall ? 'text-winGreen' : 'text-lossRed'} text-xs">
-              <i class="fa-solid ${isCall ? 'fa-arrow-up' : 'fa-arrow-down'} text-[10px]"></i>
-              <span>${isCall ? 'CALL' : 'PUT'}</span>
-              ${t.strategyId && t.strategyId.includes('BOS') ? '<span class="text-[8px] px-1 py-0.2 rounded bg-amber-500/20 text-amber-300 border border-amber-500/40 font-mono">BOS</span>' : ''}
+        return `
+          <tr id="row_${t.id}" class="bt-trade-row hover:bg-panelDark/60 transition-colors cursor-pointer ${isSelected ? 'bg-indigo-600/20' : ''}" onclick="DeltaLiveChart.selectTrade('${t.id}')">
+            <td class="py-2.5 px-2 text-slate-200 font-bold text-[11px] sm:text-xs">
+              <div>${timeStr}</div>
+              <div class="text-[9px] text-slate-400 font-normal">${dateStr}</div>
+            </td>
+            <td class="py-2.5 px-2">
+              <div class="flex items-center gap-1 font-bold ${isCall ? 'text-winGreen' : 'text-lossRed'} text-xs">
+                <i class="fa-solid ${isCall ? 'fa-arrow-up' : 'fa-arrow-down'} text-[10px]"></i>
+                <span>${isCall ? 'CALL' : 'PUT'}</span>
+                ${t.strategyId && t.strategyId.includes('BOS') ? '<span class="text-[8px] px-1 py-0.2 rounded bg-amber-500/20 text-amber-300 border border-amber-500/40 font-mono">BOS</span>' : ''}
+              </div>
+              <span class="text-[10px] text-slate-400 block truncate" title="${t.name}">${cleanPatternName}</span>
+            </td>
+            <td class="py-2.5 px-2">
+              <span class="text-indigo-300 font-semibold block text-[11px] truncate" title="${contractLabel}">${contractLabel}</span>
+              <div class="text-[9px] mt-0.5 space-y-0.5">
+                <div class="flex items-center gap-1">
+                  <span class="text-slate-400">Buy: <strong class="text-white">$${buyPrice.toFixed(1)}</strong></span>
+                  <span class="text-slate-500">&rarr;</span>
+                  <span class="text-slate-400">${isActive ? 'Live' : 'Sell'}: <strong class="${isWin ? 'text-winGreen' : (isLoss ? 'text-lossRed' : 'text-slate-200')}">$${sellPrice.toFixed(1)}</strong></span>
+                </div>
+                <div class="${pnlDiff >= 0 ? 'text-winGreen' : 'text-lossRed'} font-semibold font-mono">
+                  ${pnlDiff >= 0 ? '+' : ''}${pnlDiff.toFixed(1)} pts (${optGainPct})
+                </div>
+              </div>
+            </td>
+            <td class="py-2.5 px-2 text-[11px] sm:text-xs text-slate-300">
+              <div>$${t.entry.toLocaleString()} &rarr; <strong class="${isWin ? 'text-winGreen' : 'text-slate-200'}">${closedSpot}</strong></div>
+              <div class="text-[9px] text-slate-400">SL: $${t.sl.toLocaleString()}</div>
+            </td>
+            <td class="py-2.5 px-2 text-[11px] font-mono">
+              ${paperTrade ? (isActive ? `
+                <span class="text-cyan-400 font-bold text-[10px]"><span class="h-1.5 w-1.5 rounded-full bg-cyan-400 animate-ping inline-block mr-1"></span>ACTIVE</span>
+                <div class="text-[9px] text-slate-400">₹${paperTrade.allocatedInr.toLocaleString('en-IN')} Margin</div>
+              ` : `
+                <div class="font-bold ${paperTrade.netPnlInr >= 0 ? 'text-winGreen' : 'text-lossRed'}">
+                  ${paperTrade.netPnlInr >= 0 ? '+' : ''}₹${paperTrade.netPnlInr.toLocaleString('en-IN')}
+                </div>
+                <div class="text-[9px] text-slate-400">Bal: ₹${paperTrade.capitalAfterTrade.toLocaleString('en-IN')}</div>
+              `) : '--'}
+            </td>
+            <td class="py-2.5 px-2 text-right">
+              <button onclick="event.stopPropagation(); DeltaLiveChart.openTradeDetailsModal('${t.id}')" title="View Trade Logic & Playbook" class="px-2 sm:px-2.5 py-1 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-[10px] sm:text-[11px] transition-colors shadow-sm inline-flex items-center gap-1 font-mono">
+                <i class="fa-solid fa-circle-info"></i>
+                <span class="hidden sm:inline">Logic</span>
+              </button>
+            </td>
+          </tr>
+        `;
+      }).join('');
+    }
+
+    // Render Mobile Responsive Cards Stream (Zero horizontal blowout, clean 2-column metrics)
+    if (mobileContainer) {
+      mobileContainer.innerHTML = sorted.map(t => {
+        const d = new Date(t.time * 1000);
+        const timeStr = d.toLocaleTimeString('en-IN', { timeZone: 'Asia/Kolkata', hour: '2-digit', minute: '2-digit', hour12: true });
+        const dateStr = d.toLocaleDateString('en-IN', { timeZone: 'Asia/Kolkata', month: 'short', day: 'numeric' });
+        const isCall = t.direction === "LONG";
+        const isWin = t.outcome === "WIN";
+        const isLoss = t.outcome === "LOSS";
+        const isActive = t.outcome === "ACTIVE";
+
+        const opt = t.realOption;
+        const contractLabel = opt ? opt.symbol : (isCall ? 'C-BTC-' + t.optionStrike : 'P-BTC-' + t.optionStrike);
+        const targetGainPct = t.optionPnlPct || opt?.targetGainPct || t.targetGainPct || "+50%";
+
+        const buyPrice = (opt && opt.entryPrice > 0) ? opt.entryPrice : (t.optionEntryMark || t.entryOpt || 220);
+        let sellPrice = buyPrice;
+        let pnlDiff = 0;
+        let optGainPct = "+0.0%";
+
+        if (isWin) {
+          sellPrice = (opt && opt.targetPrice > 0) ? opt.targetPrice : (t.exitOpt || Math.round(buyPrice * 1.5 * 10) / 10);
+          pnlDiff = Math.round((sellPrice - buyPrice) * 10) / 10;
+          optGainPct = `+${Math.round((pnlDiff / buyPrice) * 100)}%`;
+        } else if (isLoss) {
+          sellPrice = (opt && opt.stopPrice > 0) ? opt.stopPrice : Math.round(buyPrice * 0.7 * 10) / 10;
+          pnlDiff = Math.round((sellPrice - buyPrice) * 10) / 10;
+          optGainPct = `-30%`;
+        } else if (t.outcome === "TIMEOUT") {
+          sellPrice = Math.round(buyPrice * 0.82 * 10) / 10;
+          pnlDiff = Math.round((sellPrice - buyPrice) * 10) / 10;
+          optGainPct = `-18%`;
+        } else {
+          sellPrice = (opt && opt.markPrice > 0) ? opt.markPrice : buyPrice;
+          pnlDiff = Math.round((sellPrice - buyPrice) * 10) / 10;
+          optGainPct = `${pnlDiff >= 0 ? '+' : ''}${Math.round((pnlDiff / buyPrice) * 100)}%`;
+        }
+
+        const paperTrade = portfolio ? portfolio.trades.find(x => x.id === t.id) : null;
+
+        let outcomeBadge = "";
+        if (isActive) {
+          outcomeBadge = `<span class="px-2 py-0.5 rounded text-[9px] font-bold bg-cyan-500/15 text-cyan-400 border border-cyan-500/30 inline-flex items-center gap-1"><span class="h-1.5 w-1.5 rounded-full bg-cyan-400 animate-ping"></span> LIVE</span>`;
+        } else if (isWin) {
+          outcomeBadge = `<span class="px-2 py-0.5 rounded text-[9px] font-bold bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 whitespace-nowrap">WIN (${targetGainPct})</span>`;
+        } else if (isLoss) {
+          outcomeBadge = `<span class="px-2 py-0.5 rounded text-[9px] font-bold bg-rose-500/15 text-rose-400 border border-rose-500/30 whitespace-nowrap">LOSS (-1R)</span>`;
+        } else {
+          outcomeBadge = `<span class="px-2 py-0.5 rounded text-[9px] font-bold bg-slate-500/15 text-slate-400 border border-slate-500/30 whitespace-nowrap">TIMEOUT</span>`;
+        }
+
+        const cleanPatternName = (t.name || '').replace('Confirmed ', '');
+        const isSelected = selectedTrade && selectedTrade.id === t.id;
+        const closedSpot = t.exitPrice ? `$${t.exitPrice.toLocaleString()}` : `$${t.tp.toLocaleString()}`;
+
+        return `
+          <div id="mcard_${t.id}" class="bt-trade-mcard p-3 rounded-xl bg-panelDark/90 border border-borderDark/80 hover:border-indigo-500/50 space-y-2 font-mono transition-all cursor-pointer ${isSelected ? 'ring-2 ring-indigo-500 bg-indigo-950/30' : ''}" onclick="DeltaLiveChart.selectTrade('${t.id}')">
+            <!-- Header: Direction + BOS + Name + Outcome -->
+            <div class="flex items-center justify-between pb-1.5 border-b border-borderDark/40">
+              <div class="flex items-center gap-1.5 min-w-0">
+                <span class="px-2 py-0.5 rounded text-[10px] font-bold ${isCall ? 'bg-winGreen/15 text-winGreen border border-winGreen/30' : 'bg-lossRed/15 text-lossRed border border-lossRed/30'} flex items-center gap-1 shrink-0">
+                  <i class="fa-solid ${isCall ? 'fa-arrow-up' : 'fa-arrow-down'} text-[9px]"></i>
+                  ${isCall ? 'CALL' : 'PUT'}
+                </span>
+                ${t.strategyId && t.strategyId.includes('BOS') ? '<span class="text-[9px] px-1.5 py-0.2 rounded bg-amber-500/20 text-amber-300 border border-amber-500/40 shrink-0 font-bold">BOS</span>' : ''}
+                <span class="text-[11px] text-slate-200 font-bold truncate" title="${t.name}">${cleanPatternName}</span>
+              </div>
+              <div class="shrink-0">
+                ${outcomeBadge}
+              </div>
             </div>
-            <span class="text-[10px] text-slate-400 block truncate" title="${t.name}">${cleanPatternName}</span>
-          </td>
-          <td class="py-2.5 px-2">
-            <span class="text-indigo-300 font-semibold block text-[11px] truncate" title="${contractLabel}">${contractLabel}</span>
-            <div class="text-[9px] mt-0.5 space-y-0.5">
-              <div class="flex items-center gap-1">
-                <span class="text-slate-400">Buy: <strong class="text-white">$${buyPrice.toFixed(1)}</strong></span>
-                <span class="text-slate-500">&rarr;</span>
-                <span class="text-slate-400">${isActive ? 'Live' : 'Sell'}: <strong class="${isWin ? 'text-winGreen' : (isLoss ? 'text-lossRed' : 'text-slate-200')}">$${sellPrice.toFixed(1)}</strong></span>
+
+            <!-- Subheader: Contract & IST Time -->
+            <div class="flex items-center justify-between text-[11px]">
+              <div class="flex items-center gap-1 text-indigo-300 font-bold truncate">
+                <i class="fa-solid fa-file-contract text-[10px] text-indigo-400 shrink-0"></i>
+                <span class="truncate" title="${contractLabel}">${contractLabel}</span>
               </div>
-              <div class="${pnlDiff >= 0 ? 'text-winGreen' : 'text-lossRed'} font-semibold font-mono">
-                ${pnlDiff >= 0 ? '+' : ''}${pnlDiff.toFixed(1)} pts (${optGainPct})
+              <div class="text-[10px] text-slate-400 shrink-0">${timeStr} · ${dateStr}</div>
+            </div>
+
+            <!-- 2-Column Institutional Metrics Grid -->
+            <div class="grid grid-cols-2 gap-2 text-[11px]">
+              <div class="bg-brandDark/80 p-2 rounded-lg border border-borderDark/60 space-y-1">
+                <div class="text-[9px] uppercase tracking-wider text-slate-400 font-semibold flex items-center justify-between">
+                  <span>Delta Option</span>
+                  <span class="${pnlDiff >= 0 ? 'text-winGreen' : 'text-lossRed'} font-bold">${optGainPct}</span>
+                </div>
+                <div class="flex items-center justify-between text-[10px]">
+                  <span class="text-slate-400">Buy:</span>
+                  <strong class="text-white">$${buyPrice.toFixed(1)}</strong>
+                </div>
+                <div class="flex items-center justify-between text-[10px]">
+                  <span class="text-slate-400">${isActive ? 'Live' : 'Sell'}:</span>
+                  <strong class="${isWin ? 'text-winGreen' : (isLoss ? 'text-lossRed' : 'text-slate-200')}">$${sellPrice.toFixed(1)}</strong>
+                </div>
+                <div class="flex items-center justify-between text-[10px] pt-1 border-t border-borderDark/40">
+                  <span class="text-slate-400">Points PnL:</span>
+                  <strong class="${pnlDiff >= 0 ? 'text-winGreen' : 'text-lossRed'}">${pnlDiff >= 0 ? '+' : ''}${pnlDiff.toFixed(1)} pts</strong>
+                </div>
+              </div>
+
+              <div class="bg-brandDark/80 p-2 rounded-lg border border-borderDark/60 space-y-1">
+                <div class="text-[9px] uppercase tracking-wider text-slate-400 font-semibold flex items-center justify-between">
+                  <span>BTC Spot</span>
+                  <span class="text-slate-400">SL: $${t.sl.toLocaleString()}</span>
+                </div>
+                <div class="flex items-center justify-between text-[10px]">
+                  <span class="text-slate-400">Entry:</span>
+                  <strong class="text-white">$${t.entry.toLocaleString()}</strong>
+                </div>
+                <div class="flex items-center justify-between text-[10px]">
+                  <span class="text-slate-400">Exit:</span>
+                  <strong class="${isWin ? 'text-winGreen' : 'text-slate-200'}">${closedSpot}</strong>
+                </div>
+                <div class="flex items-center justify-between text-[10px] pt-1 border-t border-borderDark/40">
+                  <span class="text-slate-400">₹100k PnL:</span>
+                  ${paperTrade ? (isActive ? `
+                    <strong class="text-cyan-400 text-[10px]">LIVE</strong>
+                  ` : `
+                    <strong class="${paperTrade.netPnlInr >= 0 ? 'text-winGreen' : 'text-lossRed'}">${paperTrade.netPnlInr >= 0 ? '+' : ''}₹${paperTrade.netPnlInr.toLocaleString('en-IN')}</strong>
+                  `) : '<span class="text-slate-500">--</span>'}
+                </div>
               </div>
             </div>
-          </td>
-          <td class="py-2.5 px-2 text-[11px] sm:text-xs text-slate-300">
-            <div>$${t.entry.toLocaleString()} &rarr; <strong class="${isWin ? 'text-winGreen' : 'text-slate-200'}">${closedSpot}</strong></div>
-            <div class="text-[9px] text-slate-400">SL: $${t.sl.toLocaleString()}</div>
-          </td>
-          <td class="py-2.5 px-2 text-[11px] font-mono">
-            ${paperTrade ? (isActive ? `
-              <span class="text-cyan-400 font-bold text-[10px]"><span class="h-1.5 w-1.5 rounded-full bg-cyan-400 animate-ping inline-block mr-1"></span>ACTIVE</span>
-              <div class="text-[9px] text-slate-400">₹${paperTrade.allocatedInr.toLocaleString('en-IN')} Margin</div>
-            ` : `
-              <div class="font-bold ${paperTrade.netPnlInr >= 0 ? 'text-winGreen' : 'text-lossRed'}">
-                ${paperTrade.netPnlInr >= 0 ? '+' : ''}₹${paperTrade.netPnlInr.toLocaleString('en-IN')}
+
+            <!-- Footer: Capital Balance & Playbook Logic Button -->
+            <div class="flex items-center justify-between pt-1 border-t border-borderDark/40 text-[11px]">
+              <div class="text-slate-300 text-[10px]">
+                ${paperTrade ? `<span class="text-slate-400">Fund:</span> <strong class="text-white">₹${paperTrade.capitalAfterTrade.toLocaleString('en-IN')}</strong>` : '<span class="text-slate-500 text-[9px]"><i class="fa-solid fa-crosshairs text-indigo-400 mr-1"></i>Tap to chart</span>'}
               </div>
-              <div class="text-[9px] text-slate-400">Bal: ₹${paperTrade.capitalAfterTrade.toLocaleString('en-IN')}</div>
-            `) : '--'}
-          </td>
-          <td class="py-2.5 px-2 text-right">
-            <button onclick="event.stopPropagation(); DeltaLiveChart.openTradeDetailsModal('${t.id}')" title="View Trade Logic & Playbook" class="px-2 sm:px-2.5 py-1 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-[10px] sm:text-[11px] transition-colors shadow-sm inline-flex items-center gap-1 font-mono">
-              <i class="fa-solid fa-circle-info"></i>
-              <span class="hidden sm:inline">Logic</span>
-            </button>
-          </td>
-        </tr>
-      `;
-    }).join('');
+              <button onclick="event.stopPropagation(); DeltaLiveChart.openTradeDetailsModal('${t.id}')" class="px-2.5 py-1 rounded-md bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-[10px] transition-colors inline-flex items-center gap-1 shadow-sm">
+                <i class="fa-solid fa-circle-info text-[9px]"></i>
+                <span>Playbook Logic &rarr;</span>
+              </button>
+            </div>
+          </div>
+        `;
+      }).join('');
+    }
   }
 
   function updateTimeframeButtons(activeTf) {

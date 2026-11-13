@@ -884,7 +884,13 @@
             <span id="btHistoryWinRate" class="text-[10px] text-emerald-400 font-mono font-bold">--% 48h Win Rate</span>
           </div>
 
-          <div class="w-full max-h-[300px] overflow-y-auto overflow-x-hidden custom-scroll">
+          <!-- Mobile Trades Card Stream (Shown on < md) -->
+          <div id="btTradesMobileCards" class="grid grid-cols-1 gap-2.5 md:hidden max-h-[380px] overflow-y-auto custom-scroll">
+            <!-- Populated dynamically with sleek institutional mobile cards -->
+          </div>
+
+          <!-- Desktop Trades Table (Shown on md:) -->
+          <div class="hidden md:block w-full max-h-[300px] overflow-y-auto overflow-x-hidden custom-scroll">
             <table class="w-full text-left text-xs font-mono table-fixed">
               <thead>
                 <tr class="text-[10px] text-slate-400 uppercase border-b border-borderDark/80">
@@ -1356,20 +1362,20 @@
   </nav>
 
   <!-- Application Script Pipeline -->
-  <script src="vendor/lightweight-charts.js?v=3.4.4"></script>
-  <script src="js/config.js?v=3.4.4"></script>
-  <script src="js/smc-strategy.js?v=3.4.4"></script>
-  <script src="js/macro-sentinel.js?v=3.4.4"></script>
-  <script src="js/paper-fund.js?v=3.4.4"></script>
-  <script src="js/chart-engine.js?v=3.4.4"></script>
-  <script src="js/db.js?v=3.4.4"></script>
-  <script src="js/quant.js?v=3.4.4"></script>
-  <script src="js/coach.js?v=3.4.4"></script>
-  <script src="js/planner.js?v=3.4.4"></script>
-  <script src="js/app.js?v=3.4.4"></script>
+  <script src="vendor/lightweight-charts.js?v=3.4.5"></script>
+  <script src="js/config.js?v=3.4.5"></script>
+  <script src="js/smc-strategy.js?v=3.4.5"></script>
+  <script src="js/macro-sentinel.js?v=3.4.5"></script>
+  <script src="js/paper-fund.js?v=3.4.5"></script>
+  <script src="js/chart-engine.js?v=3.4.5"></script>
+  <script src="js/db.js?v=3.4.5"></script>
+  <script src="js/quant.js?v=3.4.5"></script>
+  <script src="js/coach.js?v=3.4.5"></script>
+  <script src="js/planner.js?v=3.4.5"></script>
+  <script src="js/app.js?v=3.4.5"></script>
   <script>
     if ('serviceWorker' in navigator) {
-      navigator.serviceWorker.register('sw.js?v=3.4.4').then(function(reg) {
+      navigator.serviceWorker.register('sw.js?v=3.4.5').then(function(reg) {
         reg.update();
       });
     }
