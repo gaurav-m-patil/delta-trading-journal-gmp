@@ -323,7 +323,6 @@ window.DeltaLiveChart = (function() {
     }
     return fallbackRes;
   }
-  }
 
   /**
    * Initializes the TradingView Lightweight Charts canvas in container
@@ -537,6 +536,31 @@ window.DeltaLiveChart = (function() {
         }
       } catch (err) {
         console.warn("Binance REST candles notice:", err);
+      }
+    }
+
+    // 2c. TERTIARY: Coinbase Public BTC-USD Feed (100% open CORS worldwide)
+    if (!loadedBars) {
+      try {
+        const granMap = { '1m': 60, '5m': 300, '15m': 900, '1h': 3600, '4h': 21600, '1D': 86400 };
+        const gran = granMap[tf] || 900;
+        const cbRes = await fetch(`https://api.exchange.coinbase.com/products/BTC-USD/candles?granularity=${gran}`);
+        if (cbRes.ok) {
+          const cbBars = await cbRes.json();
+          // Coinbase returns [time, low, high, open, close, volume] sorted newest first
+          if (Array.isArray(cbBars) && cbBars.length > 0) {
+            loadedBars = cbBars.map(b => ({
+              time: b[0],
+              open: parseFloat(b[3]),
+              high: parseFloat(b[2]),
+              low: parseFloat(b[1]),
+              close: parseFloat(b[4]),
+              volume: parseFloat(b[5] || 0)
+            })).sort((a, b) => a.time - b.time);
+          }
+        }
+      } catch (err) {
+        console.warn("Coinbase candles fallback notice:", err);
       }
     }
 
@@ -1310,14 +1334,15 @@ Expected Profit: +50% Option Gross / +40% Net`;
 
     // Fetch live Delta Exchange India tickers and enrich all trades asynchronously
     getLiveDeltaTickers().then(tickers => {
-      if (tickers && tickers.length > 0 && currentAnalysis && currentAnalysis.trades) {
+      const safeTickers = tickers || [];
+      if (currentAnalysis && currentAnalysis.trades) {
         const registry = getTradeRegistry();
 
         currentAnalysis.trades.forEach(t => {
-          t.realOption = resolveRealDeltaContract(t.direction, t.entry, tickers, t.id, registry);
+          t.realOption = resolveRealDeltaContract(t.direction, t.entry, safeTickers, t.id, registry);
 
           // If active trade, lock its real Delta India execution plan and trigger Telegram Alert
-          if (t.outcome === "ACTIVE" && t.realOption && t.realOption.isLive) {
+          if (t.outcome === "ACTIVE" && t.realOption) {
             // Send instant real-time Telegram signal
             if (window.DeltaApp && typeof DeltaApp.checkAndSendTelegramSignal === 'function') {
               DeltaApp.checkAndSendTelegramSignal(t);

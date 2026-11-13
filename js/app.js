@@ -2128,6 +2128,7 @@ window.DeltaApp = (function() {
     closeTelegramModal,
     saveTelegramConfig,
     sendTestTelegramAlert,
+    sendTelegramMessage,
     checkAndSendTelegramSignal,
     checkAndSendTelegramOutcome,
     getTelegramConfig
