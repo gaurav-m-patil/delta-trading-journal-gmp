@@ -28,13 +28,24 @@ window.DeltaLiveChart = (function() {
   let cachedDeltaTickers = null;
   let lastDeltaTickersFetchTime = 0;
 
-  // Purge any stale corrupted active plan (e.g. from 500-step strike bug)
-  try {
-    const rawSaved = localStorage.getItem('dtj_locked_active_plan');
-    if (rawSaved && rawSaved.includes('73500')) {
-      localStorage.removeItem('dtj_locked_active_plan');
+  // Persistent Immutable Options Trade Registry (v3)
+  // Ensures once a trade is recommended, its strike and entry price NEVER jump or slide down!
+  const TRADE_REGISTRY_KEY = 'dtj_options_trade_registry_v3';
+
+  function getTradeRegistry() {
+    try {
+      const raw = localStorage.getItem(TRADE_REGISTRY_KEY);
+      return raw ? JSON.parse(raw) : {};
+    } catch (e) {
+      return {};
     }
-  } catch (e) {}
+  }
+
+  function saveTradeRegistry(reg) {
+    try {
+      localStorage.setItem(TRADE_REGISTRY_KEY, JSON.stringify(reg));
+    } catch (e) {}
+  }
 
   const TIMEFRAME_MAP = {
     '1m': '1m',
@@ -75,31 +86,24 @@ window.DeltaLiveChart = (function() {
    * 2. Either Exact ATM (Delta ~0.50, closest strike to spot) or Next Strike OTM (within 1 strike).
    * 3. Absolutely ZERO far OTM contracts.
    */
-  function resolveRealDeltaContract(direction, spotPrice, tickers, lockedPlan) {
+  function resolveRealDeltaContract(direction, spotPrice, tickers, tradeId, registry) {
     const isCall = direction === "LONG";
     const atmStrikeEstimate = Math.round(spotPrice / 200) * 200;
 
-    // IF A TRADE ALREADY HAS A LOCKED PLAN (from signal inception):
-    // We preserve its original contract symbol, entry price, buy zone, target (+50%), and stop (-30%)!
-    // ONLY the live mark price and unrealized PnL move with the live ticker!
-    if (lockedPlan && lockedPlan.symbol && !lockedPlan.symbol.includes('73500') && (lockedPlan.entryPrice || lockedPlan.markPrice)) {
-      const fixedEntry = lockedPlan.entryPrice || lockedPlan.markPrice;
-      const matched = tickers ? tickers.find(t => t.symbol === lockedPlan.symbol) : null;
-      const currentLiveMark = matched ? (Math.round((parseFloat(matched.mark_price) || fixedEntry) * 10) / 10) : (lockedPlan.markPrice || fixedEntry);
+    // 1. IMMUTABLE TRADE REGISTRY LOOKUP
+    // If trade was already resolved and recorded, reuse its exact contract, strike, entry price, buy zone, and targets!
+    // ONLY the live mark price and unrealized PnL move with live ticker feed!
+    if (registry && tradeId && registry[tradeId]) {
+      const locked = registry[tradeId];
+      const fixedEntry = locked.entryPrice || 220;
+      const matched = tickers ? tickers.find(t => t.symbol === locked.symbol) : null;
+      const currentLiveMark = matched ? (Math.round((parseFloat(matched.mark_price) || fixedEntry) * 10) / 10) : fixedEntry;
       const unrealizedPts = Math.round((currentLiveMark - fixedEntry) * 10) / 10;
-      const unrealizedPct = Number(((unrealizedPts / fixedEntry) * 100).toFixed(1));
+      const unrealizedPct = Number(((unrealizedPts / (fixedEntry || 1)) * 100).toFixed(1));
 
       return {
-        symbol: lockedPlan.symbol,
-        strike: lockedPlan.strike || atmStrikeEstimate,
-        strikeTier: lockedPlan.strikeTier || "Exact ATM (Delta ~0.50)",
-        entryPrice: fixedEntry,
+        ...locked,
         markPrice: currentLiveMark,
-        buyZone: lockedPlan.buyZone || `$${(fixedEntry * 0.98).toFixed(1)} - $${(fixedEntry * 1.02).toFixed(1)}`,
-        targetPrice: lockedPlan.targetPrice || Math.round((fixedEntry * 1.5) * 10) / 10,
-        stopPrice: lockedPlan.stopPrice || Math.round((fixedEntry * 0.7) * 10) / 10,
-        targetGainPct: "+50.0%",
-        stopLossPct: "-30.0%",
         unrealizedPts,
         unrealizedPct,
         isLive: !!matched
@@ -108,7 +112,7 @@ window.DeltaLiveChart = (function() {
 
     if (!tickers || tickers.length === 0) {
       const simEntry = 220.0;
-      return {
+      const res = {
         symbol: isCall ? `C-BTC-${atmStrikeEstimate}` : `P-BTC-${atmStrikeEstimate}`,
         strike: atmStrikeEstimate,
         strikeTier: "Exact ATM (Delta ~0.50)",
@@ -123,6 +127,21 @@ window.DeltaLiveChart = (function() {
         unrealizedPct: 0,
         isLive: false
       };
+      if (registry && tradeId) {
+        registry[tradeId] = {
+          symbol: res.symbol,
+          strike: res.strike,
+          strikeTier: res.strikeTier,
+          entryPrice: res.entryPrice,
+          buyZone: res.buyZone,
+          targetPrice: res.targetPrice,
+          stopPrice: res.stopPrice,
+          targetGainPct: res.targetGainPct,
+          stopLossPct: res.stopLossPct
+        };
+        saveTradeRegistry(registry);
+      }
+      return res;
     }
 
     const type = isCall ? "call_options" : "put_options";
@@ -152,7 +171,7 @@ window.DeltaLiveChart = (function() {
 
     if (activeWithExpiry.length === 0) {
       const simEntry = 220.0;
-      return {
+      const res = {
         symbol: isCall ? `C-BTC-${atmStrikeEstimate}` : `P-BTC-${atmStrikeEstimate}`,
         strike: atmStrikeEstimate,
         strikeTier: "Exact ATM (Delta ~0.50)",
@@ -167,6 +186,21 @@ window.DeltaLiveChart = (function() {
         unrealizedPct: 0,
         isLive: false
       };
+      if (registry && tradeId) {
+        registry[tradeId] = {
+          symbol: res.symbol,
+          strike: res.strike,
+          strikeTier: res.strikeTier,
+          entryPrice: res.entryPrice,
+          buyZone: res.buyZone,
+          targetPrice: res.targetPrice,
+          stopPrice: res.stopPrice,
+          targetGainPct: res.targetGainPct,
+          stopLossPct: res.stopLossPct
+        };
+        saveTradeRegistry(registry);
+      }
+      return res;
     }
 
     // 2. Find the nearest upcoming active expiration date
@@ -220,7 +254,7 @@ window.DeltaLiveChart = (function() {
         ? `$${Math.min(bestBid, mark).toFixed(1)} - $${Math.max(bestAsk, mark).toFixed(1)}`
         : `$${(mark * 0.98).toFixed(1)} - $${(mark * 1.02).toFixed(1)}`;
 
-      return {
+      const res = {
         symbol: best.symbol,
         strike: parseFloat(best.strike_price),
         strikeTier: tier,
@@ -237,10 +271,28 @@ window.DeltaLiveChart = (function() {
         unrealizedPct: 0,
         isLive: true
       };
+
+      // FREEZE THIS CONTRACT PERMANENTLY IN THE REGISTRY FOR THIS TRADE ID
+      if (registry && tradeId) {
+        registry[tradeId] = {
+          symbol: res.symbol,
+          strike: res.strike,
+          strikeTier: res.strikeTier,
+          entryPrice: res.entryPrice,
+          buyZone: res.buyZone,
+          targetPrice: res.targetPrice,
+          stopPrice: res.stopPrice,
+          targetGainPct: res.targetGainPct,
+          stopLossPct: res.stopLossPct
+        };
+        saveTradeRegistry(registry);
+      }
+
+      return res;
     }
 
     const simEntry = 220.0;
-    return {
+    const fallbackRes = {
       symbol: isCall ? `C-BTC-${atmStrikeEstimate}` : `P-BTC-${atmStrikeEstimate}`,
       strike: atmStrikeEstimate,
       strikeTier: "Exact ATM (Delta ~0.50)",
@@ -255,6 +307,22 @@ window.DeltaLiveChart = (function() {
       unrealizedPct: 0,
       isLive: false
     };
+    if (registry && tradeId) {
+      registry[tradeId] = {
+        symbol: fallbackRes.symbol,
+        strike: fallbackRes.strike,
+        strikeTier: fallbackRes.strikeTier,
+        entryPrice: fallbackRes.entryPrice,
+        buyZone: fallbackRes.buyZone,
+        targetPrice: fallbackRes.targetPrice,
+        stopPrice: fallbackRes.stopPrice,
+        targetGainPct: fallbackRes.targetGainPct,
+        stopLossPct: fallbackRes.stopLossPct
+      };
+      saveTradeRegistry(registry);
+    }
+    return fallbackRes;
+  }
   }
 
   /**
@@ -784,7 +852,7 @@ window.DeltaLiveChart = (function() {
     if (activeLabel) {
       const d = new Date(trade.time * 1000);
       const timeStr = d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-      activeLabel.innerText = `Inspecting Setup at ${timeStr} (${trade.direction} - ${trade.outcome})`;
+      activeLabel.innerText = `${trade.name} at ${timeStr} [${trade.regime ? trade.regime.replace(/_/g, ' ') : trade.direction}] (${trade.outcome})`;
     }
 
     // Real Delta Contract Details
@@ -927,7 +995,7 @@ window.DeltaLiveChart = (function() {
     document.getElementById('atmModalRR').innerText = `1 : ${t.rrRatio}`;
 
     // Option Execution & Resolution Timeline Details
-    const opt = t.realOption || resolveRealDeltaContract(t.direction, t.entry, cachedDeltaTickers);
+    const opt = t.realOption || resolveRealDeltaContract(t.direction, t.entry, cachedDeltaTickers, t.id, getTradeRegistry());
     const contractSymbol = opt ? opt.symbol : (t.direction === "LONG" ? 'C-BTC-' + t.optionStrike : 'P-BTC-' + t.optionStrike);
     const strikeTier = opt ? opt.strikeTier : "Exact ATM (Delta ~0.50)";
 
@@ -1195,10 +1263,14 @@ Expected Profit: +50% Option Gross / +40% Net`;
   function runSMCAnalysisAndBacktest() {
     if (!candleData || candleData.length === 0 || !candleSeries) return;
 
-    // Run Algorithmic SMC Confluence Engine
+    // Macro Sentinel & Catalyst Bias Input (OpenBB / Bloomberg Model)
+    const macroCatalyst = window.DeltaMacroSentinel ? DeltaMacroSentinel.getLatestCatalyst() : null;
+
+    // Run Algorithmic Multi-Regime Confluence Engine
     currentAnalysis = DeltaSMCStrategy.runBacktest(candleData, {
       lookback: activeTimeframe === '1m' ? 30 : 24,
-      highConvictionOnly: true
+      highConvictionOnly: true,
+      macroCatalyst: macroCatalyst
     });
 
     // Set Markers on TradingView Chart (Clean, uncluttered)
@@ -1239,39 +1311,13 @@ Expected Profit: +50% Option Gross / +40% Net`;
     // Fetch live Delta Exchange India tickers and enrich all trades asynchronously
     getLiveDeltaTickers().then(tickers => {
       if (tickers && tickers.length > 0 && currentAnalysis && currentAnalysis.trades) {
-        // Retrieve any saved active trade plan so entry price & buy zone NEVER shift as market moves
-        let savedActivePlan = null;
-        try {
-          const raw = localStorage.getItem('dtj_locked_active_plan');
-          if (raw) {
-            const parsed = JSON.parse(raw);
-            if (parsed && parsed.symbol && !parsed.symbol.includes('73500')) {
-              savedActivePlan = parsed;
-            } else {
-              localStorage.removeItem('dtj_locked_active_plan');
-            }
-          }
-        } catch (e) {}
+        const registry = getTradeRegistry();
 
         currentAnalysis.trades.forEach(t => {
-          let locked = null;
-          // Only use locked plan if this trade is ACTIVE and corresponds to our saved active plan
-          if (t.outcome === "ACTIVE" && savedActivePlan && (savedActivePlan.id === t.id || savedActivePlan.time === t.time)) {
-            locked = savedActivePlan;
-          }
-
-          t.realOption = resolveRealDeltaContract(t.direction, t.entry, tickers, locked);
+          t.realOption = resolveRealDeltaContract(t.direction, t.entry, tickers, t.id, registry);
 
           // If active trade, lock its real Delta India execution plan and trigger Telegram Alert
           if (t.outcome === "ACTIVE" && t.realOption && t.realOption.isLive) {
-            try {
-              localStorage.setItem('dtj_locked_active_plan', JSON.stringify({
-                id: t.id,
-                time: t.time,
-                ...t.realOption
-              }));
-            } catch (e) {}
-
             // Send instant real-time Telegram signal
             if (window.DeltaApp && typeof DeltaApp.checkAndSendTelegramSignal === 'function') {
               DeltaApp.checkAndSendTelegramSignal(t);
@@ -1394,6 +1440,7 @@ Expected Profit: +50% Option Gross / +40% Net`;
             <div class="flex items-center gap-1 font-bold ${isCall ? 'text-winGreen' : 'text-lossRed'} text-xs">
               <i class="fa-solid ${isCall ? 'fa-arrow-up' : 'fa-arrow-down'} text-[10px]"></i>
               <span>${isCall ? 'CALL' : 'PUT'}</span>
+              ${t.strategyId && t.strategyId.includes('BOS') ? '<span class="text-[8px] px-1 py-0.2 rounded bg-amber-500/20 text-amber-300 border border-amber-500/40 font-mono">BOS</span>' : ''}
             </div>
             <span class="text-[10px] text-slate-400 block truncate" title="${t.name}">${cleanPatternName}</span>
           </td>
@@ -1440,6 +1487,8 @@ Expected Profit: +50% Option Gross / +40% Net`;
     clearLinesAndReset,
     openTradeDetailsModal,
     closeTradeDetailsModal,
-    copyDeltaOrderDetails
+    copyDeltaOrderDetails,
+    getCurrentAnalysis: () => currentAnalysis,
+    getTradeRegistry
   };
 })();

@@ -189,10 +189,12 @@ window.DeltaApp = (function() {
     currentCoachSubTab = tab;
     const views = {
       RADAR: document.getElementById('subViewCoach_RADAR'),
+      ENGINE: document.getElementById('subViewCoach_ENGINE'),
       AI: document.getElementById('subViewCoach_AI')
     };
     const btns = {
       RADAR: document.getElementById('subTabCoachBtn_RADAR'),
+      ENGINE: document.getElementById('subTabCoachBtn_ENGINE'),
       AI: document.getElementById('subTabCoachBtn_AI')
     };
 
@@ -209,6 +211,49 @@ window.DeltaApp = (function() {
       if (!btns[k]) return;
       btns[k].className = (k === tab) ? activeCls : inactiveCls;
     });
+
+    if (tab === 'ENGINE') {
+      populateSelfImprovingEngineUI();
+    }
+  }
+
+  function populateSelfImprovingEngineUI() {
+    const analysis = window.DeltaLiveChart ? DeltaLiveChart.getCurrentAnalysis() : null;
+    const catalyst = window.DeltaMacroSentinel ? DeltaMacroSentinel.getLatestCatalyst() : null;
+
+    const regimeEl = document.getElementById('engineRegimeStatus');
+    const macroEl = document.getElementById('engineMacroStatus');
+    const dossierCont = document.getElementById('selfImprovingDossierContainer');
+
+    if (regimeEl && analysis && analysis.latestTrade) {
+      const r = analysis.latestTrade.regime || "RANGE_BOUND";
+      const isBear = r.includes("BEAR");
+      const isBull = r.includes("BULL");
+      const color = isBear ? "text-lossRed" : (isBull ? "text-winGreen" : "text-indigo-300");
+      regimeEl.innerHTML = `<span class="${color}">${r.replace(/_/g, ' ')}</span>`;
+    } else if (regimeEl) {
+      regimeEl.innerText = "Range Bound (Consolidation)";
+    }
+
+    if (macroEl) {
+      if (catalyst && (catalyst.impactScore || 0) >= 7) {
+        macroEl.innerHTML = `Catalyst: <strong class="text-white">${catalyst.category}</strong> (${catalyst.bias})`;
+      } else {
+        macroEl.innerHTML = `Macro Sentinel: <span class="text-emerald-400">Normal Flow (Score &lt; 7)</span>`;
+      }
+    }
+
+    if (dossierCont && dossierCont.innerHTML.trim() === '') {
+      if (window.DeltaCoach && typeof DeltaCoach.generateOfflineSelfImprovingReport === 'function') {
+        dossierCont.innerHTML = DeltaCoach.generateOfflineSelfImprovingReport(analysis, catalyst);
+      }
+    }
+  }
+
+  async function triggerSelfImprovingAgent() {
+    if (window.DeltaCoach && typeof DeltaCoach.runSelfImprovingQuantAgent === 'function') {
+      await DeltaCoach.runSelfImprovingQuantAgent('selfImprovingDossierContainer');
+    }
   }
 
   // -------------------------------------------------------------
@@ -2077,6 +2122,8 @@ window.DeltaApp = (function() {
     acknowledgeSentinel,
     switchInsightsSubTab,
     switchCoachSubTab,
+    populateSelfImprovingEngineUI,
+    triggerSelfImprovingAgent,
     openTelegramModal,
     closeTelegramModal,
     saveTelegramConfig,

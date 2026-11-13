@@ -824,6 +824,9 @@
         <button id="subTabCoachBtn_RADAR" onclick="DeltaApp.switchCoachSubTab('RADAR')" class="flex-1 py-2 px-3 text-xs font-bold rounded-xl transition-all bg-indigo-600 text-white flex items-center justify-center gap-1.5 shadow-md">
           <i class="fa-solid fa-crosshairs"></i> SMC Setup Radar & Simulation
         </button>
+        <button id="subTabCoachBtn_ENGINE" onclick="DeltaApp.switchCoachSubTab('ENGINE')" class="flex-1 py-2 px-3 text-xs font-bold rounded-xl transition-all text-slate-400 hover:text-white bg-transparent flex items-center justify-center gap-1.5">
+          <i class="fa-solid fa-microchip"></i> Self-Improving Engine
+        </button>
         <button id="subTabCoachBtn_AI" onclick="DeltaApp.switchCoachSubTab('AI')" class="flex-1 py-2 px-3 text-xs font-bold rounded-xl transition-all text-slate-400 hover:text-white bg-transparent flex items-center justify-center gap-1.5">
           <i class="fa-solid fa-brain"></i> Quant Coach & AI Deep-Dive
         </button>
@@ -894,9 +897,66 @@
           </div>
         </div>
       </div>
+
+      <!-- COACH SUB-VIEW 2: SELF-IMPROVING QUANT ENGINE (OPENBB & HERMES ARCHITECTURE) -->
+      <div id="subViewCoach_ENGINE" class="hidden space-y-4">
+        <!-- Self-Improving Engine Header & Action -->
+        <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 bg-cardDark border border-borderDark p-4 md:p-5 rounded-2xl shadow-md">
+          <div>
+            <div class="flex items-center gap-2">
+              <h2 class="font-bold text-base sm:text-lg text-white flex items-center gap-2">
+                <i class="fa-solid fa-microchip text-indigo-400"></i> Self-Improving Trading Engine
+              </h2>
+              <span class="text-[9px] px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 font-mono font-bold">V2 Multi-Regime</span>
+            </div>
+            <p class="text-xs text-slate-400 mt-0.5">Continuous quant feedback loop: Market Data &rarr; Multi-Regime Strategy &rarr; Backtest &rarr; Evaluation &rarr; AI Research Agent</p>
+          </div>
+          <button onclick="DeltaApp.triggerSelfImprovingAgent()" class="w-full sm:w-auto bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold px-4 py-2.5 rounded-xl transition-colors flex items-center justify-center gap-2 shadow-lg shadow-indigo-600/20">
+            <i class="fa-solid fa-wand-magic-sparkles"></i> Run Hermes Quant Agent
+          </button>
+        </div>
+
+        <!-- 3 Architecture Feature Cards (Slide 01 & 02) -->
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
+          <!-- Card 1: Data & Regime Layer -->
+          <div class="p-3.5 rounded-xl bg-cardDark border border-borderDark space-y-1.5">
+            <div class="flex justify-between items-center text-[10px] uppercase font-bold text-slate-400 font-mono">
+              <span>1. Regime & Macro Layer</span>
+              <span class="text-emerald-400"><i class="fa-solid fa-circle-check"></i> Connected</span>
+            </div>
+            <div class="text-sm font-bold text-white" id="engineRegimeStatus">Scanning Regimes...</div>
+            <div class="text-[11px] text-slate-400 leading-tight" id="engineMacroStatus">Macro Sentinel Bias: Active</div>
+          </div>
+
+          <!-- Card 2: Strategy Engine V2 -->
+          <div class="p-3.5 rounded-xl bg-cardDark border border-borderDark space-y-1.5">
+            <div class="flex justify-between items-center text-[10px] uppercase font-bold text-slate-400 font-mono">
+              <span>2. Strategy Engine V2</span>
+              <span class="text-indigo-400 font-mono font-bold">BOS + Sweeps</span>
+            </div>
+            <div class="text-sm font-bold text-winGreen">Breakdown (BOS) Active</div>
+            <div class="text-[11px] text-slate-400 leading-tight">Captures 1,000-3,000 pt trend drops via Put options</div>
+          </div>
+
+          <!-- Card 3: Immutable Registry -->
+          <div class="p-3.5 rounded-xl bg-cardDark border border-borderDark space-y-1.5">
+            <div class="flex justify-between items-center text-[10px] uppercase font-bold text-slate-400 font-mono">
+              <span>3. Options Registry</span>
+              <span class="text-emerald-400 font-mono font-bold">Locked</span>
+            </div>
+            <div class="text-sm font-bold text-indigo-300">Zero Strike Jumping</div>
+            <div class="text-[11px] text-slate-400 leading-tight">Contract & Entry frozen permanently at inception</div>
+          </div>
+        </div>
+
+        <!-- AI Research Agent & Quant Dossier Target (Slide 04, 05, 06, 07) -->
+        <div id="selfImprovingDossierContainer" class="p-4 sm:p-5 rounded-2xl bg-brandDark/80 border border-borderDark/80 shadow-inner space-y-4">
+          <!-- Populated dynamically by DeltaCoach.runSelfImprovingQuantAgent -->
+        </div>
+      </div>
     </section>
 
-    <!-- COACH SUB-VIEW 2: QUANT COACH & AI DEEP-DIVE -->
+    <!-- COACH SUB-VIEW 3: QUANT COACH & AI DEEP-DIVE -->
     <div id="subViewCoach_AI" class="hidden space-y-6">
       <!-- Top Cockpit Header -->
       <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 bg-cardDark border border-borderDark p-4 md:p-5 rounded-2xl shadow-md">
@@ -1285,19 +1345,19 @@
   </nav>
 
   <!-- Application Script Pipeline -->
-  <script src="vendor/lightweight-charts.js?v=3.3.10"></script>
-  <script src="js/config.js?v=3.3.10"></script>
-  <script src="js/smc-strategy.js?v=3.3.10"></script>
-  <script src="js/macro-sentinel.js?v=3.3.10"></script>
-  <script src="js/chart-engine.js?v=3.3.10"></script>
-  <script src="js/db.js?v=3.3.10"></script>
-  <script src="js/quant.js?v=3.3.10"></script>
-  <script src="js/coach.js?v=3.3.10"></script>
-  <script src="js/planner.js?v=3.3.10"></script>
-  <script src="js/app.js?v=3.3.10"></script>
+  <script src="vendor/lightweight-charts.js?v=3.4.0"></script>
+  <script src="js/config.js?v=3.4.0"></script>
+  <script src="js/smc-strategy.js?v=3.4.0"></script>
+  <script src="js/macro-sentinel.js?v=3.4.0"></script>
+  <script src="js/chart-engine.js?v=3.4.0"></script>
+  <script src="js/db.js?v=3.4.0"></script>
+  <script src="js/quant.js?v=3.4.0"></script>
+  <script src="js/coach.js?v=3.4.0"></script>
+  <script src="js/planner.js?v=3.4.0"></script>
+  <script src="js/app.js?v=3.4.0"></script>
   <script>
     if ('serviceWorker' in navigator) {
-      navigator.serviceWorker.register('sw.js?v=3.3.10').then(function(reg) {
+      navigator.serviceWorker.register('sw.js?v=3.4.0').then(function(reg) {
         reg.update();
       });
     }
