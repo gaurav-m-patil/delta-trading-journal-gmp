@@ -126,6 +126,24 @@ window.DeltaSMCStrategy = (function() {
     return rvol;
   }
 
+  /**
+   * Dynamically calculates authentic option target potential based on BTC spot target distance
+   * Delta is ~0.50 for ATM options. Gains can range from +35% to +1000%+ on trend expansions.
+   */
+  function calcDynamicOptionTarget(entryOpt, spotTargetDist) {
+    const safeEntry = entryOpt > 0 ? entryOpt : 220;
+    const deltaMove = (spotTargetDist && spotTargetDist > 0) ? (spotTargetDist * 0.50) : (safeEntry * 0.50);
+    const rawGainPct = Math.round((deltaMove / safeEntry) * 100);
+    // User directive: "whatever the potential that trade has... be it 40-50-100-1000, but more than 30 only"
+    const gainPct = Math.max(35, rawGainPct);
+    const targetPrice = Math.round((safeEntry + (safeEntry * (gainPct / 100))) * 10) / 10;
+    return {
+      targetPrice,
+      gainPct,
+      gainPctStr: `+${gainPct}%`
+    };
+  }
+
   // -------------------------------------------------------------
   // 2. BACKTEST & FORWARD SIMULATION ENGINE
   // -------------------------------------------------------------
@@ -251,7 +269,9 @@ window.DeltaSMCStrategy = (function() {
           const tp = Math.round((entry - targetDist) * 10) / 10;
           const atmStrike = Math.round(entry / 200) * 200;
           const entryOptEst = Math.round((entry * 0.003) * 10) / 10;
-          const targetOptEst = Math.round((entryOptEst * 1.5) * 10) / 10;
+          const dynTarget = calcDynamicOptionTarget(entryOptEst, targetDist);
+          const targetOptEst = dynTarget.targetPrice;
+          const targetGainPct = dynTarget.gainPctStr;
 
           setup = {
             id: `TRD_BOS_PUT_${cur.time}_${Math.round(entry)}`,
@@ -276,7 +296,8 @@ window.DeltaSMCStrategy = (function() {
             optionStrike: atmStrike,
             entryOptEst,
             targetOptEst,
-            optionRecommendation: `Buy P-BTC-${atmStrike} (ATM Put) @ ~$${entryOptEst.toFixed(1)} -> Target $${targetOptEst.toFixed(1)} (+50% Profit)`,
+            targetGainPct,
+            optionRecommendation: `Buy P-BTC-${atmStrike} (ATM Put) @ ~$${entryOptEst.toFixed(1)} -> Target $${targetOptEst.toFixed(1)} (${targetGainPct} Profit)`,
             invalidationReason: `Price reclaims above breakdown candle high at $${sl.toLocaleString()}`,
             meta: {
               sHigh,
@@ -308,7 +329,9 @@ window.DeltaSMCStrategy = (function() {
           const tp = Math.round((entry + targetDist) * 10) / 10;
           const atmStrike = Math.round(entry / 200) * 200;
           const entryOptEst = Math.round((entry * 0.003) * 10) / 10;
-          const targetOptEst = Math.round((entryOptEst * 1.5) * 10) / 10;
+          const dynTarget = calcDynamicOptionTarget(entryOptEst, targetDist);
+          const targetOptEst = dynTarget.targetPrice;
+          const targetGainPct = dynTarget.gainPctStr;
 
           setup = {
             id: `TRD_BOS_CALL_${cur.time}_${Math.round(entry)}`,
@@ -333,7 +356,8 @@ window.DeltaSMCStrategy = (function() {
             optionStrike: atmStrike,
             entryOptEst,
             targetOptEst,
-            optionRecommendation: `Buy C-BTC-${atmStrike} (ATM Call) @ ~$${entryOptEst.toFixed(1)} -> Target $${targetOptEst.toFixed(1)} (+50% Profit)`,
+            targetGainPct,
+            optionRecommendation: `Buy C-BTC-${atmStrike} (ATM Call) @ ~$${entryOptEst.toFixed(1)} -> Target $${targetOptEst.toFixed(1)} (${targetGainPct} Profit)`,
             invalidationReason: `Price slips below breakout candle low at $${sl.toLocaleString()}`,
             meta: {
               sHigh,
@@ -366,7 +390,9 @@ window.DeltaSMCStrategy = (function() {
             const tp = Math.round((entry - targetDist) * 10) / 10;
             const atmStrike = Math.round(entry / 200) * 200;
             const entryOptEst = Math.round((entry * 0.003) * 10) / 10;
-            const targetOptEst = Math.round((entryOptEst * 1.5) * 10) / 10;
+            const dynTarget = calcDynamicOptionTarget(entryOptEst, targetDist);
+            const targetOptEst = dynTarget.targetPrice;
+            const targetGainPct = dynTarget.gainPctStr;
 
             setup = {
               id: `TRD_SWP_PUT_${cur.time}_${Math.round(entry)}`,
@@ -391,7 +417,8 @@ window.DeltaSMCStrategy = (function() {
               optionStrike: atmStrike,
               entryOptEst,
               targetOptEst,
-              optionRecommendation: `Buy P-BTC-${atmStrike} (ATM Put) @ ~$${entryOptEst.toFixed(1)} -> Target $${targetOptEst.toFixed(1)} (+50% Profit)`,
+              targetGainPct,
+              optionRecommendation: `Buy P-BTC-${atmStrike} (ATM Put) @ ~$${entryOptEst.toFixed(1)} -> Target $${targetOptEst.toFixed(1)} (${targetGainPct} Profit)`,
               invalidationReason: `Price breaks above resistance wick at $${sl.toLocaleString()}`,
               meta: {
                 sHigh,
@@ -420,7 +447,9 @@ window.DeltaSMCStrategy = (function() {
             const tp = Math.round((entry + targetDist) * 10) / 10;
             const atmStrike = Math.round(entry / 200) * 200;
             const entryOptEst = Math.round((entry * 0.003) * 10) / 10;
-            const targetOptEst = Math.round((entryOptEst * 1.5) * 10) / 10;
+            const dynTarget = calcDynamicOptionTarget(entryOptEst, targetDist);
+            const targetOptEst = dynTarget.targetPrice;
+            const targetGainPct = dynTarget.gainPctStr;
 
             setup = {
               id: `TRD_SWP_CALL_${cur.time}_${Math.round(entry)}`,
@@ -445,7 +474,8 @@ window.DeltaSMCStrategy = (function() {
               optionStrike: atmStrike,
               entryOptEst,
               targetOptEst,
-              optionRecommendation: `Buy C-BTC-${atmStrike} (ATM Call) @ ~$${entryOptEst.toFixed(1)} -> Target $${targetOptEst.toFixed(1)} (+50% Profit)`,
+              targetGainPct,
+              optionRecommendation: `Buy C-BTC-${atmStrike} (ATM Call) @ ~$${entryOptEst.toFixed(1)} -> Target $${targetOptEst.toFixed(1)} (${targetGainPct} Profit)`,
               invalidationReason: `Price breaks below support wick at $${sl.toLocaleString()}`,
               meta: {
                 sHigh,
@@ -558,12 +588,15 @@ window.DeltaSMCStrategy = (function() {
         let optNetGainPts = 0;
 
         if (outcome === "WIN") {
-          exitOpt = Math.round((entryOpt * 1.50) * 10) / 10;
+          const dynWin = calcDynamicOptionTarget(entryOpt, setup.targetDist);
+          exitOpt = dynWin.targetPrice;
           optPnlPts = Math.round((exitOpt - entryOpt) * 10) / 10;
-          optNetGainPts = Math.round((optPnlPts * 0.80) * 10) / 10; // Post-fee take home
+          const winGainPct = dynWin.gainPct;
+          const winNetGainPct = Math.round(winGainPct * 0.85); // Post-fee & 18% GST take home
+          optNetGainPts = Math.round((optPnlPts * 0.85) * 10) / 10;
           setup.pnlR = setup.rrRatio;
-          setup.optionPnlPct = "+50.0%";
-          setup.netProfitEstimate = `+${optNetGainPts} pts (+40% Net Take-Home)`;
+          setup.optionPnlPct = `+${winGainPct}%`;
+          setup.netProfitEstimate = `+${optNetGainPts} pts (+${winNetGainPct}% Net Take-Home)`;
           setup.badgeColor = "text-emerald-400 bg-emerald-500/10 border-emerald-500/30";
         } else if (outcome === "LOSS") {
           exitOpt = Math.round((entryOpt * 0.70) * 10) / 10;
@@ -609,7 +642,7 @@ window.DeltaSMCStrategy = (function() {
           rsi: `RSI was ${setup.rsi}`,
           rvol: `${setup.rvol}x Relative Volume (Institutional Presence)`,
           narrative: outcome === "WIN"
-            ? `Price expanded aggressively in your favor (+${setup.targetDist} pts) within ${barsHeld} bars, hitting Take Profit at $${setup.tp.toLocaleString()}. Your Option surged from $${entryOpt.toFixed(1)} to $${exitOpt.toFixed(1)} (+50% gross / +40% net).`
+            ? `Price expanded aggressively in your favor (+${setup.targetDist} pts) within ${barsHeld} bars, hitting Take Profit at $${setup.tp.toLocaleString()}. Your Option surged from $${entryOpt.toFixed(1)} to $${exitOpt.toFixed(1)} (${setup.optionPnlPct} gross / +${Math.round(parseInt(setup.optionPnlPct) * 0.85)}% net after GST).`
             : (outcome === "LOSS"
               ? `Price triggered the structural stop at $${setup.sl.toLocaleString()} within ${barsHeld} bars. Controlled exit executed at Option $${exitOpt.toFixed(1)} (-30% / -1R stop) to protect capital.`
               : (outcome === "ACTIVE"
@@ -619,7 +652,7 @@ window.DeltaSMCStrategy = (function() {
             `1. Open Delta Exchange India -> BTC Options.`,
             `2. Select Contract: ${setup.direction === "LONG" ? 'C-BTC-' + setup.optionStrike : 'P-BTC-' + setup.optionStrike} (${setup.direction === "LONG" ? 'ATM Call' : 'ATM Put'}).`,
             `3. Order Type: Buy in zone $${(entryOpt * 0.98).toFixed(1)} - $${(entryOpt * 1.02).toFixed(1)}.`,
-            `4. Take Profit GTT Order: Set Limit Exit at $${exitOpt.toFixed(1)} (+50% profit target).`,
+            `4. Take Profit GTT Order: Set Limit Exit at $${exitOpt.toFixed(1)} (${setup.optionPnlPct} profit target).`,
             `5. Stop Loss GTT Order: Set Stop Exit at $${(entryOpt * 0.70).toFixed(1)} (Underlying Spot SL: $${setup.sl.toLocaleString()}).`
           ]
         };
@@ -636,7 +669,7 @@ window.DeltaSMCStrategy = (function() {
         let markerColor = isCall ? "#38bdf8" : "#818cf8";
 
         if (isWin) {
-          labelText = `${prefix} +50%`;
+          labelText = `${prefix} ${setup.optionPnlPct}`;
           markerColor = isCall ? "#10b981" : "#10b981";
         } else if (isLoss) {
           labelText = `${prefix} -1R`;

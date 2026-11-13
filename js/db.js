@@ -714,6 +714,109 @@ window.DeltaDB = (function() {
     });
   }
 
+  // -------------------------------------------------------------
+  // 11. INSTITUTIONAL SIGNAL TRADES & FIRESTORE REGISTRY
+  // -------------------------------------------------------------
+  const SIGNAL_STORAGE_KEY = 'dtj_signal_trades_v1';
+
+  async function syncSignalTrades(trades) {
+    if (!trades || !Array.isArray(trades) || trades.length === 0) return {};
+
+    let registry = {};
+    try {
+      const raw = localStorage.getItem(SIGNAL_STORAGE_KEY);
+      if (raw) registry = JSON.parse(raw);
+    } catch (e) {}
+
+    const updatedDocs = [];
+
+    trades.forEach(t => {
+      const existing = registry[t.id];
+
+      // Keep entry mark price and strike STRICTLY IMMUTABLE once recorded!
+      const entryOpt = existing?.optionEntryMark || t.realOption?.entryPrice || t.entryOpt || 220;
+      const strike = existing?.optionStrike || t.realOption?.strike || t.optionStrike || Math.round(t.entry / 200) * 200;
+      const symbol = existing?.optionSymbol || t.realOption?.symbol || `${t.direction === 'LONG' ? 'C' : 'P'}-BTC-${strike}`;
+      const buyZone = existing?.buyZone || t.realOption?.buyZone || `$${(entryOpt * 0.98).toFixed(1)} - $${(entryOpt * 1.02).toFixed(1)}`;
+      const targetGainPct = existing?.optionTargetGainPct || t.realOption?.targetGainPct || t.targetGainPct || "+50.0%";
+      const targetPrice = existing?.optionTargetPrice || t.realOption?.targetPrice || (entryOpt * 1.5);
+      const stopPrice = existing?.optionStopPrice || t.realOption?.stopPrice || (entryOpt * 0.7);
+
+      const docData = {
+        id: t.id,
+        time: t.time,
+        timeIST: new Date(t.time * 1000).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit', hour12: true }),
+        name: t.name,
+        strategyId: t.strategyId,
+        direction: t.direction,
+        regime: t.regime,
+        btcEntry: t.entry,
+        btcTp: t.tp,
+        btcSl: t.sl,
+        targetDist: t.targetDist,
+        slDist: t.slDist,
+        rrRatio: t.rrRatio,
+        optionSymbol: symbol,
+        optionStrike: strike,
+        optionEntryMark: entryOpt, // IMMUTABLE FROZEN ENTRY PRICE
+        buyZone: buyZone,
+        optionTargetPrice: targetPrice,
+        optionTargetGainPct: targetGainPct,
+        optionStopPrice: stopPrice,
+        optionStopLossPct: "-30.0%",
+        outcome: t.outcome, // ACTIVE, WIN, LOSS, THETA_TIMEOUT
+        exitTime: t.exitTime || null,
+        exitBtcPrice: t.exitPrice || null, // BTC close price when TP/SL hit
+        exitOptionPrice: t.exitOpt || null,
+        optionPnlPct: t.optionPnlPct || (t.outcome === 'WIN' ? targetGainPct : (t.outcome === 'LOSS' ? '-30.0%' : '0%')),
+        liveMarkPrice: t.realOption?.markPrice || entryOpt,
+        unrealizedPts: t.realOption?.unrealizedPts || 0,
+        unrealizedPct: t.realOption?.unrealizedPct || 0,
+        exitReason: t.exitReason || t.outcome,
+        barsHeld: t.barsHeld || 1,
+        maePts: t.maePts || 0,
+        mfePts: t.mfePts || 0,
+        updatedAt: Date.now()
+      };
+
+      registry[t.id] = docData;
+      updatedDocs.push(docData);
+    });
+
+    try {
+      localStorage.setItem(SIGNAL_STORAGE_KEY, JSON.stringify(registry));
+    } catch (e) {}
+
+    // Async merge to Firestore collection (GP_DTJ_signal_trades) if online
+    if (firestoreDb && updatedDocs.length > 0) {
+      try {
+        const batch = firestoreDb.batch();
+        const col = DeltaConfig.FIRESTORE_COLLECTIONS.SIGNALS || "GP_DTJ_signal_trades";
+        updatedDocs.slice(0, 50).forEach(docData => {
+          const docRef = firestoreDb.collection(col).doc(docData.id);
+          batch.set(docRef, docData, { merge: true });
+        });
+        batch.commit().catch(err => console.warn("Async signal batch write queued:", err));
+      } catch (err) {
+        console.warn("Firestore signal sync notice:", err);
+      }
+    }
+
+    return registry;
+  }
+
+  function getSignalTrades(lastDays = 2) {
+    try {
+      const raw = localStorage.getItem(SIGNAL_STORAGE_KEY);
+      if (!raw) return [];
+      const registry = JSON.parse(raw);
+      const cutoff = Math.floor(Date.now() / 1000) - (lastDays * 86400);
+      return Object.values(registry).filter(t => t.time >= cutoff).sort((a, b) => b.time - a.time);
+    } catch (e) {
+      return [];
+    }
+  }
+
   return {
     init,
     syncFromRawData,
@@ -726,6 +829,8 @@ window.DeltaDB = (function() {
     removeTagFromTrade,
     attachScreenshot,
     syncToFirestore,
+    syncSignalTrades,
+    getSignalTrades,
     exportJSONBackup,
     exportCSV,
     addListener,

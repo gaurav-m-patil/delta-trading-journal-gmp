@@ -85,8 +85,9 @@ window.DeltaLiveChart = (function() {
    * 1. Nearest unexpired active settlement date (e.g. today / tomorrow 17:30 IST).
    * 2. Either Exact ATM (Delta ~0.50, closest strike to spot) or Next Strike OTM (within 1 strike).
    * 3. Absolutely ZERO far OTM contracts.
+   * 4. Dynamic Option Target Potential based on spot target distance (minimum +35% floor, up to +1000%+ on trend expansions).
    */
-  function resolveRealDeltaContract(direction, spotPrice, tickers, tradeId, registry) {
+  function resolveRealDeltaContract(direction, spotPrice, tickers, tradeId, registry, targetDist) {
     const isCall = direction === "LONG";
     const atmStrikeEstimate = Math.round(spotPrice / 200) * 200;
 
@@ -112,6 +113,11 @@ window.DeltaLiveChart = (function() {
 
     if (!tickers || tickers.length === 0) {
       const simEntry = 220.0;
+      const deltaMove = (targetDist && targetDist > 0) ? (targetDist * 0.50) : (simEntry * 0.50);
+      const dynGainPct = Math.max(35, Math.round((deltaMove / simEntry) * 100));
+      const target = Math.round((simEntry + (simEntry * (dynGainPct / 100))) * 10) / 10;
+      const targetGainPct = `+${dynGainPct}%`;
+
       const res = {
         symbol: isCall ? `C-BTC-${atmStrikeEstimate}` : `P-BTC-${atmStrikeEstimate}`,
         strike: atmStrikeEstimate,
@@ -119,9 +125,9 @@ window.DeltaLiveChart = (function() {
         entryPrice: simEntry,
         markPrice: simEntry,
         buyZone: "$210.0 - $225.0",
-        targetPrice: 330.0,
+        targetPrice: target,
         stopPrice: 154.0,
-        targetGainPct: "+50.0%",
+        targetGainPct,
         stopLossPct: "-30.0%",
         unrealizedPts: 0,
         unrealizedPct: 0,
@@ -244,7 +250,10 @@ window.DeltaLiveChart = (function() {
 
     if (best) {
       const mark = Math.round((parseFloat(best.mark_price) || 220) * 10) / 10;
-      const target = Math.round((mark * 1.5) * 10) / 10;
+      const deltaMove = (targetDist && targetDist > 0) ? (targetDist * 0.50) : (mark * 0.50);
+      const dynGainPct = Math.max(35, Math.round((deltaMove / mark) * 100));
+      const target = Math.round((mark + (mark * (dynGainPct / 100))) * 10) / 10;
+      const targetGainPct = `+${dynGainPct}%`;
       const stop = Math.round((mark * 0.7) * 10) / 10;
       const bestBid = parseFloat(best.best_bid) || mark;
       const bestAsk = parseFloat(best.best_ask) || mark;
@@ -265,7 +274,7 @@ window.DeltaLiveChart = (function() {
         buyZone,
         targetPrice: target,
         stopPrice: stop,
-        targetGainPct: "+50.0%",
+        targetGainPct,
         stopLossPct: "-30.0%",
         unrealizedPts: 0,
         unrealizedPct: 0,
@@ -292,6 +301,11 @@ window.DeltaLiveChart = (function() {
     }
 
     const simEntry = 220.0;
+    const deltaMoveFallback = (targetDist && targetDist > 0) ? (targetDist * 0.50) : (simEntry * 0.50);
+    const dynGainPctFallback = Math.max(35, Math.round((deltaMoveFallback / simEntry) * 100));
+    const fallbackTarget = Math.round((simEntry + (simEntry * (dynGainPctFallback / 100))) * 10) / 10;
+    const fallbackTargetGainPct = `+${dynGainPctFallback}%`;
+
     const fallbackRes = {
       symbol: isCall ? `C-BTC-${atmStrikeEstimate}` : `P-BTC-${atmStrikeEstimate}`,
       strike: atmStrikeEstimate,
@@ -299,9 +313,9 @@ window.DeltaLiveChart = (function() {
       entryPrice: simEntry,
       markPrice: simEntry,
       buyZone: "$210.0 - $225.0",
-      targetPrice: 330.0,
+      targetPrice: fallbackTarget,
       stopPrice: 154.0,
-      targetGainPct: "+50.0%",
+      targetGainPct: fallbackTargetGainPct,
       stopLossPct: "-30.0%",
       unrealizedPts: 0,
       unrealizedPct: 0,
@@ -1019,7 +1033,7 @@ window.DeltaLiveChart = (function() {
     document.getElementById('atmModalRR').innerText = `1 : ${t.rrRatio}`;
 
     // Option Execution & Resolution Timeline Details
-    const opt = t.realOption || resolveRealDeltaContract(t.direction, t.entry, cachedDeltaTickers, t.id, getTradeRegistry());
+    const opt = t.realOption || resolveRealDeltaContract(t.direction, t.entry, cachedDeltaTickers, t.id, getTradeRegistry(), t.targetDist);
     const contractSymbol = opt ? opt.symbol : (t.direction === "LONG" ? 'C-BTC-' + t.optionStrike : 'P-BTC-' + t.optionStrike);
     const strikeTier = opt ? opt.strikeTier : "Exact ATM (Delta ~0.50)";
 
@@ -1027,11 +1041,13 @@ window.DeltaLiveChart = (function() {
     let exitOpt = entryOpt;
     let pnlDiff = 0;
     let netTakeHome = 0;
+    const targetGainPct = (opt && opt.targetGainPct) ? opt.targetGainPct : (t.optionPnlPct || "+50%");
+    const netTakeHomePct = Math.round(parseInt(targetGainPct.replace('+', '').replace('%', '') || 50) * 0.85);
 
     if (t.outcome === "WIN") {
-      exitOpt = (opt && opt.targetPrice) ? opt.targetPrice : Math.round((entryOpt * 1.50) * 10) / 10;
+      exitOpt = (opt && opt.targetPrice) ? opt.targetPrice : (t.exitOpt || Math.round((entryOpt * 1.50) * 10) / 10);
       pnlDiff = Math.round((exitOpt - entryOpt) * 10) / 10;
-      netTakeHome = Math.round((pnlDiff * 0.80) * 10) / 10;
+      netTakeHome = Math.round((pnlDiff * 0.85) * 10) / 10;
     } else if (t.outcome === "LOSS") {
       exitOpt = (opt && opt.stopPrice) ? opt.stopPrice : Math.round((entryOpt * 0.70) * 10) / 10;
       pnlDiff = Math.round((exitOpt - entryOpt) * 10) / 10;
@@ -1075,7 +1091,7 @@ window.DeltaLiveChart = (function() {
             Buy <strong class="text-white bg-indigo-900/60 px-1.5 py-0.5 rounded">${contractSymbol}</strong> in Buy Zone <strong class="text-emerald-400">${opt.buyZone || `$${(entryOpt * 0.98).toFixed(1)} - $${(entryOpt * 1.02).toFixed(1)}`}</strong>.
           </div>
           <div class="text-[11px] text-slate-400 pt-1 border-t border-emerald-500/20 flex flex-wrap justify-between gap-1">
-            <span>TP Target: <strong class="text-winGreen">$${targetPriceVal.toFixed(1)} (+50%)</strong></span>
+            <span>TP Target: <strong class="text-winGreen">$${targetPriceVal.toFixed(1)} (${targetGainPct})</strong></span>
             <span>SL Stop: <strong class="text-lossRed">$${stopPriceVal.toFixed(1)} (-30%)</strong></span>
             <span>Current Mark: <strong class="${pnlDiff >= 0 ? 'text-winGreen' : 'text-lossRed'}">$${currentLiveVal.toFixed(1)} (${pnlDiff >= 0 ? '+' : ''}${pnlPctStr}%)</strong></span>
           </div>
@@ -1085,12 +1101,12 @@ window.DeltaLiveChart = (function() {
         actionBanner.innerHTML = `
           <div class="flex items-center justify-between">
             <span class="text-winGreen font-bold flex items-center gap-1.5">
-              <i class="fa-solid fa-circle-check"></i> TARGET REACHED (+50% GROSS / +40% NET)
+              <i class="fa-solid fa-circle-check"></i> TARGET REACHED (${targetGainPct} GROSS / +${netTakeHomePct}% NET)
             </span>
             <span class="text-[10px] text-slate-400 font-sans">${exitTimeStr} IST</span>
           </div>
           <div class="text-slate-300 text-[11px]">
-            Target hit at BTC Spot <strong>$${t.tp.toLocaleString()}</strong>. Option surged from <strong>$${entryOpt.toFixed(1)}</strong> to <strong>$${exitOpt.toFixed(1)}</strong> (+${pnlDiff.toFixed(1)} pts).
+            Target hit at BTC Spot <strong>$${(t.exitPrice || t.tp).toLocaleString()}</strong>. Option surged from <strong>$${entryOpt.toFixed(1)}</strong> to <strong>$${exitOpt.toFixed(1)}</strong> (+${pnlDiff.toFixed(1)} pts).
           </div>
         `;
       } else if (t.outcome === "LOSS") {
@@ -1339,7 +1355,7 @@ Expected Profit: +50% Option Gross / +40% Net`;
         const registry = getTradeRegistry();
 
         currentAnalysis.trades.forEach(t => {
-          t.realOption = resolveRealDeltaContract(t.direction, t.entry, safeTickers, t.id, registry);
+          t.realOption = resolveRealDeltaContract(t.direction, t.entry, safeTickers, t.id, registry, t.targetDist);
 
           // If active trade, lock its real Delta India execution plan and trigger Telegram Alert
           if (t.outcome === "ACTIVE" && t.realOption) {
@@ -1354,6 +1370,11 @@ Expected Profit: +50% Option Gross / +40% Net`;
             }
           }
         });
+
+        // Store and sync signal trades into local storage and Firestore (GP_DTJ_signal_trades)
+        if (window.DeltaDB && typeof DeltaDB.syncSignalTrades === 'function') {
+          DeltaDB.syncSignalTrades(currentAnalysis.trades);
+        }
 
         if (selectedTrade) {
           const match = currentAnalysis.trades.find(x => x.id === selectedTrade.id);
@@ -1417,6 +1438,8 @@ Expected Profit: +50% Option Gross / +40% Net`;
 
   /**
    * Renders the interactive trade list under the chart
+   * Shows trades filtered to the last 2 days (48 hours) as requested
+   * Displays immutable entry mark price vs live mark price and spot close price
    */
   function renderTradesTable(trades) {
     const tbody = document.getElementById('btTradesTableBody');
@@ -1427,39 +1450,62 @@ Expected Profit: +50% Option Gross / +40% Net`;
       return;
     }
 
+    // Filter to last 2 days (48 hours) as strictly instructed by trader
+    const cutoff48h = Math.floor(Date.now() / 1000) - (2 * 86400);
+    let displayTrades = trades.filter(t => t.time >= cutoff48h);
+
+    // Fallback: If 0 setups in last 48h (e.g. over weekend), show latest 3 so table is never blank
+    if (displayTrades.length === 0) {
+      displayTrades = trades.slice(-3);
+    }
+
+    // Update win rate element in table header
+    const histWrEl = document.getElementById('btHistoryWinRate');
+    if (histWrEl) {
+      const wins = displayTrades.filter(t => t.outcome === "WIN").length;
+      const total = displayTrades.filter(t => t.outcome === "WIN" || t.outcome === "LOSS").length;
+      const winRate = total > 0 ? Math.round((wins / total) * 1000) / 10 : 0;
+      histWrEl.innerText = `${winRate}% 48h Win Rate (${wins}W - ${total - wins}L)`;
+    }
+
     // Sort descending by time
-    const sorted = [...trades].reverse();
+    const sorted = [...displayTrades].reverse();
 
     tbody.innerHTML = sorted.map(t => {
       const d = new Date(t.time * 1000);
-      const dateStr = d.toLocaleTimeString('en-IN', { timeZone: 'Asia/Kolkata', hour: '2-digit', minute: '2-digit', hour12: true });
+      const timeStr = d.toLocaleTimeString('en-IN', { timeZone: 'Asia/Kolkata', hour: '2-digit', minute: '2-digit', hour12: true });
+      const dateStr = d.toLocaleDateString('en-IN', { timeZone: 'Asia/Kolkata', month: 'short', day: 'numeric' });
       const isCall = t.direction === "LONG";
       const isWin = t.outcome === "WIN";
       const isLoss = t.outcome === "LOSS";
       const isActive = t.outcome === "ACTIVE";
 
+      const opt = t.realOption;
+      const contractLabel = opt ? opt.symbol : (isCall ? 'C-BTC-' + t.optionStrike : 'P-BTC-' + t.optionStrike);
+      const entryMark = (opt && opt.entryPrice) ? opt.entryPrice : (t.entryOpt || Math.round(t.entry * 0.003 * 10) / 10);
+      const liveMark = (opt && opt.markPrice) ? opt.markPrice : entryMark;
+      const targetGainPct = t.optionPnlPct || opt?.targetGainPct || t.targetGainPct || "+50%";
+
       let outcomeBadge = "";
       if (isActive) {
         outcomeBadge = `<span class="px-1.5 sm:px-2 py-0.5 rounded text-[9px] sm:text-[10px] font-bold bg-cyan-500/10 text-cyan-400 border border-cyan-500/30 inline-flex items-center gap-1"><span class="h-1.5 w-1.5 rounded-full bg-cyan-400 animate-ping"></span> LIVE</span>`;
       } else if (isWin) {
-        outcomeBadge = `<span class="px-1.5 sm:px-2 py-0.5 rounded text-[9px] sm:text-[10px] font-bold bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 whitespace-nowrap">WIN (+50%)</span>`;
+        outcomeBadge = `<span class="px-1.5 sm:px-2 py-0.5 rounded text-[9px] sm:text-[10px] font-bold bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 whitespace-nowrap">WIN (${targetGainPct})</span>`;
       } else if (isLoss) {
         outcomeBadge = `<span class="px-1.5 sm:px-2 py-0.5 rounded text-[9px] sm:text-[10px] font-bold bg-rose-500/10 text-rose-400 border border-rose-500/30 whitespace-nowrap">LOSS (-1R)</span>`;
       } else {
         outcomeBadge = `<span class="px-1.5 sm:px-2 py-0.5 rounded text-[9px] sm:text-[10px] font-bold bg-slate-500/10 text-slate-400 border border-slate-500/30 whitespace-nowrap">TIMEOUT</span>`;
       }
 
-      const opt = t.realOption;
-      const contractLabel = opt ? opt.symbol : (isCall ? 'C-BTC-' + t.optionStrike : 'P-BTC-' + t.optionStrike);
-      const markLabel = opt && opt.markPrice ? `$${opt.markPrice}` : '--';
       const cleanPatternName = (t.name || '').replace('Confirmed ', '');
-
       const isSelected = selectedTrade && selectedTrade.id === t.id;
+      const closedSpot = t.exitPrice ? `$${t.exitPrice.toLocaleString()}` : `$${t.tp.toLocaleString()}`;
 
       return `
         <tr id="row_${t.id}" class="bt-trade-row hover:bg-panelDark/60 transition-colors cursor-pointer ${isSelected ? 'bg-indigo-600/20' : ''}" onclick="DeltaLiveChart.selectTrade('${t.id}')">
           <td class="py-2.5 px-2 text-slate-200 font-bold text-[11px] sm:text-xs">
-            ${dateStr}
+            <div>${timeStr}</div>
+            <div class="text-[9px] text-slate-400 font-normal">${dateStr}</div>
           </td>
           <td class="py-2.5 px-2">
             <div class="flex items-center gap-1 font-bold ${isCall ? 'text-winGreen' : 'text-lossRed'} text-xs">
@@ -1471,10 +1517,13 @@ Expected Profit: +50% Option Gross / +40% Net`;
           </td>
           <td class="py-2.5 px-2">
             <span class="text-indigo-300 font-semibold block text-[11px] truncate" title="${contractLabel}">${contractLabel}</span>
-            <span class="text-[9px] text-slate-400 block">Mark: <strong class="text-white">${markLabel}</strong></span>
+            <div class="flex items-center gap-2 text-[9px]">
+              <span class="text-slate-400">Entry: <strong class="text-white">$${entryMark.toFixed(1)}</strong></span>
+              <span class="text-slate-400">Live: <strong class="${liveMark >= entryMark ? 'text-winGreen' : 'text-lossRed'}">$${liveMark.toFixed(1)}</strong></span>
+            </div>
           </td>
           <td class="py-2.5 px-2 text-[11px] sm:text-xs text-slate-300">
-            <div>$${t.entry.toLocaleString()} &rarr; <strong class="${isWin ? 'text-winGreen' : 'text-slate-200'}">$${t.tp.toLocaleString()}</strong></div>
+            <div>$${t.entry.toLocaleString()} &rarr; <strong class="${isWin ? 'text-winGreen' : 'text-slate-200'}">${closedSpot}</strong></div>
             <div class="text-[9px] text-slate-400">SL: $${t.sl.toLocaleString()}</div>
           </td>
           <td class="py-2.5 px-1.5">

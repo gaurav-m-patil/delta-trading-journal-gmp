@@ -28,7 +28,8 @@ window.DeltaConfig = {
     TRADES: "GP_DTJ_trades",              // Closed & open positions with SMC tags & screenshots
     DAILY_METRICS: "GP_DTJ_daily_metrics",// Aggregated daily performance summaries (0-cost reads)
     TAGS: "GP_DTJ_tags",                  // Strategy tag catalog
-    SETTINGS: "GP_DTJ_settings"           // User preferences, capital, and risk limits
+    SETTINGS: "GP_DTJ_settings",          // User preferences, capital, and risk limits
+    SIGNALS: "GP_DTJ_signal_trades"       // Institutional SMC signal trades with frozen option pricing
   },
 
   // Standard Smart Money Concepts (SMC) & Trading Setup Presets

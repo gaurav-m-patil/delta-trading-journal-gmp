@@ -154,7 +154,63 @@ Give me your high-impact coaching review based strictly on this quantitative pro
   }
 
   /**
-   * Generates AI-powered coaching analysis using Gemini 2.5 Flash
+   * Resilient Gemini API caller that uses the latest available flash models
+   * Priority: gemini-3.8-flash -> gemini-2.0-flash -> gemini-1.5-flash -> gemini-1.5-pro
+   */
+  async function callGemini(apiKey, systemPrompt, userPrompt, temperature = 0.2, maxOutputTokens = 1500) {
+    const candidateModels = [
+      'gemini-3.8-flash',
+      'gemini-2.0-flash',
+      'gemini-1.5-flash',
+      'gemini-1.5-pro'
+    ];
+
+    let lastError = null;
+
+    for (const model of candidateModels) {
+      try {
+        const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
+        const response = await fetch(url, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            system_instruction: { parts: [{ text: systemPrompt }] },
+            contents: [{ parts: [{ text: userPrompt }] }],
+            generationConfig: {
+              temperature,
+              maxOutputTokens
+            }
+          })
+        });
+
+        if (response.ok) {
+          const data = await response.json();
+          const rawText = data.candidates?.[0]?.content?.parts?.[0]?.text;
+          if (rawText) {
+            return rawText;
+          }
+        } else {
+          const errJson = await response.json().catch(() => ({}));
+          const errMsg = errJson.error?.message || `HTTP ${response.status}`;
+          lastError = new Error(`${model}: ${errMsg}`);
+          if (response.status === 404 || errMsg.includes('not found') || errMsg.includes('no longer available') || errMsg.includes('not supported') || errMsg.includes('deprecated')) {
+            console.warn(`[Gemini Engine] Model ${model} unavailable (${errMsg}), trying next candidate...`);
+            continue;
+          }
+          if (response.status === 400 && (errMsg.includes('API key') || errMsg.includes('quota') || errMsg.includes('KEY_INVALID'))) {
+            throw lastError;
+          }
+        }
+      } catch (e) {
+        lastError = e;
+      }
+    }
+
+    throw lastError || new Error("Failed to generate response from Gemini API.");
+  }
+
+  /**
+   * Generates AI-powered coaching analysis using Gemini Flash
    */
   async function generateAnalysis(dossier, targetElementId) {
     const container = document.getElementById(targetElementId);
@@ -178,36 +234,14 @@ Give me your high-impact coaching review based strictly on this quantitative pro
     container.innerHTML = `
       <div class="flex flex-col items-center justify-center py-10 gap-3">
         <i class="fa-solid fa-circle-notch fa-spin text-3xl text-indigo-500"></i>
-        <p class="text-xs text-slate-400 font-mono animate-pulse">Consulting Quantitative Options Engine & Gemini 2.5...</p>
+        <p class="text-xs text-slate-400 font-mono animate-pulse">Consulting Quantitative Options Engine & Gemini Flash...</p>
       </div>
     `;
 
     const { systemPrompt, userPrompt } = buildSystemAndUserPrompt(dossier);
 
     try {
-      const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          system_instruction: { parts: [{ text: systemPrompt }] },
-          contents: [{ parts: [{ text: userPrompt }] }],
-          generationConfig: {
-            temperature: 0.2, // Low temperature for factual, analytical consistency
-            maxOutputTokens: 1500
-          }
-        })
-      });
-
-      if (!response.ok) {
-        const errJson = await response.json().catch(() => ({}));
-        throw new Error(errJson.error?.message || `Gemini API returned HTTP ${response.status}`);
-      }
-
-      const data = await response.json();
-      const rawText = data.candidates?.[0]?.content?.parts?.[0]?.text;
-
-      if (!rawText) throw new Error("Empty response returned from Gemini.");
-
+      const rawText = await callGemini(apiKey, systemPrompt, userPrompt, 0.2, 1500);
       const renderedMarkdown = typeof marked !== 'undefined' ? marked.parse(rawText) : rawText;
 
       container.innerHTML = `
@@ -218,8 +252,8 @@ Give me your high-impact coaching review based strictly on this quantitative pro
     } catch (err) {
       console.error("AI Coach Generation Error:", err);
       container.innerHTML = `
-        <div class="p-4 rounded-xl bg-lossRed/10 border border-lossRed/30 text-lossRed text-xs mb-4">
-          <i class="fa-solid fa-triangle-exclamation mr-1.5"></i> <strong>AI Coach Error:</strong> ${err.message}
+        <div class="p-4 rounded-xl bg-lossRed/10 border border-lossRed/30 text-lossRed text-xs mb-4 font-mono">
+          <i class="fa-solid fa-triangle-exclamation mr-1.5"></i> <strong>AI Coach Notice:</strong> ${err.message}. Showing deterministic quantitative validation dossier:
         </div>
         ${generateOfflineDiagnostic(dossier)}
       `;
@@ -373,28 +407,7 @@ ${trades.slice(-5).map(t => `- ${t.name} (${t.direction}) @ $${t.entry}: Outcome
 `;
 
     try {
-      const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          system_instruction: { parts: [{ text: systemPrompt }] },
-          contents: [{ parts: [{ text: userPrompt }] }],
-          generationConfig: {
-            temperature: 0.15,
-            maxOutputTokens: 1800
-          }
-        })
-      });
-
-      if (!response.ok) {
-        const errJson = await response.json().catch(() => ({}));
-        throw new Error(errJson.error?.message || `HTTP ${response.status}`);
-      }
-
-      const data = await response.json();
-      const rawText = data.candidates?.[0]?.content?.parts?.[0]?.text;
-      if (!rawText) throw new Error("Empty response returned from Gemini.");
-
+      const rawText = await callGemini(apiKey, systemPrompt, userPrompt, 0.15, 1800);
       const renderedMarkdown = typeof marked !== 'undefined' ? marked.parse(rawText) : rawText;
       container.innerHTML = `
         <div class="prose prose-invert prose-sm max-w-none text-slate-300 text-xs leading-relaxed space-y-3 font-sans">
