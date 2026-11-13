@@ -68,6 +68,24 @@ window.DeltaApp = (function() {
     if (savedRepo && document.getElementById('ghRepoInput')) document.getElementById('ghRepoInput').value = savedRepo;
     if (savedGeminiKey && document.getElementById('geminiKeyInput')) document.getElementById('geminiKeyInput').value = savedGeminiKey;
     updateTelegramBadge();
+
+    // Check Firestore for remote Telegram credentials if missing locally
+    if (window.firebase && firebase.firestore) {
+      try {
+        const db = firebase.firestore();
+        db.collection(DeltaConfig.FIRESTORE_COLLECTIONS.SETTINGS).doc('telegram').get().then(doc => {
+          if (doc.exists) {
+            const data = doc.data();
+            if (data && data.botToken && !localStorage.getItem(DeltaConfig.STORAGE_KEYS.TELEGRAM_BOT_TOKEN)) {
+              localStorage.setItem(DeltaConfig.STORAGE_KEYS.TELEGRAM_BOT_TOKEN, data.botToken);
+              if (data.chatId) localStorage.setItem(DeltaConfig.STORAGE_KEYS.TELEGRAM_CHAT_ID, data.chatId);
+              if (data.enabled !== undefined) localStorage.setItem(DeltaConfig.STORAGE_KEYS.TELEGRAM_ENABLED, data.enabled ? 'true' : 'false');
+              updateTelegramBadge();
+            }
+          }
+        }).catch(() => {});
+      } catch (e) {}
+    }
   }
 
   function onDatabaseEvent(event) {
@@ -311,6 +329,19 @@ window.DeltaApp = (function() {
     localStorage.setItem(DeltaConfig.STORAGE_KEYS.TELEGRAM_BOT_TOKEN, token);
     localStorage.setItem(DeltaConfig.STORAGE_KEYS.TELEGRAM_CHAT_ID, chatId);
     localStorage.setItem(DeltaConfig.STORAGE_KEYS.TELEGRAM_ENABLED, enabled ? 'true' : 'false');
+
+    // Sync to Firestore GP_DTJ_settings/telegram so 24/7 Cloud Sentinel can access it in the background
+    if (window.firebase && firebase.firestore) {
+      try {
+        const db = firebase.firestore();
+        db.collection(DeltaConfig.FIRESTORE_COLLECTIONS.SETTINGS).doc('telegram').set({
+          botToken: token,
+          chatId: chatId,
+          enabled: enabled,
+          updatedAt: new Date().toISOString()
+        }, { merge: true }).catch(err => console.warn("Firestore telegram sync notice:", err));
+      } catch (e) {}
+    }
 
     closeTelegramModal();
     updateTelegramBadge();
