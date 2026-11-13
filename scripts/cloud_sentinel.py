@@ -442,6 +442,21 @@ def run_sentinel():
         print("[Sentinel] Market monitoring completed in passive mode.")
         return
 
+    # 2b. One-Time Connection Handshake (Confirms to trader that Sentinel is alive)
+    if not state.get("telegram_handshake_sent", False):
+        welcome_msg = f"""🟢 <b>DELTA INDIA 24/7 CLOUD SENTINEL CONNECTED</b>
+━━━━━━━━━━━━━━━━━━━━━━
+✅ <b>Status:</b> Active & Monitoring (24/7/365)
+⚡ <b>Target Feed:</b> Delta Exchange India (BTCUSD 15m)
+📊 <b>Strategy Engine:</b> Institutional SMC Sweeps & BOS
+🎯 <b>Option Execution:</b> Real ATM Delta India Contracts (+50% Target / -30% SL)
+
+<i>You will now receive confirmed trade entries, profit targets, and market catalysts automatically even when your app is completely closed.</i>
+🔗 <a href="https://delta-trading-journal-gmp.vercel.app/">Open Live Journal & Chart</a>"""
+        if send_telegram_message(bot_token, chat_id, welcome_msg):
+            state["telegram_handshake_sent"] = True
+            save_sentinel_state(state)
+
     # 3. Market Data
     candles = fetch_btc_candles()
     if not candles:
