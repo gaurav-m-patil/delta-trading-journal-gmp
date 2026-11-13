@@ -113,7 +113,7 @@
         <!-- Gemini API Key for Automated Coach -->
         <div class="p-3 bg-brandDark border border-indigo-500/30 rounded-xl">
           <div class="flex justify-between items-center mb-1">
-            <label class="text-[10px] font-semibold uppercase tracking-wider text-indigo-300">Gemini 2.5 API Key (AI Coach)</label>
+            <label class="text-[10px] font-semibold uppercase tracking-wider text-indigo-300">Gemini API Key (AI Coach & Quant Cockpit)</label>
             <span class="text-[9px] text-emerald-400 font-mono">Required for LLM Coaching</span>
           </div>
           <input type="password" id="geminiKeyInput" placeholder="AIzaSy..." class="w-full bg-panelDark border border-borderDark rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-indigo-500 font-mono">
@@ -964,7 +964,7 @@
           <h2 class="font-bold text-lg text-white flex items-center gap-2">
             <i class="fa-solid fa-brain text-indigo-400"></i> Automated Trading Coach & Quant Cockpit
           </h2>
-          <p class="text-xs text-slate-400 mt-0.5">Deterministic quantitative analytics cross-referenced with Gemini 2.5 Flash</p>
+          <p class="text-xs text-slate-400 mt-0.5">Deterministic quantitative analytics cross-referenced with Gemini Quant Intelligence</p>
         </div>
         <button onclick="DeltaApp.triggerCoachGeneration()" class="w-full sm:w-auto bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold px-4 py-2.5 rounded-xl transition-colors flex items-center justify-center gap-2 shadow-lg shadow-indigo-600/20">
           <i class="fa-solid fa-bolt"></i> Run AI Analysis
@@ -1043,7 +1043,7 @@
             <i class="fa-solid fa-wand-magic-sparkles text-indigo-400"></i>
             <h3 class="font-bold text-sm md:text-base text-white">Quantitative AI Review</h3>
           </div>
-          <span class="text-[10px] text-slate-400 font-mono">Model: Gemini 2.5 Flash</span>
+          <span id="coachModelLabel" class="text-[10px] text-indigo-300 font-mono">Model: Gemini Quant Engine</span>
         </div>
         <div id="coachAIArea" class="p-2 sm:p-4 rounded-xl bg-brandDark/50 min-h-[140px]">
           <p class="text-xs text-slate-400 italic">Click "Run AI Analysis" above to generate your customized coaching breakdown.</p>
@@ -1345,19 +1345,19 @@
   </nav>
 
   <!-- Application Script Pipeline -->
-  <script src="vendor/lightweight-charts.js?v=3.4.2"></script>
-  <script src="js/config.js?v=3.4.2"></script>
-  <script src="js/smc-strategy.js?v=3.4.2"></script>
-  <script src="js/macro-sentinel.js?v=3.4.2"></script>
-  <script src="js/chart-engine.js?v=3.4.2"></script>
-  <script src="js/db.js?v=3.4.2"></script>
-  <script src="js/quant.js?v=3.4.2"></script>
-  <script src="js/coach.js?v=3.4.2"></script>
-  <script src="js/planner.js?v=3.4.2"></script>
-  <script src="js/app.js?v=3.4.2"></script>
+  <script src="vendor/lightweight-charts.js?v=3.4.3"></script>
+  <script src="js/config.js?v=3.4.3"></script>
+  <script src="js/smc-strategy.js?v=3.4.3"></script>
+  <script src="js/macro-sentinel.js?v=3.4.3"></script>
+  <script src="js/chart-engine.js?v=3.4.3"></script>
+  <script src="js/db.js?v=3.4.3"></script>
+  <script src="js/quant.js?v=3.4.3"></script>
+  <script src="js/coach.js?v=3.4.3"></script>
+  <script src="js/planner.js?v=3.4.3"></script>
+  <script src="js/app.js?v=3.4.3"></script>
   <script>
     if ('serviceWorker' in navigator) {
-      navigator.serviceWorker.register('sw.js?v=3.4.2').then(function(reg) {
+      navigator.serviceWorker.register('sw.js?v=3.4.3').then(function(reg) {
         reg.update();
       });
     }

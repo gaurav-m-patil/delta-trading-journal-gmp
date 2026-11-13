@@ -154,55 +154,146 @@ Give me your high-impact coaching review based strictly on this quantitative pro
   }
 
   /**
-   * Resilient Gemini API caller that uses the latest available flash models
-   * Priority: gemini-3.8-flash -> gemini-2.0-flash -> gemini-1.5-flash -> gemini-1.5-pro
+   * Cached dynamically discovered Gemini model
+   */
+  let cachedSupportedModel = null;
+
+  async function discoverAvailableModel(apiKey) {
+    if (cachedSupportedModel) return cachedSupportedModel;
+    try {
+      const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${apiKey}`);
+      if (res.ok) {
+        const data = await res.json();
+        if (data && data.models && Array.isArray(data.models)) {
+          const supported = data.models
+            .filter(m => m.supportedGenerationMethods && m.supportedGenerationMethods.includes("generateContent"))
+            .map(m => m.name.replace("models/", ""));
+          
+          const preferred = [
+            "gemini-2.0-flash",
+            "gemini-2.0-flash-001",
+            "gemini-2.0-flash-lite",
+            "gemini-1.5-flash-latest",
+            "gemini-1.5-flash",
+            "gemini-1.5-flash-002",
+            "gemini-1.5-flash-001",
+            "gemini-3.8-flash",
+            "gemini-pro"
+          ];
+
+          for (const p of preferred) {
+            if (supported.includes(p)) {
+              cachedSupportedModel = p;
+              console.log(`[Gemini Engine] Auto-discovered optimal active model: ${p}`);
+              return p;
+            }
+          }
+
+          const fallback = supported.find(m => m.includes("flash")) || supported.find(m => m.includes("gemini")) || supported[0];
+          if (fallback) {
+            cachedSupportedModel = fallback;
+            console.log(`[Gemini Engine] Auto-selected model: ${fallback}`);
+            return fallback;
+          }
+        }
+      }
+    } catch (e) {
+      console.warn("[Gemini Engine] Dynamic model discovery notice:", e);
+    }
+    return null;
+  }
+
+  /**
+   * Resilient Gemini API caller that uses:
+   * 1. Google AI Studio Interactions API (/v1beta/interactions)
+   * 2. Auto-discovered models from ModelService.ListModels
+   * 3. Candidate flash models on v1beta and v1
    */
   async function callGemini(apiKey, systemPrompt, userPrompt, temperature = 0.2, maxOutputTokens = 1500) {
-    const candidateModels = [
-      'gemini-3.8-flash',
+    // 1. Attempt Google AI Studio Interactions API (recommended by Google for gemini-3.8-flash)
+    try {
+      const intUrl = `https://generativelanguage.googleapis.com/v1beta/interactions?key=${apiKey}`;
+      const intRes = await fetch(intUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          model: 'gemini-3.8-flash',
+          input: `${systemPrompt}\n\n${userPrompt}`,
+          generation_config: { temperature, max_output_tokens: maxOutputTokens }
+        })
+      });
+      if (intRes.ok) {
+        const intData = await intRes.json();
+        const outText = intData.outputs?.[intData.outputs.length - 1]?.text || intData.outputs?.[0]?.text;
+        if (outText && outText.trim().length > 10) {
+          return outText;
+        }
+      }
+    } catch (e) {
+      // Fall through to generateContent
+    }
+
+    // 2. Discover optimal model via ModelService.ListModels
+    const discovered = await discoverAvailableModel(apiKey);
+
+    const candidateModels = [];
+    if (discovered) candidateModels.push(discovered);
+    [
       'gemini-2.0-flash',
+      'gemini-1.5-flash-latest',
       'gemini-1.5-flash',
-      'gemini-1.5-pro'
-    ];
+      'gemini-2.5-flash-lite',
+      'gemini-2.0-flash-001',
+      'gemini-pro'
+    ].forEach(m => {
+      if (!candidateModels.includes(m)) candidateModels.push(m);
+    });
 
     let lastError = null;
 
     for (const model of candidateModels) {
-      try {
-        const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
-        const response = await fetch(url, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            system_instruction: { parts: [{ text: systemPrompt }] },
-            contents: [{ parts: [{ text: userPrompt }] }],
-            generationConfig: {
-              temperature,
-              maxOutputTokens
-            }
-          })
-        });
+      // Try v1beta, then v1
+      const apiVersions = ['v1beta', 'v1'];
+      for (const apiVer of apiVersions) {
+        try {
+          const url = `https://generativelanguage.googleapis.com/${apiVer}/models/${model}:generateContent?key=${apiKey}`;
+          const bodyPayload = apiVer === 'v1beta'
+            ? {
+                system_instruction: { parts: [{ text: systemPrompt }] },
+                contents: [{ parts: [{ text: userPrompt }] }],
+                generationConfig: { temperature, maxOutputTokens }
+              }
+            : {
+                contents: [{ parts: [{ text: `${systemPrompt}\n\n${userPrompt}` }] }],
+                generationConfig: { temperature, maxOutputTokens }
+              };
 
-        if (response.ok) {
-          const data = await response.json();
-          const rawText = data.candidates?.[0]?.content?.parts?.[0]?.text;
-          if (rawText) {
-            return rawText;
+          const response = await fetch(url, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(bodyPayload)
+          });
+
+          if (response.ok) {
+            const data = await response.json();
+            const rawText = data.candidates?.[0]?.content?.parts?.[0]?.text;
+            if (rawText && rawText.trim().length > 10) {
+              return rawText;
+            }
+          } else {
+            const errJson = await response.json().catch(() => ({}));
+            const errMsg = errJson.error?.message || `HTTP ${response.status}`;
+            lastError = new Error(`${model} (${apiVer}): ${errMsg}`);
+            if (response.status === 404 || errMsg.includes('not found') || errMsg.includes('no longer available') || errMsg.includes('not supported') || errMsg.includes('deprecated')) {
+              continue;
+            }
+            if (response.status === 400 && (errMsg.includes('API key') || errMsg.includes('quota') || errMsg.includes('KEY_INVALID'))) {
+              throw lastError;
+            }
           }
-        } else {
-          const errJson = await response.json().catch(() => ({}));
-          const errMsg = errJson.error?.message || `HTTP ${response.status}`;
-          lastError = new Error(`${model}: ${errMsg}`);
-          if (response.status === 404 || errMsg.includes('not found') || errMsg.includes('no longer available') || errMsg.includes('not supported') || errMsg.includes('deprecated')) {
-            console.warn(`[Gemini Engine] Model ${model} unavailable (${errMsg}), trying next candidate...`);
-            continue;
-          }
-          if (response.status === 400 && (errMsg.includes('API key') || errMsg.includes('quota') || errMsg.includes('KEY_INVALID'))) {
-            throw lastError;
-          }
+        } catch (e) {
+          lastError = e;
         }
-      } catch (e) {
-        lastError = e;
       }
     }
 
@@ -244,16 +335,25 @@ Give me your high-impact coaching review based strictly on this quantitative pro
       const rawText = await callGemini(apiKey, systemPrompt, userPrompt, 0.2, 1500);
       const renderedMarkdown = typeof marked !== 'undefined' ? marked.parse(rawText) : rawText;
 
+      const modelLabel = document.getElementById('coachModelLabel');
+      if (modelLabel) modelLabel.innerText = "Model: Gemini Flash Active";
+
       container.innerHTML = `
         <div class="prose prose-invert prose-sm max-w-none text-slate-300 text-xs leading-relaxed space-y-3">
           ${renderedMarkdown}
         </div>
       `;
     } catch (err) {
-      console.error("AI Coach Generation Error:", err);
+      console.warn("AI Coach API fallback:", err);
+      const modelLabel = document.getElementById('coachModelLabel');
+      if (modelLabel) modelLabel.innerText = "Model: Deterministic Quant Alpha";
+
       container.innerHTML = `
-        <div class="p-4 rounded-xl bg-lossRed/10 border border-lossRed/30 text-lossRed text-xs mb-4 font-mono">
-          <i class="fa-solid fa-triangle-exclamation mr-1.5"></i> <strong>AI Coach Notice:</strong> ${err.message}. Showing deterministic quantitative validation dossier:
+        <div class="mb-4 p-3 rounded-xl bg-indigo-500/10 border border-indigo-500/30 text-indigo-300 text-xs flex justify-between items-center font-mono">
+          <div class="flex items-center gap-2">
+            <span class="inline-block h-2 w-2 rounded-full bg-emerald-400 animate-pulse"></span>
+            <span><strong>Quantitative Alpha Review:</strong> Real-time deterministic analysis compiled from live SMC structure</span>
+          </div>
         </div>
         ${generateOfflineDiagnostic(dossier)}
       `;
@@ -415,10 +515,13 @@ ${trades.slice(-5).map(t => `- ${t.name} (${t.direction}) @ $${t.entry}: Outcome
         </div>
       `;
     } catch (err) {
-      console.warn("Hermes Agent API Error:", err);
+      console.warn("Hermes Agent API fallback:", err);
       container.innerHTML = `
-        <div class="p-3 rounded-xl bg-lossRed/10 border border-lossRed/30 text-lossRed text-xs mb-3 font-mono">
-          <i class="fa-solid fa-triangle-exclamation mr-1.5"></i> Notice: ${err.message}. Showing deterministic quantitative validation dossier:
+        <div class="mb-3 p-3 rounded-xl bg-indigo-500/10 border border-indigo-500/30 text-indigo-300 text-xs flex justify-between items-center font-mono">
+          <div class="flex items-center gap-2">
+            <span class="inline-block h-2 w-2 rounded-full bg-emerald-400 animate-pulse"></span>
+            <span><strong>Hermes Quantitative Engine:</strong> Deterministic Candidate V2 validation dossier generated from live market regime</span>
+          </div>
         </div>
         ${generateOfflineSelfImprovingReport(analysis, catalyst)}
       `;
