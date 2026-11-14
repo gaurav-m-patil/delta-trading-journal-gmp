@@ -1570,12 +1570,14 @@ Expected Profit: +50% Option Gross / +40% Net`;
       DeltaDB.fetchSignalTradesFromFirestore().then(remoteSignals => {
         const realTrades = remoteSignals || [];
 
-        // Check for active trade
+        // Check for active trade or fall back to latest chart setup
         const activeTrade = realTrades.find(t => t.outcome === "ACTIVE");
         if (activeTrade) {
           selectedTrade = activeTrade;
         } else if (realTrades.length > 0) {
           selectedTrade = realTrades[0];
+        } else if (currentAnalysis && currentAnalysis.latestTrade) {
+          selectedTrade = currentAnalysis.latestTrade;
         } else {
           selectedTrade = null;
         }
@@ -1589,48 +1591,55 @@ Expected Profit: +50% Option Gross / +40% Net`;
           updatePositionToolCockpit(null);
         }
 
-        // Generate Chart Markers strictly for real Firestore trades
-        const chartMarkers = [];
-        realTrades.forEach(st => {
-          const isCall = st.direction === "LONG";
-          const isWin = st.outcome === "WIN";
-          const isBeWin = st.outcome === "BE_WIN";
-          const isLoss = st.outcome === "LOSS";
-          const isActive = st.outcome === "ACTIVE";
+        // Display SMC Strategy Setups & Percentages visually on chart candles
+        let chartMarkers = (currentAnalysis && currentAnalysis.markers) ? [...currentAnalysis.markers] : [];
 
-          let markerText = isCall ? "CALL" : "PUT";
-          let markerColor = isCall ? "#38bdf8" : "#818cf8";
-          let markerPos = isCall ? "belowBar" : "aboveBar";
-          let markerShape = isCall ? "arrowUp" : "arrowDown";
+        // If real confirmed trades exist in Firestore, prioritize and merge them
+        if (realTrades.length > 0) {
+          realTrades.forEach(st => {
+            const exists = chartMarkers.some(m => Math.abs(m.time - st.time) < 900);
+            if (!exists) {
+              const isCall = st.direction === "LONG";
+              const isWin = st.outcome === "WIN";
+              const isBeWin = st.outcome === "BE_WIN";
+              const isLoss = st.outcome === "LOSS";
+              const isActive = st.outcome === "ACTIVE";
 
-          if (isActive) {
-            markerText = "LIVE";
-            markerColor = "#38bdf8";
-          } else if (isWin) {
-            const runnerPct = st.optionPnlPct || (st.realOption && st.realOption.targetGainPct) || "+72%";
-            markerText = runnerPct.startsWith('+') ? runnerPct : `+${runnerPct}`;
-            markerColor = "#10b981";
-          } else if (isBeWin) {
-            markerText = "BE +25%";
-            markerColor = "#10b981";
-          } else if (isLoss) {
-            markerText = "-30%";
-            markerColor = "#f43f5e";
-          } else {
-            markerText = "SCR";
-            markerColor = "#64748b";
-          }
+              let markerText = isCall ? "CALL" : "PUT";
+              let markerColor = isCall ? "#38bdf8" : "#818cf8";
+              let markerPos = isCall ? "belowBar" : "aboveBar";
+              let markerShape = isCall ? "arrowUp" : "arrowDown";
 
-          chartMarkers.push({
-            time: st.time,
-            position: markerPos,
-            color: markerColor,
-            shape: markerShape,
-            text: markerText,
-            size: 1,
-            tradeRef: st
+              if (isActive) {
+                markerText = "LIVE";
+                markerColor = "#38bdf8";
+              } else if (isWin) {
+                const runnerPct = st.optionPnlPct || (st.realOption && st.realOption.targetGainPct) || "+72%";
+                markerText = runnerPct.startsWith('+') ? runnerPct : `+${runnerPct}`;
+                markerColor = "#10b981";
+              } else if (isBeWin) {
+                markerText = "BE +25%";
+                markerColor = "#10b981";
+              } else if (isLoss) {
+                markerText = "-30%";
+                markerColor = "#f43f5e";
+              } else {
+                markerText = "SCR";
+                markerColor = "#64748b";
+              }
+
+              chartMarkers.push({
+                time: st.time,
+                position: markerPos,
+                color: markerColor,
+                shape: markerShape,
+                text: markerText,
+                size: 1,
+                tradeRef: st
+              });
+            }
           });
-        });
+        }
 
         if (candleSeries) {
           candleSeries.setMarkers(sanitizeMarkersNoOverlap(chartMarkers));
