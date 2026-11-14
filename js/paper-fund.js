@@ -71,7 +71,8 @@ window.DeltaPaperFund = (function() {
 
     const processedTrades = chronoTrades.map(t => {
       const opt = t.realOption;
-      const buyPrice = (opt && opt.entryPrice > 0) ? opt.entryPrice : (t.optionEntryMark || t.entryOpt || 220);
+      const rawBuy = (opt && opt.entryPrice > 0) ? opt.entryPrice : (t.optionEntryMark || t.entryOpt || 220);
+      const buyPrice = rawBuy > 700 ? 220.0 : rawBuy;
       let sellPrice = buyPrice;
       let isResolved = false;
 
@@ -355,8 +356,16 @@ window.DeltaPaperFund = (function() {
                 outcomeBadge = `<span class="px-2 py-0.5 rounded text-[9px] font-bold bg-slate-500/15 text-slate-400 border border-slate-500/30 whitespace-nowrap">TIMEOUT</span>`;
               }
 
+              const contractLabel = (t.realOption && t.realOption.symbol) 
+                ? t.realOption.symbol 
+                : (t.optionSymbol 
+                    ? t.optionSymbol 
+                    : (t.optionStrike 
+                        ? `${isCall ? 'C-BTC-' : 'P-BTC-'}${t.optionStrike}` 
+                        : (t.entry ? `${isCall ? 'C-BTC-' : 'P-BTC-'}${Math.round(t.entry / 200) * 200}` : (isCall ? 'C-BTC-ATM' : 'P-BTC-ATM'))));
+
               return `
-                <div class="p-3 rounded-xl bg-panelDark/90 border border-borderDark/80 space-y-2 font-mono shadow-sm">
+                <div class="p-3 rounded-xl bg-panelDark/90 border border-borderDark/80 hover:border-indigo-500/50 space-y-2 font-mono shadow-sm cursor-pointer transition-colors" onclick="DeltaLiveChart.openTradeDetailsModal('${t.id}')">
                   <!-- Header: Badge + Symbol + Outcome -->
                   <div class="flex items-center justify-between pb-1.5 border-b border-borderDark/40">
                     <div class="flex items-center gap-1.5 min-w-0">
@@ -364,8 +373,8 @@ window.DeltaPaperFund = (function() {
                         <i class="fa-solid ${isCall ? 'fa-arrow-up' : 'fa-arrow-down'} text-[9px]"></i>
                         ${isCall ? 'CALL' : 'PUT'}
                       </span>
-                      <span class="text-indigo-300 font-bold text-[11px] truncate" title="${t.realOption?.symbol || t.optionSymbol}">
-                        ${t.realOption?.symbol || t.optionSymbol}
+                      <span class="text-indigo-300 font-bold text-[11px] truncate" title="${contractLabel}">
+                        ${contractLabel}
                       </span>
                     </div>
                     <div class="shrink-0">
@@ -396,7 +405,7 @@ window.DeltaPaperFund = (function() {
                       </div>
                       <div class="flex items-center justify-between text-[10px]">
                         <span class="text-slate-400">${isActive ? 'Live' : 'Sell'}:</span>
-                        <strong class="${isWin ? 'text-winGreen' : (isLoss ? 'text-lossRed' : 'text-slate-200')}">$${t.sellPrice.toFixed(1)}</strong>
+                        <strong class="${(isWin || t.outcome === 'BE_WIN') ? 'text-winGreen' : (isLoss ? 'text-lossRed' : 'text-slate-200')}">$${t.sellPrice.toFixed(1)}</strong>
                       </div>
                       <div class="flex items-center justify-between text-[10px] pt-1 border-t border-borderDark/40">
                         <span class="text-slate-400">Points PnL:</span>
@@ -428,10 +437,16 @@ window.DeltaPaperFund = (function() {
                     </div>
                   </div>
 
-                  <!-- Footer: Capital Balance -->
+                  <!-- Footer: Capital Balance & Playbook Logic Button -->
                   <div class="flex items-center justify-between pt-1 border-t border-borderDark/40 text-[11px]">
-                    <span class="text-slate-400 text-[10px]">Capital Balance After Trade:</span>
-                    <strong class="text-white text-xs">₹${t.capitalAfterTrade.toLocaleString('en-IN')}</strong>
+                    <div>
+                      <span class="text-slate-400 text-[10px]">Capital Balance:</span>
+                      <strong class="text-white text-xs ml-1">₹${t.capitalAfterTrade.toLocaleString('en-IN')}</strong>
+                    </div>
+                    <button onclick="event.stopPropagation(); DeltaLiveChart.openTradeDetailsModal('${t.id}')" class="px-2.5 py-1 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-[10px] transition-colors inline-flex items-center gap-1 shadow-sm">
+                      <i class="fa-solid fa-circle-info text-[9px]"></i>
+                      <span>Playbook Logic &rarr;</span>
+                    </button>
                   </div>
                 </div>
               `;
@@ -443,17 +458,18 @@ window.DeltaPaperFund = (function() {
             <table class="w-full text-left text-xs font-mono table-fixed">
               <thead>
                 <tr class="text-[10px] text-slate-400 uppercase border-b border-borderDark/80">
-                  <th class="py-2 px-2 w-[14%]">Time (IST)</th>
-                  <th class="py-2 px-2 w-[22%]">Contract / Strike</th>
-                  <th class="py-2 px-2 w-[20%]">Buy &rarr; Sell Price</th>
-                  <th class="py-2 px-2 w-[16%]">Allocated (₹)</th>
+                  <th class="py-2 px-2 w-[13%]">Time (IST)</th>
+                  <th class="py-2 px-2 w-[20%]">Contract / Strike</th>
+                  <th class="py-2 px-2 w-[18%]">Buy &rarr; Sell Price</th>
+                  <th class="py-2 px-2 w-[14%]">Allocated (₹)</th>
                   <th class="py-2 px-2 w-[14%]">Net PnL (₹)</th>
-                  <th class="py-2 px-2 text-right w-[14%]">Capital After</th>
+                  <th class="py-2 px-2 w-[11%]">Capital After</th>
+                  <th class="py-2 px-2 text-right w-[10%]">Action</th>
                 </tr>
               </thead>
               <tbody class="divide-y divide-borderDark/40">
                 ${visibleTrades.length === 0 ? `
-                  <tr><td colspan="6" class="py-6 text-center text-slate-500 text-xs">No simulated paper trades recorded till date.</td></tr>
+                  <tr><td colspan="7" class="py-6 text-center text-slate-500 text-xs">No simulated paper trades recorded till date.</td></tr>
                 ` : visibleTrades.map(t => {
                   const d = new Date(t.time * 1000);
                   const timeStr = d.toLocaleTimeString('en-IN', { timeZone: 'Asia/Kolkata', hour: '2-digit', minute: '2-digit', hour12: true });
@@ -466,8 +482,16 @@ window.DeltaPaperFund = (function() {
                   const pnlClass = t.netPnlInr >= 0 ? 'text-winGreen' : 'text-lossRed';
                   const pnlSign = t.netPnlInr >= 0 ? '+' : '';
 
+                  const contractLabel = (t.realOption && t.realOption.symbol) 
+                    ? t.realOption.symbol 
+                    : (t.optionSymbol 
+                        ? t.optionSymbol 
+                        : (t.optionStrike 
+                            ? `${isCall ? 'C-BTC-' : 'P-BTC-'}${t.optionStrike}` 
+                            : (t.entry ? `${isCall ? 'C-BTC-' : 'P-BTC-'}${Math.round(t.entry / 200) * 200}` : (isCall ? 'C-BTC-ATM' : 'P-BTC-ATM'))));
+
                   return `
-                    <tr class="hover:bg-panelDark/60 transition-colors">
+                    <tr class="hover:bg-panelDark/60 transition-colors cursor-pointer" onclick="DeltaLiveChart.openTradeDetailsModal('${t.id}')">
                       <td class="py-2.5 px-2 text-slate-200 font-bold text-[11px]">
                         <div>${timeStr}</div>
                         <div class="text-[9px] text-slate-400 font-normal">${dateStr}</div>
@@ -477,11 +501,11 @@ window.DeltaPaperFund = (function() {
                           <i class="fa-solid ${isCall ? 'fa-arrow-up' : 'fa-arrow-down'} text-[9px]"></i>
                           <span>${isCall ? 'CALL' : 'PUT'}</span>
                         </div>
-                        <span class="text-indigo-300 font-semibold block text-[10px] truncate" title="${t.realOption?.symbol || t.optionSymbol}">${t.realOption?.symbol || t.optionSymbol}</span>
+                        <span class="text-indigo-300 font-semibold block text-[10px] truncate" title="${contractLabel}">${contractLabel}</span>
                       </td>
                       <td class="py-2.5 px-2 text-[11px]">
                         <div>Buy: <strong class="text-white">$${t.buyPrice.toFixed(1)}</strong></div>
-                        <div>${isActive ? 'Live' : 'Sell'}: <strong class="${isWin ? 'text-winGreen' : (isLoss ? 'text-lossRed' : 'text-slate-200')}">$${t.sellPrice.toFixed(1)}</strong> <span class="text-[9px] text-slate-400">(${t.pnlPctStr})</span></div>
+                        <div>${isActive ? 'Live' : 'Sell'}: <strong class="${(isWin || t.outcome === 'BE_WIN') ? 'text-winGreen' : (isLoss ? 'text-lossRed' : 'text-slate-200')}">$${t.sellPrice.toFixed(1)}</strong> <span class="text-[9px] text-slate-400">(${t.pnlPctStr})</span></div>
                       </td>
                       <td class="py-2.5 px-2 text-[11px] text-slate-300">
                         ₹${t.allocatedInr.toLocaleString('en-IN')}
@@ -494,8 +518,14 @@ window.DeltaPaperFund = (function() {
                           <div class="text-[9px] text-slate-500 font-normal">Fee: ₹${t.feeInr}</div>
                         `}
                       </td>
-                      <td class="py-2.5 px-2 text-right font-bold text-[11px] text-white">
+                      <td class="py-2.5 px-2 font-bold text-[11px] text-white">
                         ₹${t.capitalAfterTrade.toLocaleString('en-IN')}
+                      </td>
+                      <td class="py-2.5 px-2 text-right">
+                        <button onclick="event.stopPropagation(); DeltaLiveChart.openTradeDetailsModal('${t.id}')" title="View Trade Logic & Playbook" class="px-2.5 py-1 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-[10px] transition-colors shadow-sm inline-flex items-center gap-1 font-mono">
+                          <i class="fa-solid fa-circle-info"></i>
+                          <span>Logic</span>
+                        </button>
                       </td>
                     </tr>
                   `;

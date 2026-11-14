@@ -1,47 +1,11 @@
 {
-  "last_alerted_trade_id": "cloud_bear_1794681000",
-  "active_trade": {
-    "id": "cloud_bear_1794681000",
-    "name": "Bearish Order Block Resistance Rejection",
-    "direction": "SHORT",
-    "time": 1794681000,
-    "entry": 65757,
-    "tp": 64986,
-    "sl": 66011,
-    "rr": "1:3.0",
-    "rsi": 52.9,
-    "rvol": 0.27,
-    "rationale": {
-      "pattern": "Bearish Upper Wick Rejection",
-      "levelTested": "Resistance Liquidity Sweep ($65,934)",
-      "confirmation": "Sellers rejecting highs with 0.27x RVOL absorption"
-    },
-    "option": {
-      "symbol": "P-BTC-65500-271126",
-      "mark_price": 2182.2,
-      "buy_zone": "$2182.2 - $2291.3",
-      "tp1_price": 3273.2,
-      "tp1_pct": "+50.0%",
-      "target_price": 2619.7,
-      "target_pct": "+20.0%",
-      "stop_price": 1527.5,
-      "eff_delta": 0.57,
-      "iv_rating": "ELEVATED (High IV - Scalp Focus)",
-      "iv_badge": "\ud83d\udd34 ELEVATED"
-    },
-    "session": {
-      "name": "New York Session",
-      "code": "NEW_YORK",
-      "flag": "\ud83c\uddfa\ud83c\uddf8",
-      "volatility": "Peak Liquidity (Gamma Spikes & Momentum)",
-      "tp_bias": "Maximum DOEV Runner Potential"
-    }
-  },
+  "last_alerted_trade_id": null,
+  "active_trade": null,
   "last_alerted_catalyst_guid": null,
   "daily_counts": {
-    "date": "2026-11-14",
-    "trades_given": 2,
-    "wins": 1,
+    "date": "2026-11-15",
+    "trades_given": 0,
+    "wins": 0,
     "losses": 0
   },
   "telegram_handshake_sent": true

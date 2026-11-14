@@ -805,32 +805,30 @@ window.DeltaSMCStrategy = (function() {
 
         trades.push(setup);
 
-        // Chart Marker: Clean labels with accurate status
+        // Institutional Chart Markers: Compact, non-overlapping, ultra-legible
         const isWin = outcome === "WIN";
         const isBeWin = outcome === "BE_WIN";
         const isLoss = outcome === "LOSS";
         const isCall = setup.direction === "LONG";
-        const prefix = setup.strategyId.includes("BOS") 
-          ? (isCall ? "BOS-CALL" : "BOS-PUT") 
-          : (setup.strategyId.includes("FVG") 
-              ? (isCall ? "FVG-CALL" : "FVG-PUT") 
-              : (isCall ? "SWP-CALL" : "SWP-PUT"));
 
-        let labelText = prefix;
+        let labelText = isCall ? "CALL" : "PUT";
         let markerColor = isCall ? "#38bdf8" : "#818cf8";
 
         if (isWin) {
-          labelText = `${prefix} ${setup.optionPnlPct}`;
-          markerColor = isCall ? "#10b981" : "#10b981";
+          labelText = "+50%";
+          markerColor = "#10b981";
         } else if (isBeWin) {
-          labelText = `${prefix} +25% Trailed`;
+          labelText = "BE +25%";
           markerColor = "#10b981";
         } else if (isLoss) {
-          labelText = `${prefix} -1R`;
+          labelText = "-1R";
           markerColor = "#f43f5e";
         } else if (outcome === "TIMEOUT") {
-          labelText = `${prefix} Scratch`;
+          labelText = "SCR";
           markerColor = "#64748b";
+        } else {
+          labelText = isCall ? "CALL LIVE" : "PUT LIVE";
+          markerColor = "#38bdf8";
         }
 
         markers.push({

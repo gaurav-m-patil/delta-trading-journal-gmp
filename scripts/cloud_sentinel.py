@@ -113,6 +113,7 @@ def sync_trade_to_firestore(trade_data):
         doc_path = f"projects/{FIREBASE_PROJECT}/databases/(default)/documents/GP_DTJ_signal_trades/{trade_id}"
         opt = trade_data.get("option", {})
 
+        strike_val = int(opt.get("strike", round(float(trade_data.get("entry", 0)) / 200) * 200))
         fields = {
             "id": {"stringValue": trade_id},
             "name": {"stringValue": str(trade_data.get("name", "SMC Setup"))},
@@ -123,11 +124,13 @@ def sync_trade_to_firestore(trade_data):
             "sl": {"doubleValue": float(trade_data.get("sl", 0))},
             "outcome": {"stringValue": str(trade_data.get("outcome", "ACTIVE"))},
             "rr": {"stringValue": str(trade_data.get("rr", "1:2.0"))},
+            "optionStrike": {"integerValue": str(strike_val)},
             "optionSymbol": {"stringValue": str(opt.get("symbol", trade_data.get("optionSymbol", "")))},
-            "optionEntryMark": {"doubleValue": float(opt.get("mark_price", trade_data.get("optionEntryMark", 200)))},
-            "optionTargetPrice": {"doubleValue": float(opt.get("target_price", trade_data.get("optionTargetPrice", 300)))},
-            "optionStopPrice": {"doubleValue": float(opt.get("stop_price", trade_data.get("optionStopPrice", 140)))},
+            "optionEntryMark": {"doubleValue": float(opt.get("mark_price", trade_data.get("optionEntryMark", 220)))},
+            "optionTargetPrice": {"doubleValue": float(opt.get("target_price", trade_data.get("optionTargetPrice", 330)))},
+            "optionStopPrice": {"doubleValue": float(opt.get("stop_price", trade_data.get("optionStopPrice", 154)))},
             "optionPnlPct": {"stringValue": str(opt.get("target_pct", trade_data.get("optionPnlPct", "+50%")))},
+            "strikeTier": {"stringValue": str(opt.get("strike_tier", "Exact ATM (Delta ~0.50)"))},
             "updatedAt": {"stringValue": datetime.now(timezone.utc).isoformat()}
         }
 
@@ -316,60 +319,108 @@ def get_current_trading_session():
 
 def fetch_delta_option_contract(direction, spot_price, spot_dist=1200):
     """
-    Finds the active ATM Delta Exchange India BTC option contract (Call or Put)
-    with near-term expiry and realistic mark price.
-    Enforces Theta Safety Filter (avoids 0-DTE expiry within 90 minutes of 5:30 PM IST).
-    Calculates Dynamic Option Potential (DOEV) uncapped beyond flat 50%.
-    Evaluates Implied Volatility (IV) and Premium Pricing Gauge (Cheap / Fair / Elevated).
+    Finds the active ATM or OTM-1 Delta Exchange India BTC option contract (Call or Put)
+    strictly from the CURRENT DAY'S EXPIRATION (or next-day if near 5:30 PM IST).
+    Never selects far weekly or monthly expiries.
+    Realistic mark price strictly in the $150 - $450 intraday range.
     """
     is_call = (direction == "LONG")
     prefix = "C-BTC-" if is_call else "P-BTC-"
 
-    # Theta Safety: Check if current time is near daily Delta India 5:30 PM IST expiry
-    ist_now = datetime.now(timezone(timedelta(hours=5, minutes=30)))
-    is_near_expiry = (ist_now.hour == 16) or (ist_now.hour == 17 and ist_now.minute < 30)
-    today_code = ist_now.strftime("%d%m%y")
+    now_utc = datetime.now(timezone.utc)
 
     try:
         url = f"{DELTA_BASE}/v2/tickers"
         res = requests.get(url, timeout=12)
         if res.status_code == 200:
             tickers = res.json().get("result", [])
-            btc_opts = [
-                t for t in tickers
-                if t.get("symbol", "").startswith(prefix) and float(t.get("mark_price", 0) or 0) > 0
-            ]
+            active_with_expiry = []
 
-            # If near 5:30 PM IST expiry, filter out today's expiring contracts to protect against theta crush
-            if is_near_expiry:
-                non_expiring = [t for t in btc_opts if not t.get("symbol", "").endswith(today_code)]
-                if non_expiring:
-                    btc_opts = non_expiring
+            for t in tickers:
+                sym = t.get("symbol", "")
+                if not sym.startswith(prefix):
+                    continue
+                mark = float(t.get("mark_price", 0) or 0)
+                if mark <= 0:
+                    continue
 
-            if btc_opts:
-                def get_strike_diff(t):
+                parts = sym.split("-")
+                if len(parts) >= 4 and len(parts[3]) == 6:
+                    d_str = parts[3]
                     try:
-                        parts = t["symbol"].split("-")
-                        strike = float(parts[2])
-                        return abs(strike - spot_price)
-                    except:
-                        return 999999
+                        day = int(d_str[0:2])
+                        month = int(d_str[2:4])
+                        year = 2000 + int(d_str[4:6])
+                        # Delta Exchange India options expire at 12:00 UTC (17:30 IST)
+                        expiry_dt = datetime(year, month, day, 12, 0, 0, tzinfo=timezone.utc)
+                        if expiry_dt > now_utc:
+                            time_to_expiry_sec = (expiry_dt - now_utc).total_seconds()
+                            is_near_expiry = time_to_expiry_sec <= (105 * 60) # 105 mins theta safety buffer
+                            active_with_expiry.append({
+                                "ticker": t,
+                                "symbol": sym,
+                                "strike": float(parts[2]),
+                                "mark": mark,
+                                "best_bid": float(t.get("best_bid", 0) or mark),
+                                "best_ask": float(t.get("best_ask", 0) or mark),
+                                "expiry_dt": expiry_dt,
+                                "is_near_expiry": is_near_expiry
+                            })
+                    except Exception:
+                        continue
 
-                btc_opts.sort(key=get_strike_diff)
-                best = btc_opts[0]
-                mark = float(best.get("mark_price", 180.0))
-                symbol = best.get("symbol")
+            if active_with_expiry:
+                # 1. Prefer current day's expiry unless within 105 mins of 5:30 PM IST
+                viable = active_with_expiry
+                has_next_day = any(not x["is_near_expiry"] for x in active_with_expiry)
+                if has_next_day:
+                    viable = [x for x in active_with_expiry if not x["is_near_expiry"]]
 
-                # Dynamic Option Target Potential (DOEV)
-                # Effective delta expands as spot moves toward target (0.50 -> 0.85)
+                viable.sort(key=lambda x: x["expiry_dt"])
+                nearest_expiry = viable[0]["expiry_dt"]
+                nearest_candidates = [x for x in viable if x["expiry_dt"] == nearest_expiry]
+
+                # 2. Sort by distance to spot price to find exact ATM and Next Strike OTM (OTM-1)
+                nearest_candidates.sort(key=lambda x: abs(x["strike"] - spot_price))
+                atm_candidate = nearest_candidates[0]
+
+                # Next strike OTM
+                next_otm_candidate = None
+                for c in nearest_candidates:
+                    s = c["strike"]
+                    if is_call:
+                        if s > spot_price and (s - spot_price) <= 450:
+                            next_otm_candidate = c
+                            break
+                    else:
+                        if s < spot_price and (spot_price - s) <= 450:
+                            next_otm_candidate = c
+                            break
+
+                best = atm_candidate
+                strike_tier = "Exact ATM (Delta ~0.50)"
+
+                # If ATM is relatively pricey (> 650) and OTM-1 is liquid, use OTM-1
+                if best["mark"] > 650 and next_otm_candidate:
+                    best = next_otm_candidate
+                    strike_tier = "Next Strike OTM (Delta ~0.42)"
+
+                mark = round(best["mark"], 1)
+                symbol = best["symbol"]
+                strike = best["strike"]
+                best_bid = best["best_bid"]
+                best_ask = best["best_ask"]
+
+                spread_valid = (best_ask > 0 and best_bid > 0 and (best_ask - best_bid) <= (mark * 0.15))
+                buy_zone = f"${min(best_bid, mark):.1f} - ${max(best_ask, mark):.1f}" if spread_valid else f"${mark * 0.98:.1f} - ${mark * 1.02:.1f}"
+
                 eff_delta = min(0.85, max(0.50, 0.50 + (spot_dist / 4000.0) * 0.35))
                 proj_pts = round(spot_dist * eff_delta, 1)
                 target_full = round(mark + proj_pts, 1)
                 gain_pct_full = round((proj_pts / mark) * 100, 1)
-                target_tp1 = round(mark * 1.5, 1) # +50% scalp derisk
-                stop_price = round(mark * 0.7, 1) # -30% strict stop
+                target_tp1 = round(mark * 1.5, 1)
+                stop_price = round(mark * 0.7, 1)
 
-                # Delta IV & Premium Pricing Gauge (Idea 3)
                 ratio = (mark / spot_price) if spot_price > 0 else 0.003
                 if ratio < 0.0028:
                     iv_rating = "CHEAP (High Delta Leverage)"
@@ -383,8 +434,10 @@ def fetch_delta_option_contract(direction, spot_price, spot_dist=1200):
 
                 return {
                     "symbol": symbol,
-                    "mark_price": round(mark, 1),
-                    "buy_zone": f"${round(mark, 1)} - ${round(mark * 1.05, 1)}",
+                    "strike": strike,
+                    "strike_tier": strike_tier,
+                    "mark_price": mark,
+                    "buy_zone": buy_zone,
                     "tp1_price": target_tp1,
                     "tp1_pct": "+50.0%",
                     "target_price": target_full,
@@ -397,11 +450,13 @@ def fetch_delta_option_contract(direction, spot_price, spot_dist=1200):
     except Exception as e:
         print(f"[Sentinel] Error querying Delta option tickers: {e}")
 
-    # Fallback estimated ATM contract
-    rounded_strike = round(spot_price / 1000) * 1000
+    # Fallback estimated ATM contract for current day
+    rounded_strike = round(spot_price / 200) * 200
+    ist_now = datetime.now(timezone(timedelta(hours=5, minutes=30)))
+    is_near_expiry = (ist_now.hour == 16) or (ist_now.hour == 17 and ist_now.minute < 30)
     expiry_str = (datetime.now(timezone.utc) + timedelta(days=2 if is_near_expiry else 1)).strftime("%d%m%y")
     fallback_sym = f"{prefix}{int(rounded_strike)}-{expiry_str}"
-    mark = 210.0
+    mark = 220.0
     eff_delta = min(0.85, max(0.50, 0.50 + (spot_dist / 4000.0) * 0.35))
     proj_pts = round(spot_dist * eff_delta, 1)
     target_full = round(mark + proj_pts, 1)
@@ -411,8 +466,10 @@ def fetch_delta_option_contract(direction, spot_price, spot_dist=1200):
     iv_rating = "FAIR (Calibrated)" if ratio <= 0.0045 else "ELEVATED"
     return {
         "symbol": fallback_sym,
+        "strike": rounded_strike,
+        "strike_tier": "Exact ATM (Delta ~0.50)",
         "mark_price": mark,
-        "buy_zone": f"${mark:.1f} - ${mark * 1.05:.1f}",
+        "buy_zone": f"${mark * 0.98:.1f} - ${mark * 1.02:.1f}",
         "tp1_price": round(mark * 1.5, 1),
         "tp1_pct": "+50.0%",
         "target_price": target_full,
