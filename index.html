@@ -740,14 +740,14 @@
         <!-- Top Row: Setup Name, Status Badge, and Playbook Trigger -->
         <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 pb-2.5 border-b border-borderDark/60">
           <div class="flex items-center gap-2.5">
-            <div id="ptDirectionBadge" class="h-8 w-8 sm:h-9 sm:w-9 rounded-xl bg-winGreen/20 text-winGreen flex items-center justify-center font-bold text-sm sm:text-base shrink-0">
-              <i class="fa-solid fa-crosshairs"></i>
+            <div id="ptDirectionBadge" class="h-8 w-8 sm:h-9 sm:w-9 rounded-xl bg-indigo-500/20 text-indigo-400 flex items-center justify-center font-bold text-sm sm:text-base shrink-0">
+              <i class="fa-solid fa-radar animate-pulse"></i>
             </div>
             <div>
               <div class="flex flex-wrap items-center gap-1.5 sm:gap-2">
-                <span id="ptSetupName" class="text-xs sm:text-sm font-bold text-white">Confirmed Setup</span>
-                <span id="ptOutcomeBadge" class="text-[10px] font-bold font-mono px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/30">
-                  <i class="fa-solid fa-circle-check mr-1"></i> ACTIVE
+                <span id="ptSetupName" class="text-xs sm:text-sm font-bold text-white">24/7 Cloud Sentinel Radar</span>
+                <span id="ptOutcomeBadge" class="text-[10px] font-bold font-mono px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 flex items-center gap-1.5">
+                  <span class="h-2 w-2 rounded-full bg-emerald-400 animate-ping"></span> STANDBY · SCANNING 15M ORDER FLOW
                 </span>
               </div>
             </div>
@@ -763,20 +763,20 @@
           <div class="bg-panelDark/60 border border-borderDark/70 rounded-xl p-3 space-y-2">
             <div class="flex justify-between items-center text-[10px] uppercase tracking-wider text-slate-400 font-bold">
               <span class="flex items-center gap-1.5"><i class="fa-brands fa-bitcoin text-amber-400"></i> BTC Spot Trigger Plan</span>
-              <span class="font-mono text-slate-400">R:R <strong id="ptRR" class="text-indigo-300">1:1.8</strong></span>
+              <span class="font-mono text-slate-400">R:R <strong id="ptRR" class="text-indigo-300">1:2.0+</strong></span>
             </div>
             <div class="grid grid-cols-3 gap-2 font-mono text-xs">
               <div class="bg-brandDark/70 p-2 rounded-lg border border-borderDark/50">
                 <span class="text-[9px] uppercase tracking-wider text-slate-400 block font-sans">Entry</span>
-                <span id="ptEntry" class="font-bold text-white text-[11px] sm:text-xs">--</span>
+                <span id="ptEntry" class="font-bold text-white text-[11px] sm:text-xs">Awaiting Setup</span>
               </div>
               <div class="bg-brandDark/70 p-2 rounded-lg border border-borderDark/50">
                 <span class="text-[9px] uppercase tracking-wider text-slate-400 block font-sans">Target (TP)</span>
-                <span id="ptTp" class="font-bold text-winGreen text-[11px] sm:text-xs">--</span>
+                <span id="ptTp" class="font-bold text-winGreen text-[11px] sm:text-xs">Auto-Target</span>
               </div>
               <div class="bg-brandDark/70 p-2 rounded-lg border border-borderDark/50">
                 <span class="text-[9px] uppercase tracking-wider text-slate-400 block font-sans">Stop (SL)</span>
-                <span id="ptSl" class="font-bold text-lossRed text-[11px] sm:text-xs">--</span>
+                <span id="ptSl" class="font-bold text-lossRed text-[11px] sm:text-xs">-30% Risk Cap</span>
               </div>
             </div>
           </div>
@@ -787,16 +787,16 @@
               <span class="text-[10px] uppercase tracking-wider text-indigo-300 font-bold flex items-center gap-1.5">
                 <i class="fa-solid fa-bolt text-indigo-400"></i> Delta India Option Contract
               </span>
-              <span id="ptDeltaLiveTag" class="text-[9px] font-mono px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 font-bold">Live Delta Feed</span>
+              <span id="ptDeltaLiveTag" class="text-[9px] font-mono px-1.5 py-0.5 rounded bg-indigo-500/10 text-indigo-300 border border-indigo-500/30 font-bold">Sentinel Standby</span>
             </div>
             <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 font-mono">
               <div>
-                <span id="ptContractSymbol" class="text-xs sm:text-sm font-bold text-white tracking-wide block">Scanning Delta Options...</span>
-                <span class="text-[10px] text-slate-400 font-sans">Buy Zone: <strong id="ptDeltaBuyZone" class="text-indigo-200 font-mono">--</strong></span>
+                <span id="ptContractSymbol" class="text-xs sm:text-sm font-bold text-white tracking-wide block">Daily ATM Contract (0-DTE)</span>
+                <span class="text-[10px] text-slate-400 font-sans">Buy Zone: <strong id="ptDeltaBuyZone" class="text-indigo-200 font-mono">Calculated on trigger</strong></span>
               </div>
               <div class="flex sm:flex-col items-center sm:items-end justify-between w-full sm:w-auto text-right">
-                <div class="text-[10px] text-slate-400">Mark: <strong id="ptDeltaMark" class="text-white font-mono">--</strong></div>
-                <div class="text-xs font-bold text-winGreen font-mono">Target: <strong id="ptDeltaTarget" class="text-winGreen">--</strong></div>
+                <div class="text-[10px] text-slate-400">Mark: <strong id="ptDeltaMark" class="text-white font-mono">~$215 - $245</strong></div>
+                <div class="text-xs font-bold text-winGreen font-mono">Target: <strong id="ptDeltaTarget" class="text-winGreen">+65% to +150% DOEV</strong></div>
               </div>
             </div>
           </div>
@@ -1390,20 +1390,20 @@
   </nav>
 
   <!-- Application Script Pipeline -->
-  <script src="vendor/lightweight-charts.js?v=3.5.2"></script>
-  <script src="js/config.js?v=3.5.2"></script>
-  <script src="js/smc-strategy.js?v=3.5.2"></script>
-  <script src="js/macro-sentinel.js?v=3.5.2"></script>
-  <script src="js/paper-fund.js?v=3.5.2"></script>
-  <script src="js/chart-engine.js?v=3.5.2"></script>
-  <script src="js/db.js?v=3.5.2"></script>
-  <script src="js/quant.js?v=3.5.2"></script>
-  <script src="js/coach.js?v=3.5.2"></script>
-  <script src="js/planner.js?v=3.5.2"></script>
-  <script src="js/app.js?v=3.5.2"></script>
+  <script src="vendor/lightweight-charts.js?v=3.5.6"></script>
+  <script src="js/config.js?v=3.5.6"></script>
+  <script src="js/smc-strategy.js?v=3.5.6"></script>
+  <script src="js/macro-sentinel.js?v=3.5.6"></script>
+  <script src="js/paper-fund.js?v=3.5.6"></script>
+  <script src="js/chart-engine.js?v=3.5.6"></script>
+  <script src="js/db.js?v=3.5.6"></script>
+  <script src="js/quant.js?v=3.5.6"></script>
+  <script src="js/coach.js?v=3.5.6"></script>
+  <script src="js/planner.js?v=3.5.6"></script>
+  <script src="js/app.js?v=3.5.6"></script>
   <script>
     if ('serviceWorker' in navigator) {
-      navigator.serviceWorker.register('sw.js?v=3.5.2').then(function(reg) {
+      navigator.serviceWorker.register('sw.js?v=3.5.6').then(function(reg) {
         reg.update();
       });
     }

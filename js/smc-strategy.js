@@ -159,13 +159,13 @@ window.DeltaSMCStrategy = (function() {
     const totalMinutes = istHours * 60 + istMinutes;
 
     if (totalMinutes >= 330 && totalMinutes < 810) {
-      return { code: "ASIA", name: "Asia Session", flag: "🌏", desc: "S/R Sweep & Scalp Regime" };
+      return { code: "ASIA", name: "Asia Session (05:30 - 13:30 IST)", flag: "🌏", desc: "S/R Sweep & Scalp Regime" };
     } else if (totalMinutes >= 810 && totalMinutes < 1140) {
-      return { code: "LONDON", name: "London Session", flag: "🇬🇧", desc: "Breakout & Institutional Expansion" };
+      return { code: "LONDON", name: "London Session (13:30 - 19:00 IST)", flag: "⚡", desc: "Breakout & Institutional Expansion" };
     } else if (totalMinutes >= 1140 || totalMinutes < 150) {
-      return { code: "NEW_YORK", name: "New York Session", flag: "🇺🇸", desc: "Peak Volatility & Gamma Acceleration" };
+      return { code: "NEW_YORK", name: "New York Session (19:00 - 02:30 IST)", flag: "🔥", desc: "Peak Volatility & Gamma Acceleration" };
     } else {
-      return { code: "DRIFT", name: "Off-Hours Drift", flag: "🌙", desc: "Consolidation & Derisk Regime" };
+      return { code: "DRIFT", name: "Late Night Drift (02:30 - 05:30 IST)", flag: "🌙", desc: "Consolidation & Derisk Regime" };
     }
   }
 
@@ -846,8 +846,8 @@ window.DeltaSMCStrategy = (function() {
           tradeRef: setup
         });
 
-        // Fast-forward loop past trade duration to prevent overlapping duplicates
-        i += Math.max(4, barsHeld);
+        // Fast-forward loop past trade duration to prevent overlapping duplicates (min 6 bars / 90 mins spacing)
+        i += Math.max(6, barsHeld);
       } else {
         i++;
       }
