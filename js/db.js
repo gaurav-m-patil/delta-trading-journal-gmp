@@ -807,27 +807,35 @@ window.DeltaDB = (function() {
     return registry;
   }
 
-  function getSignalTrades(lastDays = 2) {
+  function getSignalTrades(lastDays = 0) {
     try {
       const raw = localStorage.getItem(SIGNAL_STORAGE_KEY);
       if (!raw) return [];
       const registry = JSON.parse(raw);
-      const cutoff = Math.floor(Date.now() / 1000) - (lastDays * 86400);
-      return Object.values(registry).filter(t => t.time >= cutoff).sort((a, b) => b.time - a.time);
+      let list = Object.values(registry);
+      if (lastDays && lastDays > 0) {
+        const cutoff = Math.floor(Date.now() / 1000) - (lastDays * 86400);
+        list = list.filter(t => t.time >= cutoff);
+      }
+      return list.sort((a, b) => b.time - a.time);
     } catch (e) {
       return [];
     }
   }
 
-  async function fetchSignalTradesFromFirestore() {
+  async function fetchSignalTradesFromFirestore(allTime = true) {
     const config = getFirebaseConfig();
     if (!firestoreDb) initFirebase(config);
-    if (!firestoreDb) return getSignalTrades();
+    if (!firestoreDb) return getSignalTrades(0);
 
     try {
       const col = DeltaConfig.FIRESTORE_COLLECTIONS.SIGNALS || "GP_DTJ_signal_trades";
-      const cutoff = Math.floor(Date.now() / 1000) - (2 * 86400); // Last 48 hours
-      const snapshot = await firestoreDb.collection(col).where("time", ">=", cutoff).get();
+      let query = firestoreDb.collection(col);
+      if (!allTime) {
+        const cutoff = Math.floor(Date.now() / 1000) - (2 * 86400); // Last 48 hours
+        query = query.where("time", ">=", cutoff);
+      }
+      const snapshot = await query.get();
       
       let registry = {};
       try {
@@ -847,7 +855,7 @@ window.DeltaDB = (function() {
       return Object.values(registry).sort((a, b) => b.time - a.time);
     } catch (err) {
       console.warn("Notice fetching remote signals from Firestore:", err);
-      return getSignalTrades();
+      return getSignalTrades(0);
     }
   }
 

@@ -156,8 +156,19 @@ window.DeltaPaperFund = (function() {
     };
   }
 
+  let lastRenderedContainerId = null;
+  let lastRenderedPortfolio = null;
+  let showAllTrades = false;
+
+  function toggleShowAllTrades() {
+    showAllTrades = !showAllTrades;
+    if (lastRenderedContainerId && lastRenderedPortfolio) {
+      renderPaperPortfolioTab(lastRenderedContainerId, lastRenderedPortfolio);
+    }
+  }
+
   /**
-   * Renders executive summary banner above the 48h trade history table
+   * Renders executive summary banner above the trade history table
    */
   function renderExecutiveBanner(containerId, portfolio) {
     const el = document.getElementById(containerId);
@@ -202,7 +213,7 @@ window.DeltaPaperFund = (function() {
           </div>
 
           <div class="bg-brandDark/70 p-2 rounded-lg border border-borderDark/50">
-            <span class="text-[9px] uppercase tracking-wider text-slate-400 block font-sans">48h Net Take-Home</span>
+            <span class="text-[9px] uppercase tracking-wider text-slate-400 block font-sans">Cumulative Net PnL</span>
             <span class="text-xs sm:text-sm font-bold ${isProfit ? 'text-winGreen' : 'text-lossRed'}">
               ${sign}₹${portfolio.realizedPnlInr.toLocaleString('en-IN')} (${sign}${portfolio.realizedPnlPct}%)
             </span>
@@ -221,14 +232,22 @@ window.DeltaPaperFund = (function() {
 
   /**
    * Renders the dedicated ₹100,000 Paper Portfolio Dashboard in Sub-Tab 4
+   * Simulates full demo account growth across all trades till date.
+   * Descending order (latest trade on top), scrollable container, top 5 default + Show More toggle.
    */
   function renderPaperPortfolioTab(containerId, portfolio) {
     const container = document.getElementById(containerId);
     if (!container) return;
 
+    lastRenderedContainerId = containerId;
+    lastRenderedPortfolio = portfolio;
+
     const isProfit = portfolio.realizedPnlInr >= 0;
     const sign = isProfit ? '+' : '';
+    // Descending order: newest/latest trade at top
     const reversedTrades = [...portfolio.trades].reverse();
+    const totalCount = reversedTrades.length;
+    const visibleTrades = showAllTrades ? reversedTrades : reversedTrades.slice(0, 5);
 
     container.innerHTML = `
       <div class="space-y-4 font-mono">
@@ -240,9 +259,9 @@ window.DeltaPaperFund = (function() {
                 <h2 class="font-bold text-base sm:text-lg text-white flex items-center gap-2">
                   <i class="fa-solid fa-wallet text-amber-400"></i> ₹100,000 Institutional Paper Fund
                 </h2>
-                <span class="text-[9px] px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 font-bold">LIVE EXECUTION</span>
+                <span class="text-[9px] px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 font-bold">DEMO ACCOUNT SIMULATION</span>
               </div>
-              <p class="text-xs text-slate-400 font-sans mt-0.5">Automated paper trading using real Delta India BTC option prices and execution candles.</p>
+              <p class="text-xs text-slate-400 font-sans mt-0.5">Automated paper trading demo account tracking cumulative account growth from ₹100,000 inception till date.</p>
             </div>
 
             <div class="flex items-center gap-2 w-full sm:w-auto justify-end">
@@ -266,11 +285,11 @@ window.DeltaPaperFund = (function() {
             </div>
 
             <div class="bg-brandDark/70 p-3.5 rounded-xl border border-borderDark">
-              <span class="text-[10px] uppercase text-slate-400 block font-sans">Realized Net Alpha (48h)</span>
+              <span class="text-[10px] uppercase text-slate-400 block font-sans">Total Cumulative Net Alpha (Till Date)</span>
               <div class="text-xl font-bold ${isProfit ? 'text-winGreen' : 'text-lossRed'} mt-0.5">
                 ${sign}₹${portfolio.realizedPnlInr.toLocaleString('en-IN')}
               </div>
-              <span class="text-[9px] ${isProfit ? 'text-winGreen' : 'text-lossRed'} font-sans">${sign}${portfolio.realizedPnlPct}% net return</span>
+              <span class="text-[9px] ${isProfit ? 'text-winGreen' : 'text-lossRed'} font-sans">${sign}${portfolio.realizedPnlPct}% total return</span>
             </div>
 
             <div class="bg-brandDark/70 p-3.5 rounded-xl border border-borderDark">
@@ -296,16 +315,18 @@ window.DeltaPaperFund = (function() {
           <div class="flex flex-wrap justify-between items-center pb-2 border-b border-borderDark/60 gap-1.5">
             <div class="flex items-center gap-1.5">
               <i class="fa-solid fa-receipt text-indigo-400 text-xs"></i>
-              <span class="text-xs font-bold text-white">48-Hour Institutional Execution Ledger (Buy & Sell Pricing)</span>
+              <span class="text-xs font-bold text-white">Institutional Demo Account Execution Ledger (Till Date)</span>
             </div>
-            <span class="text-[10px] text-slate-400 font-mono">${portfolio.trades.length} setups processed</span>
+            <div class="flex items-center gap-2">
+              <span class="text-[10px] text-slate-400 font-mono">${totalCount} setups till date (showing ${visibleTrades.length})</span>
+            </div>
           </div>
 
-          <!-- Mobile Cards Stream for Paper Trades (Shown on < md) -->
-          <div class="grid grid-cols-1 gap-2.5 md:hidden max-h-[420px] overflow-y-auto custom-scroll">
-            ${reversedTrades.length === 0 ? `
-              <div class="py-6 text-center text-slate-500 text-xs">No paper trades executed in current 48h candle window.</div>
-            ` : reversedTrades.map(t => {
+          <!-- Mobile Cards Stream for Paper Trades (Scrollable box: only trades inside scroll, not whole page) -->
+          <div class="grid grid-cols-1 gap-2.5 md:hidden max-h-[460px] overflow-y-auto overscroll-contain pr-1 custom-scroll">
+            ${visibleTrades.length === 0 ? `
+              <div class="py-6 text-center text-slate-500 text-xs">No simulated paper trades recorded till date.</div>
+            ` : visibleTrades.map(t => {
               const d = new Date(t.time * 1000);
               const timeStr = d.toLocaleTimeString('en-IN', { timeZone: 'Asia/Kolkata', hour: '2-digit', minute: '2-digit', hour12: true });
               const dateStr = d.toLocaleDateString('en-IN', { timeZone: 'Asia/Kolkata', month: 'short', day: 'numeric' });
@@ -411,8 +432,8 @@ window.DeltaPaperFund = (function() {
             }).join('')}
           </div>
 
-          <!-- Desktop Table (Shown on md:) -->
-          <div class="hidden md:block w-full max-h-[380px] overflow-y-auto overflow-x-hidden custom-scroll">
+          <!-- Desktop Table (Scrollable box: only trades inside scroll, not whole page) -->
+          <div class="hidden md:block w-full max-h-[400px] overflow-y-auto overscroll-contain pr-1 custom-scroll">
             <table class="w-full text-left text-xs font-mono table-fixed">
               <thead>
                 <tr class="text-[10px] text-slate-400 uppercase border-b border-borderDark/80">
@@ -425,9 +446,9 @@ window.DeltaPaperFund = (function() {
                 </tr>
               </thead>
               <tbody class="divide-y divide-borderDark/40">
-                ${reversedTrades.length === 0 ? `
-                  <tr><td colspan="6" class="py-6 text-center text-slate-500 text-xs">No paper trades executed in current 48h candle window.</td></tr>
-                ` : reversedTrades.map(t => {
+                ${visibleTrades.length === 0 ? `
+                  <tr><td colspan="6" class="py-6 text-center text-slate-500 text-xs">No simulated paper trades recorded till date.</td></tr>
+                ` : visibleTrades.map(t => {
                   const d = new Date(t.time * 1000);
                   const timeStr = d.toLocaleTimeString('en-IN', { timeZone: 'Asia/Kolkata', hour: '2-digit', minute: '2-digit', hour12: true });
                   const dateStr = d.toLocaleDateString('en-IN', { timeZone: 'Asia/Kolkata', month: 'short', day: 'numeric' });
@@ -476,6 +497,16 @@ window.DeltaPaperFund = (function() {
               </tbody>
             </table>
           </div>
+
+          <!-- Show More / Show Less Toggle (5 Default) -->
+          ${totalCount > 5 ? `
+            <div class="pt-2 flex justify-center border-t border-borderDark/40">
+              <button onclick="DeltaPaperFund.toggleShowAllTrades()" class="w-full sm:w-auto px-5 py-2 rounded-xl bg-indigo-600/20 hover:bg-indigo-600/30 text-indigo-300 hover:text-white border border-indigo-500/40 text-xs font-bold transition-all shadow-sm flex items-center justify-center gap-2">
+                <i class="fa-solid ${showAllTrades ? 'fa-chevron-up' : 'fa-plus'} text-[11px]"></i>
+                <span>${showAllTrades ? 'Show Less (Top 5 Recent Trades)' : `Show More (+${totalCount - 5} Earlier Trades till date)`}</span>
+              </button>
+            </div>
+          ` : ''}
         </div>
       </div>
     `;
@@ -501,6 +532,7 @@ window.DeltaPaperFund = (function() {
     calculatePortfolio,
     renderExecutiveBanner,
     renderPaperPortfolioTab,
+    toggleShowAllTrades,
     promptRiskModelChange,
     resetPortfolioPrompt
   };

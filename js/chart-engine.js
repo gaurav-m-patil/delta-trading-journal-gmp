@@ -1513,9 +1513,20 @@ Expected Profit: +50% Option Gross / +40% Net`;
       displayTrades = trades.slice(-3);
     }
 
-    // Calculate ₹100,000 Institutional Paper Fund Progression
+    // 1L Paper Fund: Simulate Demo Account Growth across ALL TRADES TILL DATE (No 48h limit)
+    const allTradesTillDate = (trades && trades.length > 0) ? [...trades] : [];
+    if (window.DeltaDB && typeof DeltaDB.getSignalTrades === 'function') {
+      const savedSignals = DeltaDB.getSignalTrades(0) || [];
+      savedSignals.forEach(st => {
+        if (!allTradesTillDate.some(x => x.id === st.id)) {
+          allTradesTillDate.push(st);
+        }
+      });
+    }
+
+    // Calculate ₹100,000 Institutional Paper Fund Progression across all trades till date
     const portfolio = (window.DeltaPaperFund && typeof DeltaPaperFund.calculatePortfolio === 'function')
-      ? DeltaPaperFund.calculatePortfolio(displayTrades)
+      ? DeltaPaperFund.calculatePortfolio(allTradesTillDate)
       : null;
 
     if (portfolio) {
