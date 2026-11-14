@@ -819,6 +819,38 @@ window.DeltaDB = (function() {
     }
   }
 
+  async function fetchSignalTradesFromFirestore() {
+    const config = getFirebaseConfig();
+    if (!firestoreDb) initFirebase(config);
+    if (!firestoreDb) return getSignalTrades();
+
+    try {
+      const col = DeltaConfig.FIRESTORE_COLLECTIONS.SIGNALS || "GP_DTJ_signal_trades";
+      const cutoff = Math.floor(Date.now() / 1000) - (2 * 86400); // Last 48 hours
+      const snapshot = await firestoreDb.collection(col).where("time", ">=", cutoff).get();
+      
+      let registry = {};
+      try {
+        const raw = localStorage.getItem(SIGNAL_STORAGE_KEY);
+        if (raw) registry = JSON.parse(raw);
+      } catch (e) {}
+
+      snapshot.forEach(doc => {
+        const data = doc.data();
+        if (data && data.id) {
+          registry[data.id] = Object.assign(registry[data.id] || {}, data);
+        }
+      });
+
+      localStorage.setItem(SIGNAL_STORAGE_KEY, JSON.stringify(registry));
+      console.log(`[DeltaDB] Fetched & synced ${snapshot.size} signal trades from Firestore (Zero State Drift).`);
+      return Object.values(registry).sort((a, b) => b.time - a.time);
+    } catch (err) {
+      console.warn("Notice fetching remote signals from Firestore:", err);
+      return getSignalTrades();
+    }
+  }
+
   return {
     init,
     syncFromRawData,
@@ -833,6 +865,7 @@ window.DeltaDB = (function() {
     syncToFirestore,
     syncSignalTrades,
     getSignalTrades,
+    fetchSignalTradesFromFirestore,
     exportJSONBackup,
     exportCSV,
     addListener,

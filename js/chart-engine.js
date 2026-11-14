@@ -113,10 +113,13 @@ window.DeltaLiveChart = (function() {
 
     if (!tickers || tickers.length === 0) {
       const simEntry = 220.0;
-      const deltaMove = (targetDist && targetDist > 0) ? (targetDist * 0.50) : (simEntry * 0.50);
-      const dynGainPct = Math.max(35, Math.round((deltaMove / simEntry) * 100));
+      const effDelta = Math.min(0.85, Math.max(0.50, 0.50 + ((targetDist || 1000) / 4000) * 0.35));
+      const projPts = Math.round(((targetDist && targetDist > 0) ? (targetDist * effDelta) : (simEntry * 0.50)) * 10) / 10;
+      const dynGainPct = Math.max(50, Math.round((projPts / simEntry) * 100));
       const target = Math.round((simEntry + (simEntry * (dynGainPct / 100))) * 10) / 10;
       const targetGainPct = `+${dynGainPct}%`;
+      const tp1Price = Math.round(simEntry * 1.50 * 10) / 10;
+      const tp1GainPct = "+50.0%";
 
       const res = {
         symbol: isCall ? `C-BTC-${atmStrikeEstimate}` : `P-BTC-${atmStrikeEstimate}`,
@@ -125,6 +128,8 @@ window.DeltaLiveChart = (function() {
         entryPrice: simEntry,
         markPrice: simEntry,
         buyZone: "$210.0 - $225.0",
+        tp1Price,
+        tp1GainPct,
         targetPrice: target,
         stopPrice: 154.0,
         targetGainPct,
@@ -140,6 +145,8 @@ window.DeltaLiveChart = (function() {
           strikeTier: res.strikeTier,
           entryPrice: res.entryPrice,
           buyZone: res.buyZone,
+          tp1Price: res.tp1Price,
+          tp1GainPct: res.tp1GainPct,
           targetPrice: res.targetPrice,
           stopPrice: res.stopPrice,
           targetGainPct: res.targetGainPct,
@@ -169,7 +176,13 @@ window.DeltaLiveChart = (function() {
           // Delta Exchange options expire at 12:00 UTC (17:30 IST)
           const expiryTs = Date.UTC(year, month, day, 12, 0, 0);
           if (expiryTs > now) {
-            activeWithExpiry.push({ contract: c, expiryTs });
+            // 0-DTE Theta Safety: check if within 105 mins of 17:30 IST
+            const timeToExpiry = expiryTs - now;
+            activeWithExpiry.push({ 
+              contract: c, 
+              expiryTs,
+              isNearExpiry: timeToExpiry <= (105 * 60 * 1000)
+            });
           }
         }
       }
@@ -184,6 +197,8 @@ window.DeltaLiveChart = (function() {
         entryPrice: simEntry,
         markPrice: simEntry,
         buyZone: "$210.0 - $225.0",
+        tp1Price: 330.0,
+        tp1GainPct: "+50.0%",
         targetPrice: 330.0,
         stopPrice: 154.0,
         targetGainPct: "+50.0%",
@@ -199,6 +214,8 @@ window.DeltaLiveChart = (function() {
           strikeTier: res.strikeTier,
           entryPrice: res.entryPrice,
           buyZone: res.buyZone,
+          tp1Price: res.tp1Price,
+          tp1GainPct: res.tp1GainPct,
           targetPrice: res.targetPrice,
           stopPrice: res.stopPrice,
           targetGainPct: res.targetGainPct,
@@ -209,10 +226,15 @@ window.DeltaLiveChart = (function() {
       return res;
     }
 
-    // 2. Find the nearest upcoming active expiration date
-    activeWithExpiry.sort((a, b) => a.expiryTs - b.expiryTs);
-    const nearestExpiryTs = activeWithExpiry[0].expiryTs;
-    const nearestContracts = activeWithExpiry
+    // 2. Find the nearest upcoming active expiration date (preferring next-day if near 17:30 IST)
+    let viableContracts = activeWithExpiry;
+    const hasNextDay = activeWithExpiry.some(x => !x.isNearExpiry);
+    if (hasNextDay) {
+      viableContracts = activeWithExpiry.filter(x => !x.isNearExpiry);
+    }
+    viableContracts.sort((a, b) => a.expiryTs - b.expiryTs);
+    const nearestExpiryTs = viableContracts[0].expiryTs;
+    const nearestContracts = viableContracts
       .filter(x => x.expiryTs === nearestExpiryTs)
       .map(x => x.contract);
 
@@ -250,10 +272,14 @@ window.DeltaLiveChart = (function() {
 
     if (best) {
       const mark = Math.round((parseFloat(best.mark_price) || 220) * 10) / 10;
-      const deltaMove = (targetDist && targetDist > 0) ? (targetDist * 0.50) : (mark * 0.50);
-      const dynGainPct = Math.max(35, Math.round((deltaMove / mark) * 100));
+      // DOEV: Effective Delta expands as spot approaches target (0.50 -> 0.85)
+      const effDelta = Math.min(0.85, Math.max(0.50, 0.50 + ((targetDist || 1000) / 4000) * 0.35));
+      const projPts = Math.round(((targetDist && targetDist > 0) ? (targetDist * effDelta) : (mark * 0.50)) * 10) / 10;
+      const dynGainPct = Math.max(50, Math.round((projPts / mark) * 100));
       const target = Math.round((mark + (mark * (dynGainPct / 100))) * 10) / 10;
       const targetGainPct = `+${dynGainPct}%`;
+      const tp1Price = Math.round(mark * 1.50 * 10) / 10;
+      const tp1GainPct = "+50.0%";
       const stop = Math.round((mark * 0.7) * 10) / 10;
       const bestBid = parseFloat(best.best_bid) || mark;
       const bestAsk = parseFloat(best.best_ask) || mark;
@@ -272,6 +298,8 @@ window.DeltaLiveChart = (function() {
         bestBid: bestBid > 0 ? bestBid : mark,
         bestAsk: bestAsk > 0 ? bestAsk : mark,
         buyZone,
+        tp1Price,
+        tp1GainPct,
         targetPrice: target,
         stopPrice: stop,
         targetGainPct,
@@ -289,6 +317,8 @@ window.DeltaLiveChart = (function() {
           strikeTier: res.strikeTier,
           entryPrice: res.entryPrice,
           buyZone: res.buyZone,
+          tp1Price: res.tp1Price,
+          tp1GainPct: res.tp1GainPct,
           targetPrice: res.targetPrice,
           stopPrice: res.stopPrice,
           targetGainPct: res.targetGainPct,
@@ -1096,8 +1126,9 @@ window.DeltaLiveChart = (function() {
           <div class="text-slate-200">
             Buy <strong class="text-white bg-indigo-900/60 px-1.5 py-0.5 rounded">${contractSymbol}</strong> in Buy Zone <strong class="text-emerald-400">${opt.buyZone || `$${(entryOpt * 0.98).toFixed(1)} - $${(entryOpt * 1.02).toFixed(1)}`}</strong>.
           </div>
-          <div class="text-[11px] text-slate-400 pt-1 border-t border-emerald-500/20 flex flex-wrap justify-between gap-1">
-            <span>TP Target: <strong class="text-winGreen">$${targetPriceVal.toFixed(1)} (${targetGainPct})</strong></span>
+          <div class="text-[11px] text-slate-400 pt-1 border-t border-emerald-500/20 flex flex-wrap justify-between gap-2">
+            <span>TP1 (Scalp / Derisk): <strong class="text-emerald-300">$${(opt.tp1Price || Math.round(entryOpt * 1.5 * 10) / 10).toFixed(1)} (+50%)</strong></span>
+            <span>TP2 (Runner): <strong class="text-winGreen">$${targetPriceVal.toFixed(1)} (${targetGainPct})</strong></span>
             <span>SL Stop: <strong class="text-lossRed">$${stopPriceVal.toFixed(1)} (-30%)</strong></span>
             <span>Current Mark: <strong class="${pnlDiff >= 0 ? 'text-winGreen' : 'text-lossRed'}">$${currentLiveVal.toFixed(1)} (${pnlDiff >= 0 ? '+' : ''}${pnlPctStr}%)</strong></span>
           </div>
@@ -1175,7 +1206,7 @@ window.DeltaLiveChart = (function() {
     if (exitCard && exitTitleEl) {
       if (t.outcome === "WIN") {
         exitCard.className = "bg-panelDark/80 p-3 rounded-xl border border-emerald-500/50 space-y-1.5";
-        exitTitleEl.innerHTML = `<i class="fa-solid fa-flag-checkered text-emerald-400"></i> 2. Target Hit (+50% Option Surge)`;
+        exitTitleEl.innerHTML = `<i class="fa-solid fa-flag-checkered text-emerald-400"></i> 2. Target Hit (${targetGainPct} Structural Expansion)`;
         if (exitSpotEl) exitSpotEl.className = "font-bold text-winGreen";
       } else if (t.outcome === "LOSS") {
         exitCard.className = "bg-panelDark/80 p-3 rounded-xl border border-rose-500/50 space-y-1.5";
@@ -1194,7 +1225,7 @@ window.DeltaLiveChart = (function() {
 
     if (netReturnEl) {
       if (t.outcome === "WIN") {
-        netReturnEl.innerHTML = `<span class="text-winGreen font-bold font-mono">+${pnlDiff.toFixed(1)} pts gross &rarr; +${netTakeHome.toFixed(1)} pts (+40% Net Take-Home)</span>`;
+        netReturnEl.innerHTML = `<span class="text-winGreen font-bold font-mono">+${pnlDiff.toFixed(1)} pts gross &rarr; +${netTakeHome.toFixed(1)} pts (+${netTakeHomePct}% Net Take-Home)</span>`;
       } else if (t.outcome === "LOSS") {
         netReturnEl.innerHTML = `<span class="text-lossRed font-bold font-mono">${pnlDiff.toFixed(1)} pts (-30% Controlled Stop Exit)</span>`;
       } else if (t.outcome === "ACTIVE") {
@@ -1207,7 +1238,7 @@ window.DeltaLiveChart = (function() {
     // Dynamic Narrative with exact contract, real prices, and time
     let dynamicNarrative = "";
     if (t.outcome === "WIN") {
-      dynamicNarrative = `Price moved aggressively in your favor (+${t.targetDist} pts) within ${t.barsHeld} bars (${durStr}), cleanly hitting Take Profit at $${t.tp.toLocaleString()} at ${exitTimeStr} IST. Your ${contractSymbol} option entered at $${entryOpt.toFixed(1)} and hit target exit at $${exitOpt.toFixed(1)} (+50.0% gross / +40.0% net take-home after Delta fees).`;
+      dynamicNarrative = `Price moved aggressively in your favor (+${t.targetDist} pts) within ${t.barsHeld} bars (${durStr}), cleanly hitting Take Profit at $${t.tp.toLocaleString()} at ${exitTimeStr} IST. Your ${contractSymbol} option entered at $${entryOpt.toFixed(1)} and hit target exit at $${exitOpt.toFixed(1)} (${targetGainPct} gross / +${netTakeHomePct}% net take-home after Delta fees).`;
     } else if (t.outcome === "LOSS") {
       dynamicNarrative = `Price breached invalidation level at $${t.sl.toLocaleString()} at ${exitTimeStr} IST after ${t.barsHeld} bars (${durStr}). Your ${contractSymbol} option entered at $${entryOpt.toFixed(1)} executed controlled stop-loss exit at $${exitOpt.toFixed(1)} (-30.0% stop) preserving 70% of margin capital.`;
     } else if (t.outcome === "ACTIVE") {
@@ -1319,6 +1350,31 @@ Expected Profit: +50% Option Gross / +40% Net`;
       macroCatalyst: macroCatalyst
     });
 
+    // Zero State Drift: Sync cloud-alerted active/historical setups directly from Firestore
+    if (window.DeltaDB && typeof DeltaDB.fetchSignalTradesFromFirestore === 'function') {
+      DeltaDB.fetchSignalTradesFromFirestore().then(remoteSignals => {
+        if (remoteSignals && remoteSignals.length > 0 && currentAnalysis && currentAnalysis.trades) {
+          let updated = false;
+          remoteSignals.forEach(rs => {
+            const idx = currentAnalysis.trades.findIndex(t => t.id === rs.id);
+            if (idx >= 0) {
+              if (rs.outcome && rs.outcome !== currentAnalysis.trades[idx].outcome) {
+                currentAnalysis.trades[idx].outcome = rs.outcome;
+                if (rs.exitPrice) currentAnalysis.trades[idx].exitPrice = rs.exitPrice;
+                updated = true;
+              }
+            } else if (rs.outcome === "ACTIVE") {
+              currentAnalysis.trades.unshift(rs);
+              updated = true;
+            }
+          });
+          if (updated) {
+            renderTradesTable(currentAnalysis.trades);
+          }
+        }
+      }).catch(e => console.warn("Firestore signals sync notice:", e));
+    }
+
     // Set Markers on TradingView Chart (Clean, uncluttered)
     candleSeries.setMarkers(currentAnalysis.markers);
 
@@ -1422,7 +1478,7 @@ Expected Profit: +50% Option Gross / +40% Net`;
             <span class="flex items-center gap-2">
               <i class="fa-solid fa-radar text-indigo-400 animate-spin"></i> Scanner Active: Waiting for High-Conviction S/R Reversal Confirmation on ${activeTimeframe}...
             </span>
-            <span class="text-[10px] text-emerald-400 font-bold hidden sm:inline">Calibrated: Real Delta India Options (+50%)</span>
+            <span class="text-[10px] text-emerald-400 font-bold hidden sm:inline">Calibrated: Real Delta India Options (DOEV Uncapped Potential)</span>
           </div>
         `;
       }

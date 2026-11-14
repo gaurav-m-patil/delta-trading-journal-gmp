@@ -127,20 +127,25 @@ window.DeltaSMCStrategy = (function() {
   }
 
   /**
-   * Dynamically calculates authentic option target potential based on BTC spot target distance
-   * Delta is ~0.50 for ATM options. Gains can range from +35% to +1000%+ on trend expansions.
+   * Dynamically calculates authentic option target potential based on BTC spot target distance (DOEV)
+   * Effective delta expands as spot moves in the trader's favor (0.50 -> 0.85).
+   * Uncapped beyond flat 50%: TP1 (+50% scalp derisk) + TP2 (structural runner potential).
    */
   function calcDynamicOptionTarget(entryOpt, spotTargetDist) {
     const safeEntry = entryOpt > 0 ? entryOpt : 220;
-    const deltaMove = (spotTargetDist && spotTargetDist > 0) ? (spotTargetDist * 0.50) : (safeEntry * 0.50);
-    const rawGainPct = Math.round((deltaMove / safeEntry) * 100);
-    // User directive: "whatever the potential that trade has... be it 40-50-100-1000, but more than 30 only"
-    const gainPct = Math.max(35, rawGainPct);
+    const effDelta = Math.min(0.85, Math.max(0.50, 0.50 + ((spotTargetDist || 1000) / 4000) * 0.35));
+    const projPts = Math.round(((spotTargetDist && spotTargetDist > 0) ? (spotTargetDist * effDelta) : (safeEntry * 0.50)) * 10) / 10;
+    const rawGainPct = Math.round((projPts / safeEntry) * 100);
+    const gainPct = Math.max(50, rawGainPct);
     const targetPrice = Math.round((safeEntry + (safeEntry * (gainPct / 100))) * 10) / 10;
+    const tp1Price = Math.round(safeEntry * 1.50 * 10) / 10;
     return {
       targetPrice,
       gainPct,
-      gainPctStr: `+${gainPct}%`
+      gainPctStr: `+${gainPct}%`,
+      tp1Price,
+      tp1PctStr: "+50.0%",
+      effDelta: Number(effDelta.toFixed(2))
     };
   }
 
@@ -489,6 +494,112 @@ window.DeltaSMCStrategy = (function() {
       }
 
       // -------------------------------------------------------------
+      // SETUP 4: FAIR VALUE GAP (FVG) / IMBALANCE MITIGATION
+      // Detects institutional 3-candle imbalance voids being tapped & defended
+      // -------------------------------------------------------------
+      if (!setup && i >= 3) {
+        const c1 = candles[i - 2];
+        const c2 = candles[i - 1];
+
+        // Bullish FVG Mitigation: Gap between c1.high and cur.low
+        if (c1.high < c2.low && (c2.low - c1.high) >= 60 && cur.close > cur.open && macroBias !== "BEARISH") {
+          const fvgMid = (c1.high + c2.low) / 2;
+          if (cur.low <= c2.low && cur.close >= fvgMid) {
+            const entry = cur.close;
+            const sl = Math.round((c1.high - 30) * 10) / 10;
+            const slDist = entry - sl;
+
+            if (slDist >= 90 && slDist <= 380) {
+              const targetDist = Math.round(Math.max(220, slDist * 2.0) * 10) / 10;
+              const tp = Math.round((entry + targetDist) * 10) / 10;
+              const atmStrike = Math.round(entry / 200) * 200;
+              const entryOptEst = Math.round((entry * 0.003) * 10) / 10;
+              const dynTarget = calcDynamicOptionTarget(entryOptEst, targetDist);
+
+              setup = {
+                id: `TRD_FVG_CALL_${cur.time}_${Math.round(entry)}`,
+                strategyId: "FVG_MITIGATION_CALL",
+                name: "Bullish FVG Mitigation",
+                direction: "LONG",
+                type: "FVG_MITIGATION",
+                index: i,
+                time: cur.time,
+                entry,
+                sl,
+                tp,
+                targetDist,
+                slDist: Math.round(slDist * 10) / 10,
+                rrRatio: Number((targetDist / slDist).toFixed(2)),
+                rvol: curRvol,
+                rsi: curRsi,
+                atr: Math.round(curAtr),
+                atrRatio,
+                regime,
+                macroBias,
+                optionStrike: atmStrike,
+                entryOptEst,
+                targetOptEst: dynTarget.targetPrice,
+                targetGainPct: dynTarget.gainPctStr,
+                tp1Price: dynTarget.tp1Price,
+                tp1GainPct: dynTarget.tp1PctStr,
+                optionRecommendation: `Buy C-BTC-${atmStrike} (ATM Call) @ ~$${entryOptEst.toFixed(1)} -> Target $${dynTarget.targetPrice.toFixed(1)} (${dynTarget.gainPctStr} Profit)`,
+                invalidationReason: `Price slips below FVG floor at $${sl.toLocaleString()}`,
+                meta: { sHigh, sLow, fvgMid }
+              };
+            }
+          }
+        }
+        // Bearish FVG Mitigation: Gap between c2.high and c1.low
+        else if (c1.low > c2.high && (c1.low - c2.high) >= 60 && cur.close < cur.open && macroBias !== "BULLISH") {
+          const fvgMid = (c1.low + c2.high) / 2;
+          if (cur.high >= c2.high && cur.close <= fvgMid) {
+            const entry = cur.close;
+            const sl = Math.round((c1.low + 30) * 10) / 10;
+            const slDist = sl - entry;
+
+            if (slDist >= 90 && slDist <= 380) {
+              const targetDist = Math.round(Math.max(220, slDist * 2.0) * 10) / 10;
+              const tp = Math.round((entry - targetDist) * 10) / 10;
+              const atmStrike = Math.round(entry / 200) * 200;
+              const entryOptEst = Math.round((entry * 0.003) * 10) / 10;
+              const dynTarget = calcDynamicOptionTarget(entryOptEst, targetDist);
+
+              setup = {
+                id: `TRD_FVG_PUT_${cur.time}_${Math.round(entry)}`,
+                strategyId: "FVG_MITIGATION_PUT",
+                name: "Bearish FVG Mitigation",
+                direction: "SHORT",
+                type: "FVG_MITIGATION",
+                index: i,
+                time: cur.time,
+                entry,
+                sl,
+                tp,
+                targetDist,
+                slDist: Math.round(slDist * 10) / 10,
+                rrRatio: Number((targetDist / slDist).toFixed(2)),
+                rvol: curRvol,
+                rsi: curRsi,
+                atr: Math.round(curAtr),
+                atrRatio,
+                regime,
+                macroBias,
+                optionStrike: atmStrike,
+                entryOptEst,
+                targetOptEst: dynTarget.targetPrice,
+                targetGainPct: dynTarget.gainPctStr,
+                tp1Price: dynTarget.tp1Price,
+                tp1GainPct: dynTarget.tp1PctStr,
+                optionRecommendation: `Buy P-BTC-${atmStrike} (ATM Put) @ ~$${entryOptEst.toFixed(1)} -> Target $${dynTarget.targetPrice.toFixed(1)} (${dynTarget.gainPctStr} Profit)`,
+                invalidationReason: `Price surges above FVG roof at $${sl.toLocaleString()}`,
+                meta: { sHigh, sLow, fvgMid }
+              };
+            }
+          }
+        }
+      }
+
+      // -------------------------------------------------------------
       // 3. DETERMINISTIC FORWARD WALK & EXCURSION AUDIT (MAE / MFE)
       // -------------------------------------------------------------
       if (setup) {
@@ -663,7 +774,11 @@ window.DeltaSMCStrategy = (function() {
         const isWin = outcome === "WIN";
         const isLoss = outcome === "LOSS";
         const isCall = setup.direction === "LONG";
-        const prefix = setup.strategyId.includes("BOS") ? (isCall ? "BOS-CALL" : "BOS-PUT") : (isCall ? "SWP-CALL" : "SWP-PUT");
+        const prefix = setup.strategyId.includes("BOS") 
+          ? (isCall ? "BOS-CALL" : "BOS-PUT") 
+          : (setup.strategyId.includes("FVG") 
+              ? (isCall ? "FVG-CALL" : "FVG-PUT") 
+              : (isCall ? "SWP-CALL" : "SWP-PUT"));
 
         let labelText = prefix;
         let markerColor = isCall ? "#38bdf8" : "#818cf8";
