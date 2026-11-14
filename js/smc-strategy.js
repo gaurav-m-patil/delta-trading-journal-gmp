@@ -395,120 +395,125 @@ window.DeltaSMCStrategy = (function() {
       }
 
       // -------------------------------------------------------------
-      // SETUP 3: LIQUIDITY SWEEP & MEAN-REVERSION (RANGE REGIME ONLY)
-      // Strictly disabled during high-volatility crashes or adverse macro bias!
+      // SETUP 3: ORDER BLOCK LIQUIDITY SWEEP & RESISTANCE REJECTION
+      // (100% Algorithmic Parity with Cloud Sentinel Python Engine)
+      // Detects institutional wick sweeps of fractal swing pivots
       // -------------------------------------------------------------
-      const isRangeSafe = (regime === "RANGE_BOUND") && (atrRatio < 1.25);
+      if (!setup && i >= 6) {
+        // Dynamic 3-bar fractal swing pivots in recent lookback window
+        const swingHighs = [];
+        const swingLows = [];
+        const fStart = Math.max(3, i - 45);
+        for (let fi = fStart; fi < i - 1; fi++) {
+          const fh = candles[fi].high;
+          const fl = candles[fi].low;
+          const isSh3 = (candles[fi - 1].high <= fh) && (candles[fi - 2].high <= fh) && (candles[fi + 1]?.high <= fh);
+          const isSl3 = (candles[fi - 1].low >= fl) && (candles[fi - 2].low >= fl) && (candles[fi + 1]?.low >= fl);
+          if (isSh3) swingHighs.push({ index: fi, price: fh, time: candles[fi].time });
+          if (isSl3) swingLows.push({ index: fi, price: fl, time: candles[fi].time });
+        }
 
-      // Rejection at Resistance (Put) - ONLY allowed if macro is not Bullish
-      if (!setup && isRangeSafe && macroBias !== "BULLISH") {
-        const isResistanceRejection = (prev.high >= sHigh * 0.9985) && (prevUpperWick >= prevRange * 0.25);
-        const isBearishConfirmed = (cur.close < cur.open) && (cur.close < prev.close) && (curRsi > 48);
+        const curRng = Math.max(0.1, cur.high - cur.low);
+        const curLowerWick = Math.min(cur.open, cur.close) - cur.low;
+        const curUpperWick = cur.high - Math.max(cur.open, cur.close);
 
-        if (isResistanceRejection && isBearishConfirmed) {
-          const entry = cur.close;
-          const sl = Math.round((prev.high + 35) * 10) / 10;
-          const slDist = sl - entry;
+        // 3A. Bearish Order Block Resistance Rejection (PUT)
+        // Upper wick sweeps above recent swing high, candle rejects and closes red below it
+        if (!setup && macroBias !== "BULLISH") {
+          const recentHighs = swingHighs.slice(-5).map(sh => sh.price);
+          for (const shPrice of recentHighs) {
+            if (cur.high > shPrice && cur.close < shPrice && (curUpperWick / curRng) >= 0.25 && cur.close <= cur.open) {
+              const risk = Math.max(180, (cur.high * 1.002) - cur.close);
+              const tp = Math.round(cur.close - (risk * 2.2));
+              const sl = Math.round(cur.high + (risk * 0.1));
+              const slDist = sl - cur.close;
+              const targetDist = cur.close - tp;
+              const atmStrike = Math.round(cur.close / 200) * 200;
+              const entryOptEst = Math.round((cur.close * 0.003) * 10) / 10;
+              const dynTarget = calcDynamicOptionTarget(entryOptEst, targetDist);
 
-          if (slDist >= 90 && slDist <= 350) {
-            const targetDist = Math.round(Math.max(210, slDist * 1.8) * 10) / 10;
-            const tp = Math.round((entry - targetDist) * 10) / 10;
-            const atmStrike = Math.round(entry / 200) * 200;
-            const entryOptEst = Math.round((entry * 0.003) * 10) / 10;
-            const dynTarget = calcDynamicOptionTarget(entryOptEst, targetDist);
-            const targetOptEst = dynTarget.targetPrice;
-            const targetGainPct = dynTarget.gainPctStr;
-
-            setup = {
-              id: `TRD_SWP_PUT_${cur.time}_${Math.round(entry)}`,
-              strategyId: "RANGE_SWEEP_PUT",
-              name: "Resistance Liquidity Sweep",
-              direction: "SHORT",
-              type: "LIQUIDITY_SWEEP",
-              index: i,
-              time: cur.time,
-              entry,
-              sl,
-              tp,
-              targetDist,
-              slDist: Math.round(slDist * 10) / 10,
-              rrRatio: Number((targetDist / slDist).toFixed(2)),
-              rvol: curRvol,
-              rsi: curRsi,
-              atr: Math.round(curAtr),
-              atrRatio,
-              regime,
-              macroBias,
-              optionStrike: atmStrike,
-              entryOptEst,
-              targetOptEst,
-              targetGainPct,
-              optionRecommendation: `Buy P-BTC-${atmStrike} (ATM Put) @ ~$${entryOptEst.toFixed(1)} -> Target $${targetOptEst.toFixed(1)} (${targetGainPct} Profit)`,
-              invalidationReason: `Price breaks above resistance wick at $${sl.toLocaleString()}`,
-              meta: {
-                sHigh,
-                sLow,
-                prevRange,
-                prevUpperWick
-              }
-            };
+              setup = {
+                id: `cloud_bear_${cur.time}`,
+                strategyId: "ORDER_BLOCK_REJECT_PUT",
+                name: "Bearish Order Block Resistance Rejection",
+                direction: "SHORT",
+                type: "LIQUIDITY_SWEEP",
+                index: i,
+                time: cur.time,
+                entry: Math.round(cur.close),
+                sl,
+                tp,
+                targetDist,
+                slDist: Math.round(slDist * 10) / 10,
+                rrRatio: Number((targetDist / Math.max(1, slDist)).toFixed(2)),
+                rvol: curRvol,
+                rsi: curRsi,
+                atr: Math.round(curAtr),
+                atrRatio,
+                regime,
+                macroBias,
+                optionStrike: atmStrike,
+                entryOptEst,
+                targetOptEst: dynTarget.targetPrice,
+                targetGainPct: dynTarget.gainPctStr,
+                tp1Price: dynTarget.tp1Price,
+                tp1GainPct: dynTarget.tp1PctStr,
+                optionRecommendation: `Buy P-BTC-${atmStrike} (ATM Put) @ ~$${entryOptEst.toFixed(1)} -> Target $${dynTarget.targetPrice.toFixed(1)} (${dynTarget.gainPctStr} Profit)`,
+                invalidationReason: `Price breaks above rejection wick at $${sl.toLocaleString()}`,
+                meta: { sHigh, sLow, shPrice }
+              };
+              break;
+            }
           }
         }
-      }
 
-      // Bounce at Support (Call) - STRICTLY DISABLED IF MACRO IS BEARISH OR BEAR TREND!
-      // (This directly eliminates the knife-catching losses!)
-      if (!setup && isRangeSafe && macroBias !== "BEARISH" && !isBearTrend) {
-        const isSupportBounce = (prev.low <= sLow * 1.0015) && (prevLowerWick >= prevRange * 0.25);
-        const isBullishConfirmed = (cur.close > cur.open) && (cur.close > prev.close) && (curRsi < 52);
+        // 3B. Bullish Order Block Liquidity Sweep (CALL)
+        // Lower wick sweeps below recent swing low, candle absorbs and closes green above it
+        if (!setup && macroBias !== "BEARISH" && !isBearTrend) {
+          const recentLows = swingLows.slice(-5).map(sl => sl.price);
+          for (const slPrice of recentLows) {
+            if (cur.low < slPrice && cur.close > slPrice && (curLowerWick / curRng) >= 0.25 && cur.close >= cur.open) {
+              const risk = Math.max(180, cur.close - (cur.low * 0.998));
+              const tp = Math.round(cur.close + (risk * 2.2));
+              const sl = Math.round(cur.low - (risk * 0.1));
+              const slDist = cur.close - sl;
+              const targetDist = tp - cur.close;
+              const atmStrike = Math.round(cur.close / 200) * 200;
+              const entryOptEst = Math.round((cur.close * 0.003) * 10) / 10;
+              const dynTarget = calcDynamicOptionTarget(entryOptEst, targetDist);
 
-        if (isSupportBounce && isBullishConfirmed) {
-          const entry = cur.close;
-          const sl = Math.round((prev.low - 35) * 10) / 10;
-          const slDist = entry - sl;
-
-          if (slDist >= 90 && slDist <= 350) {
-            const targetDist = Math.round(Math.max(210, slDist * 1.8) * 10) / 10;
-            const tp = Math.round((entry + targetDist) * 10) / 10;
-            const atmStrike = Math.round(entry / 200) * 200;
-            const entryOptEst = Math.round((entry * 0.003) * 10) / 10;
-            const dynTarget = calcDynamicOptionTarget(entryOptEst, targetDist);
-            const targetOptEst = dynTarget.targetPrice;
-            const targetGainPct = dynTarget.gainPctStr;
-
-            setup = {
-              id: `TRD_SWP_CALL_${cur.time}_${Math.round(entry)}`,
-              strategyId: "RANGE_SWEEP_CALL",
-              name: "Support Liquidity Sweep",
-              direction: "LONG",
-              type: "LIQUIDITY_SWEEP",
-              index: i,
-              time: cur.time,
-              entry,
-              sl,
-              tp,
-              targetDist,
-              slDist: Math.round(slDist * 10) / 10,
-              rrRatio: Number((targetDist / slDist).toFixed(2)),
-              rvol: curRvol,
-              rsi: curRsi,
-              atr: Math.round(curAtr),
-              atrRatio,
-              regime,
-              macroBias,
-              optionStrike: atmStrike,
-              entryOptEst,
-              targetOptEst,
-              targetGainPct,
-              optionRecommendation: `Buy C-BTC-${atmStrike} (ATM Call) @ ~$${entryOptEst.toFixed(1)} -> Target $${targetOptEst.toFixed(1)} (${targetGainPct} Profit)`,
-              invalidationReason: `Price breaks below support wick at $${sl.toLocaleString()}`,
-              meta: {
-                sHigh,
-                sLow,
-                prevRange,
-                prevLowerWick
-              }
-            };
+              setup = {
+                id: `cloud_bull_${cur.time}`,
+                strategyId: "ORDER_BLOCK_SWEEP_CALL",
+                name: "Bullish Order Block Liquidity Sweep",
+                direction: "LONG",
+                type: "LIQUIDITY_SWEEP",
+                index: i,
+                time: cur.time,
+                entry: Math.round(cur.close),
+                sl,
+                tp,
+                targetDist,
+                slDist: Math.round(slDist * 10) / 10,
+                rrRatio: Number((targetDist / Math.max(1, slDist)).toFixed(2)),
+                rvol: curRvol,
+                rsi: curRsi,
+                atr: Math.round(curAtr),
+                atrRatio,
+                regime,
+                macroBias,
+                optionStrike: atmStrike,
+                entryOptEst,
+                targetOptEst: dynTarget.targetPrice,
+                targetGainPct: dynTarget.gainPctStr,
+                tp1Price: dynTarget.tp1Price,
+                tp1GainPct: dynTarget.tp1PctStr,
+                optionRecommendation: `Buy C-BTC-${atmStrike} (ATM Call) @ ~$${entryOptEst.toFixed(1)} -> Target $${dynTarget.targetPrice.toFixed(1)} (${dynTarget.gainPctStr} Profit)`,
+                invalidationReason: `Price slips below liquidity sweep low at $${sl.toLocaleString()}`,
+                meta: { sHigh, sLow, slPrice }
+              };
+              break;
+            }
           }
         }
       }

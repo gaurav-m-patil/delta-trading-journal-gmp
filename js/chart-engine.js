@@ -1771,46 +1771,50 @@ Expected Profit: +50% Option Gross / +40% Net`;
         // If real confirmed trades exist in Firestore, prioritize and merge them
         if (realTrades.length > 0) {
           realTrades.forEach(st => {
-            const exists = chartMarkers.some(m => Math.abs(m.time - st.time) < 900);
-            if (!exists) {
-              const isCall = st.direction === "LONG";
-              const isWin = st.outcome === "WIN";
-              const isBeWin = st.outcome === "BE_WIN";
-              const isLoss = st.outcome === "LOSS";
-              const isActive = st.outcome === "ACTIVE";
+            const matchIndex = chartMarkers.findIndex(m => Math.abs(m.time - st.time) < 900);
+            const isCall = st.direction === "LONG";
+            const isWin = st.outcome === "WIN";
+            const isBeWin = st.outcome === "BE_WIN";
+            const isLoss = st.outcome === "LOSS";
+            const isActive = st.outcome === "ACTIVE";
 
-              let markerText = isCall ? "CALL" : "PUT";
-              let markerColor = isCall ? "#38bdf8" : "#818cf8";
-              let markerPos = isCall ? "belowBar" : "aboveBar";
-              let markerShape = isCall ? "arrowUp" : "arrowDown";
+            let markerText = isCall ? "CALL" : "PUT";
+            let markerColor = isCall ? "#38bdf8" : "#818cf8";
+            let markerPos = isCall ? "belowBar" : "aboveBar";
+            let markerShape = isCall ? "arrowUp" : "arrowDown";
 
-              if (isActive) {
-                markerText = "LIVE";
-                markerColor = "#38bdf8";
-              } else if (isWin) {
-                const runnerPct = st.optionPnlPct || (st.realOption && st.realOption.targetGainPct) || "+72%";
-                markerText = runnerPct.startsWith('+') ? runnerPct : `+${runnerPct}`;
-                markerColor = "#10b981";
-              } else if (isBeWin) {
-                markerText = "BE +25%";
-                markerColor = "#10b981";
-              } else if (isLoss) {
-                markerText = "-30%";
-                markerColor = "#f43f5e";
-              } else {
-                markerText = "SCR";
-                markerColor = "#64748b";
-              }
+            if (isActive) {
+              markerText = "LIVE";
+              markerColor = "#38bdf8";
+            } else if (isWin) {
+              const runnerPct = st.optionPnlPct || (st.realOption && st.realOption.targetGainPct) || "+72%";
+              markerText = runnerPct.startsWith('+') ? runnerPct : `+${runnerPct}`;
+              markerColor = "#10b981";
+            } else if (isBeWin) {
+              markerText = "BE +25%";
+              markerColor = "#10b981";
+            } else if (isLoss) {
+              markerText = "-30%";
+              markerColor = "#f43f5e";
+            } else {
+              markerText = "SCR";
+              markerColor = "#64748b";
+            }
 
-              chartMarkers.push({
-                time: st.time,
-                position: markerPos,
-                color: markerColor,
-                shape: markerShape,
-                text: markerText,
-                size: 1,
-                tradeRef: st
-              });
+            const verifiedMarker = {
+              time: st.time,
+              position: markerPos,
+              color: markerColor,
+              shape: markerShape,
+              text: markerText,
+              size: 1,
+              tradeRef: st
+            };
+
+            if (matchIndex >= 0) {
+              chartMarkers[matchIndex] = verifiedMarker;
+            } else {
+              chartMarkers.push(verifiedMarker);
             }
           });
         }

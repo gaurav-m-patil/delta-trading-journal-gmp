@@ -1,11 +1,11 @@
 {
-  "last_alerted_trade_id": null,
+  "last_alerted_trade_id": "cloud_bear_1794681000",
   "active_trade": null,
   "last_alerted_catalyst_guid": null,
   "daily_counts": {
-    "date": "2026-11-14",
-    "trades_given": 0,
-    "wins": 0,
+    "date": "2026-11-15",
+    "trades_given": 2,
+    "wins": 2,
     "losses": 0
   },
   "telegram_handshake_sent": true
