@@ -1,9 +1,6 @@
 name: 24/7 Delta Cloud Sentinel Bot
 
 on:
-  schedule:
-    # GitHub scheduled cron (24/7/365)
-    - cron: '*/5 * * * *'
   repository_dispatch:
     types: [run_sentinel]
   workflow_dispatch:
