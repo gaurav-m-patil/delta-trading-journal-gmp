@@ -406,7 +406,11 @@ window.DeltaPaperFund = (function() {
           <!-- Mobile Cards Stream for Paper Trades (Scrollable box: only trades inside scroll, not whole page) -->
           <div class="grid grid-cols-1 gap-2.5 md:hidden max-h-[460px] overflow-y-auto overscroll-contain pr-1 custom-scroll">
             ${visibleTrades.length === 0 ? `
-              <div class="py-6 text-center text-slate-500 text-xs">No simulated paper trades recorded till date.</div>
+              <div class="p-6 text-center rounded-xl bg-panelDark/50 border border-borderDark/60 space-y-2">
+                <i class="fa-solid fa-wallet text-indigo-400 text-lg animate-pulse"></i>
+                <div class="text-xs font-bold text-white">₹100,000 Paper Fund Initialized (Standby)</div>
+                <p class="text-[10px] text-slate-400">Zero backtest pollution. Next live SMC setup will begin automated execution from ₹1,00,000.</p>
+              </div>
             ` : visibleTrades.map(t => {
               const d = new Date(t.time * 1000);
               const timeStr = d.toLocaleTimeString('en-IN', { timeZone: 'Asia/Kolkata', hour: '2-digit', minute: '2-digit', hour12: true });
@@ -545,7 +549,19 @@ window.DeltaPaperFund = (function() {
               </thead>
               <tbody class="divide-y divide-borderDark/40">
                 ${visibleTrades.length === 0 ? `
-                  <tr><td colspan="7" class="py-6 text-center text-slate-500 text-xs">No simulated paper trades recorded till date.</td></tr>
+                  <tr>
+                    <td colspan="7" class="py-10 text-center">
+                      <div class="flex flex-col items-center justify-center space-y-2">
+                        <div class="h-10 w-10 rounded-2xl bg-indigo-500/10 border border-indigo-500/30 flex items-center justify-center text-indigo-400 text-base shadow-sm">
+                          <i class="fa-solid fa-wallet animate-pulse"></i>
+                        </div>
+                        <div class="text-xs font-bold text-white tracking-wide">₹100,000 Institutional Paper Fund Standby</div>
+                        <p class="text-[11px] text-slate-400 max-w-sm mx-auto font-sans leading-relaxed">
+                          Zero backtest pollution. When 24/7 Cloud Sentinel confirms the next live SMC setup on Delta India, paper execution will begin automatically from ₹1,00,000 inception capital.
+                        </p>
+                      </div>
+                    </td>
+                  </tr>
                 ` : visibleTrades.map(t => {
                   const d = new Date(t.time * 1000);
                   const timeStr = d.toLocaleTimeString('en-IN', { timeZone: 'Asia/Kolkata', hour: '2-digit', minute: '2-digit', hour12: true });

@@ -805,23 +805,28 @@ window.DeltaSMCStrategy = (function() {
 
         trades.push(setup);
 
-        // Institutional Chart Markers: Compact, non-overlapping, ultra-legible
+        // Institutional Chart Markers: Clear Percentage & Potential Display
         const isWin = outcome === "WIN";
         const isBeWin = outcome === "BE_WIN";
         const isLoss = outcome === "LOSS";
+        const isActive = outcome === "ACTIVE";
         const isCall = setup.direction === "LONG";
 
         let labelText = isCall ? "CALL" : "PUT";
         let markerColor = isCall ? "#38bdf8" : "#818cf8";
 
-        if (isWin) {
-          labelText = "TP";
+        if (isActive) {
+          labelText = "LIVE";
+          markerColor = "#38bdf8";
+        } else if (isWin) {
+          const rawPct = setup.optionPnlPct || "+72%";
+          labelText = rawPct.startsWith('+') ? rawPct : `+${rawPct}`;
           markerColor = "#10b981";
         } else if (isBeWin) {
-          labelText = "BE";
+          labelText = "BE +25%";
           markerColor = "#10b981";
         } else if (isLoss) {
-          labelText = "SL";
+          labelText = "-30%";
           markerColor = "#f43f5e";
         } else if (outcome === "TIMEOUT") {
           labelText = "SCR";

@@ -107,30 +107,54 @@ def sync_trade_to_firestore(trade_data):
     """
     Syncs the active or completed signal trade directly to Firestore GP_DTJ_signal_trades.
     Guarantees 100% real-time synchronization between Telegram and Web App (Eliminates State Drift).
+    Ensures complete, immutable trade data for both SMC Radar and Paper Fund without undefined metrics.
     """
     try:
         trade_id = str(trade_data.get("id"))
         doc_path = f"projects/{FIREBASE_PROJECT}/databases/(default)/documents/GP_DTJ_signal_trades/{trade_id}"
         opt = trade_data.get("option", {})
 
-        strike_val = int(opt.get("strike", round(float(trade_data.get("entry", 0)) / 200) * 200))
+        entry_val = float(trade_data.get("entry", 0))
+        tp_val = float(trade_data.get("tp", 0))
+        sl_val = float(trade_data.get("sl", 0))
+        target_dist = float(trade_data.get("targetDist", abs(tp_val - entry_val)))
+        sl_dist = float(trade_data.get("slDist", abs(entry_val - sl_val)))
+        rr_val = round(target_dist / max(1.0, sl_dist), 2)
+
+        strike_val = int(opt.get("strike", trade_data.get("optionStrike", round(entry_val / 200) * 200)))
+        entry_opt = float(opt.get("mark_price", trade_data.get("optionEntryMark", 220)))
+        buy_zone = str(opt.get("buy_zone", trade_data.get("buyZone", f"${entry_opt * 0.98:.1f} - ${entry_opt * 1.02:.1f}")))
+        tp1_price = float(opt.get("tp1_price", trade_data.get("optionTp1Price", round(entry_opt * 1.50, 1))))
+        target_price = float(opt.get("target_price", trade_data.get("optionTargetPrice", round(entry_opt * 1.72, 1))))
+        stop_price = float(opt.get("stop_price", trade_data.get("optionStopPrice", round(entry_opt * 0.70, 1))))
+        target_pct = str(opt.get("target_pct", trade_data.get("optionPnlPct", "+72.0%")))
+
         fields = {
             "id": {"stringValue": trade_id},
             "name": {"stringValue": str(trade_data.get("name", "SMC Setup"))},
             "direction": {"stringValue": str(trade_data.get("direction", "LONG"))},
             "time": {"integerValue": str(trade_data.get("time", int(time.time())))},
-            "entry": {"doubleValue": float(trade_data.get("entry", 0))},
-            "tp": {"doubleValue": float(trade_data.get("tp", 0))},
-            "sl": {"doubleValue": float(trade_data.get("sl", 0))},
+            "entry": {"doubleValue": entry_val},
+            "tp": {"doubleValue": tp_val},
+            "sl": {"doubleValue": sl_val},
+            "targetDist": {"doubleValue": target_dist},
+            "slDist": {"doubleValue": sl_dist},
+            "rr": {"stringValue": f"1:{rr_val}"},
+            "rrRatio": {"doubleValue": rr_val},
             "outcome": {"stringValue": str(trade_data.get("outcome", "ACTIVE"))},
-            "rr": {"stringValue": str(trade_data.get("rr", "1:2.0"))},
             "optionStrike": {"integerValue": str(strike_val)},
             "optionSymbol": {"stringValue": str(opt.get("symbol", trade_data.get("optionSymbol", "")))},
-            "optionEntryMark": {"doubleValue": float(opt.get("mark_price", trade_data.get("optionEntryMark", 220)))},
-            "optionTargetPrice": {"doubleValue": float(opt.get("target_price", trade_data.get("optionTargetPrice", 330)))},
-            "optionStopPrice": {"doubleValue": float(opt.get("stop_price", trade_data.get("optionStopPrice", 154)))},
-            "optionPnlPct": {"stringValue": str(opt.get("target_pct", trade_data.get("optionPnlPct", "+50%")))},
+            "optionEntryMark": {"doubleValue": entry_opt},
+            "buyZone": {"stringValue": buy_zone},
+            "optionTp1Price": {"doubleValue": tp1_price},
+            "optionTp1Pct": {"stringValue": "+50.0%"},
+            "optionTargetPrice": {"doubleValue": target_price},
+            "optionPnlPct": {"stringValue": target_pct},
+            "optionStopPrice": {"doubleValue": stop_price},
+            "optionStopPct": {"stringValue": "-30.0%"},
             "strikeTier": {"stringValue": str(opt.get("strike_tier", "Exact ATM (Delta ~0.50)"))},
+            "reachedTp1": {"booleanValue": bool(trade_data.get("reached_tp1", False))},
+            "barsHeld": {"integerValue": str(trade_data.get("barsHeld", 1))},
             "updatedAt": {"stringValue": datetime.now(timezone.utc).isoformat()}
         }
 
@@ -143,9 +167,25 @@ def sync_trade_to_firestore(trade_data):
         if sess and sess.get("name"):
             fields["sessionName"] = {"stringValue": str(sess["name"])}
             fields["sessionCode"] = {"stringValue": str(sess.get("code", ""))}
-        if opt.get("iv_rating"):
-            fields["ivRating"] = {"stringValue": str(opt["iv_rating"])}
-            fields["ivBadge"] = {"stringValue": str(opt.get("iv_badge", ""))}
+            fields["sessionFlag"] = {"stringValue": str(sess.get("flag", "🌐"))}
+        if opt.get("iv_rating") or trade_data.get("ivRating"):
+            fields["ivRating"] = {"stringValue": str(opt.get("iv_rating", trade_data.get("ivRating", "")))}
+            fields["ivBadge"] = {"stringValue": str(opt.get("iv_badge", trade_data.get("ivBadge", "")))}
+
+        # Full Institutional Setup Playbook Logic
+        rat = trade_data.get("rationale", {})
+        if rat:
+            rat_map = {}
+            if rat.get("levelTested"): rat_map["levelTested"] = {"stringValue": str(rat["levelTested"])}
+            if rat.get("pattern"): rat_map["pattern"] = {"stringValue": str(rat["pattern"])}
+            if rat.get("confirmation"): rat_map["confirmation"] = {"stringValue": str(rat["confirmation"])}
+            if rat.get("momentum"): rat_map["momentum"] = {"stringValue": str(rat["momentum"])}
+            if rat.get("rsi"): rat_map["rsi"] = {"stringValue": str(rat["rsi"])}
+            if rat.get("rvol"): rat_map["rvol"] = {"stringValue": str(rat["rvol"])}
+            if rat.get("absorption"): rat_map["absorption"] = {"stringValue": str(rat["absorption"])}
+            if rat.get("narrative"): rat_map["narrative"] = {"stringValue": str(rat["narrative"])}
+            if rat_map:
+                fields["rationale"] = {"mapValue": {"fields": rat_map}}
 
         commit_url = f"https://firestore.googleapis.com/v1/projects/{FIREBASE_PROJECT}/databases/(default)/documents:commit?key={FIREBASE_KEY}"
         write_payload = {
@@ -448,11 +488,13 @@ def fetch_delta_option_contract(direction, spot_price, spot_dist=1200):
                         continue
 
             if active_with_expiry:
-                # 1. Prefer current day's expiry unless within 105 mins of 5:30 PM IST
-                viable = active_with_expiry
-                has_next_day = any(not x["is_near_expiry"] for x in active_with_expiry)
+                # 1. Strictly prefer daily 0-DTE / 1-DTE expiries (within 48 hours) - Never monthly/far contracts
+                daily_viable = [x for x in active_with_expiry if (x["expiry_dt"] - now_utc).total_seconds() <= (48 * 3600)]
+                viable = daily_viable if daily_viable else active_with_expiry
+
+                has_next_day = any(not x["is_near_expiry"] for x in viable)
                 if has_next_day:
-                    viable = [x for x in active_with_expiry if not x["is_near_expiry"]]
+                    viable = [x for x in viable if not x["is_near_expiry"]]
 
                 viable.sort(key=lambda x: x["expiry_dt"])
                 nearest_expiry = viable[0]["expiry_dt"]
@@ -495,6 +537,9 @@ def fetch_delta_option_contract(direction, spot_price, spot_dist=1200):
                     proj_pts = round(mark * 0.65, 1)
                 target_full = round(mark + proj_pts, 1)
                 target_tp1 = round(mark * 1.5, 1)
+                if target_full <= target_tp1:
+                    gain_pct_full = 65.0
+                    target_full = round(mark * 1.65, 1)
                 stop_price = round(mark * 0.7, 1)
 
                 ratio = (mark / spot_price) if spot_price > 0 else 0.003
@@ -863,17 +908,54 @@ def run_sentinel():
         target_pct = active_trade.get("option", {}).get("target_pct", "+50.0%")
         tp1_p = active_trade.get("option", {}).get("tp1_price", round(buy_p * 1.5, 1))
 
+        reached_tp1 = active_trade.get("reached_tp1", False)
+        spot_dist = abs(tp - entry)
+        tp1_dist = round(spot_dist * 0.45)
+
+        is_tp1_derisk = False
         is_win = False
+        is_be_win = False
         is_loss = False
 
         if direction == "LONG":
-            if current_price >= tp: is_win = True
-            elif current_price <= sl: is_loss = True
+            favorable = current_price - entry
+            if favorable >= spot_dist or current_price >= tp:
+                is_win = True
+            elif reached_tp1 and current_price <= entry:
+                is_be_win = True
+            elif not reached_tp1 and current_price <= sl:
+                is_loss = True
+            elif not reached_tp1 and favorable >= tp1_dist:
+                is_tp1_derisk = True
         else: # SHORT
-            if current_price <= tp: is_win = True
-            elif current_price >= sl: is_loss = True
+            favorable = entry - current_price
+            if favorable >= spot_dist or current_price <= tp:
+                is_win = True
+            elif reached_tp1 and current_price >= entry:
+                is_be_win = True
+            elif not reached_tp1 and current_price >= sl:
+                is_loss = True
+            elif not reached_tp1 and favorable >= tp1_dist:
+                is_tp1_derisk = True
 
-        if is_win:
+        if is_tp1_derisk:
+            # Trailed Stop Activation: Derisk 50% & Move SL to Breakeven
+            active_trade["reached_tp1"] = True
+            active_trade["sl"] = entry # Breakeven
+            tp1_msg = f"""🛡️ <b>DELTA INDIA TARGET 1 HIT (+50.0% DERISK)</b>
+━━━━━━━━━━━━━━━━━━━━━━
+🎯 <b>Action:</b> 🟢 <b>50% POSITION LOCKED IN PROFIT</b>
+🏷️ <b>Contract:</b> <code>{contract}</code>
+💰 <b>Option Fill:</b> Buy: ${buy_p:.1f} ➔ <b>TP1 Booked: ${tp1_p:.1f} (+50.0%)</b>
+🎯 <b>Stop Trailed:</b> Invalidation moved to <b>Breakeven (${entry:,.0f})</b>
+⚡ <i>Risk Status: Zero downside risk remaining. Trailing remaining 50% for full structural expansion to Target 2 (${tp:,.0f})!</i>
+🔗 <a href="https://delta-trading-journal-gmp.vercel.app/">Open Live Journal & Chart</a>"""
+            send_telegram_message(bot_token, chat_id, tp1_msg)
+            sync_trade_to_firestore(active_trade)
+            state["active_trade"] = active_trade
+            save_sentinel_state(state)
+
+        elif is_win:
             daily_counts["wins"] += 1
             sell_p = target_p
             pts_gain = round(sell_p - buy_p, 1)
@@ -894,6 +976,35 @@ def run_sentinel():
 🔗 <a href="https://delta-trading-journal-gmp.vercel.app/">Open Live Journal & Chart</a>"""
             send_telegram_message(bot_token, chat_id, msg)
             active_trade["outcome"] = "WIN"
+            active_trade["exitPrice"] = current_price
+            active_trade["optionSellPrice"] = sell_p
+            sync_trade_to_firestore(active_trade)
+
+            state["active_trade"] = None
+            state["daily_counts"] = daily_counts
+            save_sentinel_state(state)
+
+        elif is_be_win:
+            daily_counts["wins"] += 1
+            sell_p = round(buy_p * 1.25, 1) # 50% at +50%, 50% at Breakeven -> Net +25%
+            pts_gain = round(sell_p - buy_p, 1)
+
+            msg = f"""🛡️ <b>DELTA INDIA TRAILED STOP BREAKEVEN HIT (+25% NET GAIN)</b>
+━━━━━━━━━━━━━━━━━━━━━━
+🎯 <b>Result:</b> 🟢 <b>BE WIN (+25.0% Net Trailed Profit)</b>
+🏷️ <b>Contract:</b> <code>{contract}</code>
+💰 <b>Option Realization:</b> 50% booked at ${tp1_p:.1f} (+50%) + 50% at ${buy_p:.1f} (BE) ➔ <b>Net: ${sell_p:.1f} (+25.0%)</b>
+🎯 <b>BTC Spot:</b> Returned to entry ${entry:,.0f} after booking TP1
+
+📊 <b>TODAY'S SCORECARD:</b>
+• Total Given: <b>{daily_counts['trades_given']}</b>
+• Won: <b>{daily_counts['wins']}</b> | Lost: <b>{daily_counts['losses']}</b>
+• Win Rate: <b>{round((daily_counts['wins'] / max(1, daily_counts['wins'] + daily_counts['losses'])) * 100)}%</b>
+
+⚡ <i>Capital Protection in Action: Market reversed after initial impulse, but trailed stop locked in +25% net profit!</i>
+🔗 <a href="https://delta-trading-journal-gmp.vercel.app/">Open Live Journal & Chart</a>"""
+            send_telegram_message(bot_token, chat_id, msg)
+            active_trade["outcome"] = "BE_WIN"
             active_trade["exitPrice"] = current_price
             active_trade["optionSellPrice"] = sell_p
             sync_trade_to_firestore(active_trade)

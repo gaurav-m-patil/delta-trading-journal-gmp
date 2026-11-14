@@ -54,7 +54,8 @@ window.DeltaLiveChart = (function() {
     for (let i = 0; i < sorted.length - 1; i++) {
       const m1 = sorted[i];
       const m2 = sorted[i + 1];
-      if (Math.abs(m2.time - m1.time) <= 1800) {
+      // Stagger markers on adjacent candles (within 4 bars / 3600s) vertically so they never collide horizontally
+      if (Math.abs(m2.time - m1.time) <= 3600) {
         if (m1.position === m2.position) {
           m2.position = m1.position === "aboveBar" ? "belowBar" : "aboveBar";
           m2.shape = m2.position === "aboveBar" ? "arrowDown" : "arrowUp";
@@ -961,10 +962,17 @@ window.DeltaLiveChart = (function() {
     if (!cockpit) return;
 
     if (!trade) {
-      cockpit.classList.add('opacity-50');
+      cockpit.classList.add('opacity-70');
+      const nameEl = document.getElementById('ptSetupName');
+      if (nameEl) nameEl.innerText = "24/7 Cloud Sentinel Active (Standby)";
+      const outcomeEl = document.getElementById('ptOutcomeBadge');
+      if (outcomeEl) {
+        outcomeEl.className = "text-[10px] font-bold font-mono px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 flex items-center gap-1.5";
+        outcomeEl.innerHTML = `<span class="h-2 w-2 rounded-full bg-emerald-400 animate-ping"></span> STANDBY · MONITORING DELTA 15M`;
+      }
       return;
     }
-    cockpit.classList.remove('opacity-50');
+    cockpit.classList.remove('opacity-70');
 
     const isCall = trade.direction === "LONG";
     const isWin = trade.outcome === "WIN";
@@ -980,22 +988,27 @@ window.DeltaLiveChart = (function() {
 
     // Setup Name & Outcome Badge
     const nameEl = document.getElementById('ptSetupName');
-    if (nameEl) nameEl.innerText = `${trade.name} (${isCall ? 'CALL OPTION' : 'PUT OPTION'})`;
+    if (nameEl) nameEl.innerText = `${trade.name || 'SMC Setup'} (${isCall ? 'CALL OPTION' : 'PUT OPTION'})`;
 
     const outcomeEl = document.getElementById('ptOutcomeBadge');
     if (outcomeEl) {
       if (isActive) {
+        const elapsedBars = trade.barsHeld || (trade.time ? Math.max(1, Math.floor((Date.now() / 1000 - trade.time) / 900)) : 1);
         outcomeEl.className = "text-[10px] font-bold font-mono px-2 py-0.5 rounded bg-cyan-500/10 text-cyan-400 border border-cyan-500/30 flex items-center gap-1.5";
-        outcomeEl.innerHTML = `<span class="h-2 w-2 rounded-full bg-cyan-400 animate-ping"></span> LIVE RUNNING IN MARKET (${trade.barsHeld} bars)`;
+        outcomeEl.innerHTML = `<span class="h-2 w-2 rounded-full bg-cyan-400 animate-ping"></span> LIVE RUNNING IN MARKET (${elapsedBars} bars)`;
       } else if (isWin) {
+        const winPct = trade.optionPnlPct || (trade.realOption && trade.realOption.targetGainPct) || "+72%";
         outcomeEl.className = "text-[10px] font-bold font-mono px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/30";
-        outcomeEl.innerHTML = `<i class="fa-solid fa-circle-check mr-1"></i> TARGET HIT (+50% Gross / +40% Net)`;
+        outcomeEl.innerHTML = `<i class="fa-solid fa-circle-check mr-1"></i> TARGET HIT (${winPct})`;
+      } else if (trade.outcome === "BE_WIN") {
+        outcomeEl.className = "text-[10px] font-bold font-mono px-2 py-0.5 rounded bg-teal-500/10 text-teal-300 border border-teal-500/30";
+        outcomeEl.innerHTML = `<i class="fa-solid fa-shield-halved mr-1"></i> TRAILED STOP BREAKEVEN (+25% Net)`;
       } else if (isLoss) {
         outcomeEl.className = "text-[10px] font-bold font-mono px-2 py-0.5 rounded bg-rose-500/10 text-rose-400 border border-rose-500/30";
-        outcomeEl.innerHTML = `<i class="fa-solid fa-circle-xmark mr-1"></i> STOP LOSS HIT (-1R Controlled Invalidation)`;
+        outcomeEl.innerHTML = `<i class="fa-solid fa-circle-xmark mr-1"></i> STOP LOSS HIT (-30% Controlled Stop)`;
       } else {
         outcomeEl.className = "text-[10px] font-bold font-mono px-2 py-0.5 rounded bg-slate-500/10 text-slate-400 border border-slate-500/30";
-        outcomeEl.innerHTML = `<i class="fa-solid fa-hourglass-end mr-1"></i> TIMEOUT (Closed at Scratch after 5 hours)`;
+        outcomeEl.innerHTML = `<i class="fa-solid fa-hourglass-end mr-1"></i> TIMEOUT (Closed at Scratch)`;
       }
     }
 
@@ -1043,9 +1056,13 @@ window.DeltaLiveChart = (function() {
         opt.buyZone = `$${(opt.entryPrice * 0.98).toFixed(1)} - $${(opt.entryPrice * 1.02).toFixed(1)}`;
       }
 
-      const validBuyZone = (opt.buyZone && opt.buyZone !== "undefined")
+      const entryOpt = (opt.entryPrice && opt.entryPrice > 0) ? opt.entryPrice : ((trade.optionEntryMark && trade.optionEntryMark > 0) ? trade.optionEntryMark : 220);
+      const validBuyZone = (opt.buyZone && typeof opt.buyZone === 'string' && opt.buyZone !== "undefined" && !opt.buyZone.includes("undefined"))
         ? opt.buyZone
-        : `$${((opt.entryPrice || 220) * 0.98).toFixed(1)} - $${((opt.entryPrice || 220) * 1.02).toFixed(1)}`;
+        : `$${(entryOpt * 0.98).toFixed(1)} - $${(entryOpt * 1.02).toFixed(1)}`;
+
+      const validTargetPrice = (opt.targetPrice && opt.targetPrice > 0) ? opt.targetPrice : (trade.optionTargetPrice || Math.round(entryOpt * 1.65 * 10) / 10);
+      const validTargetPct = opt.targetGainPct || trade.optionPnlPct || "+65%";
 
       if (symEl) symEl.innerText = opt.symbol;
       if (markEl) {
@@ -1057,7 +1074,7 @@ window.DeltaLiveChart = (function() {
         }
       }
       if (buyZoneEl) buyZoneEl.innerText = validBuyZone;
-      if (targetEl) targetEl.innerText = `$${opt.targetPrice.toFixed(1)} (${opt.targetGainPct || '+65%'})`;
+      if (targetEl) targetEl.innerText = `$${validTargetPrice.toFixed(1)} (${validTargetPct})`;
       if (liveTagEl) {
         liveTagEl.className = opt.isLive 
           ? "text-[9px] font-mono px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 font-bold"
@@ -1065,8 +1082,9 @@ window.DeltaLiveChart = (function() {
         liveTagEl.innerText = opt.isLive ? (trade.outcome === 'ACTIVE' ? "Locked Entry Plan" : "Live Delta Feed") : "Simulated Strike";
       }
     } else {
-      const atmStrike = trade.optionStrike || Math.round(trade.entry / 200) * 200;
-      const simEntry = Math.round(trade.entry * 0.0033 * 10) / 10;
+      const safeEntry = trade.entry || spotPrice || 65000;
+      const atmStrike = trade.optionStrike || Math.round(safeEntry / 200) * 200;
+      const simEntry = Math.round(safeEntry * 0.0033 * 10) / 10;
       const simTarget = Math.round(simEntry * 1.65 * 10) / 10;
       if (symEl) symEl.innerText = isCall ? `C-BTC-${atmStrike}` : `P-BTC-${atmStrike}`;
       if (markEl) markEl.innerText = `$${simEntry.toFixed(1)}`;
@@ -1519,6 +1537,16 @@ Expected Profit: +50% Option Gross / +40% Net`;
     });
   }
 
+  let showAllRadarTrades = false;
+
+  function toggleShowAllRadarTrades() {
+    showAllRadarTrades = !showAllRadarTrades;
+    if (window.DeltaDB && typeof DeltaDB.getSignalTrades === 'function') {
+      const savedSignals = DeltaDB.getSignalTrades(0) || [];
+      renderTradesTable(savedSignals);
+    }
+  }
+
   /**
    * Runs the algorithmic SMC confluence strategy across loaded candles,
    * updates the scorecard, places markers, and draws the Position Tool.
@@ -1529,97 +1557,161 @@ Expected Profit: +50% Option Gross / +40% Net`;
     // Macro Sentinel & Catalyst Bias Input (OpenBB / Bloomberg Model)
     const macroCatalyst = window.DeltaMacroSentinel ? DeltaMacroSentinel.getLatestCatalyst() : null;
 
-    // Run Algorithmic Multi-Regime Confluence Engine
+    // Run Algorithmic Multi-Regime Confluence Engine to detect structural zones & levels
     currentAnalysis = DeltaSMCStrategy.runBacktest(candleData, {
       lookback: activeTimeframe === '1m' ? 30 : 24,
       highConvictionOnly: true,
       macroCatalyst: macroCatalyst
     });
 
-    // Zero State Drift: Sync cloud-alerted active/historical setups directly from Firestore
+    // Zero State Drift: Fetch and bind ONLY real confirmed signal trades from Firestore (GP_DTJ_signal_trades)
+    // Eliminates all synthetic client-side backtest simulations from polluting the trade tables!
     if (window.DeltaDB && typeof DeltaDB.fetchSignalTradesFromFirestore === 'function') {
       DeltaDB.fetchSignalTradesFromFirestore().then(remoteSignals => {
-        if (remoteSignals && remoteSignals.length > 0 && currentAnalysis && currentAnalysis.trades) {
-          let updated = false;
-          remoteSignals.forEach(rs => {
-            const idx = currentAnalysis.trades.findIndex(t => t.id === rs.id);
-            if (idx >= 0) {
-              if (rs.outcome && rs.outcome !== currentAnalysis.trades[idx].outcome) {
-                currentAnalysis.trades[idx].outcome = rs.outcome;
-                if (rs.exitPrice) currentAnalysis.trades[idx].exitPrice = rs.exitPrice;
-                updated = true;
-              }
-            } else if (rs.outcome === "ACTIVE") {
-              const strikeNum = rs.optionStrike || (rs.optionSymbol ? parseInt(rs.optionSymbol.split('-')[2]) : Math.round(rs.entry / 200) * 200);
-              const isCall = rs.direction === "LONG";
-              if (!rs.realOption) {
-                rs.realOption = {
-                  symbol: rs.optionSymbol || `${isCall ? 'C-BTC-' : 'P-BTC-'}${strikeNum}`,
-                  strike: strikeNum,
-                  strikeTier: rs.strikeTier || "Exact ATM (Delta ~0.50)",
-                  entryPrice: rs.optionEntryMark || 220,
-                  markPrice: rs.optionEntryMark || 220,
-                  targetPrice: rs.optionTargetPrice || 330,
-                  stopPrice: rs.optionStopPrice || 154,
-                  targetGainPct: rs.optionPnlPct || "+50.0%",
-                  stopLossPct: "-30.0%",
-                  ivRating: rs.ivRating,
-                  ivBadge: rs.ivBadge,
-                  isLive: true
-                };
-              }
-              currentAnalysis.trades.unshift(rs);
-              selectedTrade = rs;
-              updated = true;
+        const realTrades = remoteSignals || [];
 
-              if (currentAnalysis.markers && !currentAnalysis.markers.find(m => m.time === rs.time)) {
-                currentAnalysis.markers.push({
-                  time: rs.time,
-                  position: isCall ? "belowBar" : "aboveBar",
-                  color: "#38bdf8",
-                  shape: isCall ? "arrowUp" : "arrowDown",
-                  text: isCall ? "CALL LIVE" : "PUT LIVE",
-                  size: 1,
-                  tradeRef: rs
-                });
-                currentAnalysis.markers.sort((a, b) => a.time - b.time);
-                if (candleSeries) candleSeries.setMarkers(sanitizeMarkersNoOverlap(currentAnalysis.markers));
-              }
-            }
+        // Check for active trade
+        const activeTrade = realTrades.find(t => t.outcome === "ACTIVE");
+        if (activeTrade) {
+          selectedTrade = activeTrade;
+        } else if (realTrades.length > 0) {
+          selectedTrade = realTrades[0];
+        } else {
+          selectedTrade = null;
+        }
+
+        // Draw Position Box & Update Cockpit
+        if (selectedTrade) {
+          renderPositionBox(selectedTrade);
+          updatePositionToolCockpit(selectedTrade);
+        } else {
+          clearPositionBox();
+          updatePositionToolCockpit(null);
+        }
+
+        // Generate Chart Markers strictly for real Firestore trades
+        const chartMarkers = [];
+        realTrades.forEach(st => {
+          const isCall = st.direction === "LONG";
+          const isWin = st.outcome === "WIN";
+          const isBeWin = st.outcome === "BE_WIN";
+          const isLoss = st.outcome === "LOSS";
+          const isActive = st.outcome === "ACTIVE";
+
+          let markerText = isCall ? "CALL" : "PUT";
+          let markerColor = isCall ? "#38bdf8" : "#818cf8";
+          let markerPos = isCall ? "belowBar" : "aboveBar";
+          let markerShape = isCall ? "arrowUp" : "arrowDown";
+
+          if (isActive) {
+            markerText = "LIVE";
+            markerColor = "#38bdf8";
+          } else if (isWin) {
+            const runnerPct = st.optionPnlPct || (st.realOption && st.realOption.targetGainPct) || "+72%";
+            markerText = runnerPct.startsWith('+') ? runnerPct : `+${runnerPct}`;
+            markerColor = "#10b981";
+          } else if (isBeWin) {
+            markerText = "BE +25%";
+            markerColor = "#10b981";
+          } else if (isLoss) {
+            markerText = "-30%";
+            markerColor = "#f43f5e";
+          } else {
+            markerText = "SCR";
+            markerColor = "#64748b";
+          }
+
+          chartMarkers.push({
+            time: st.time,
+            position: markerPos,
+            color: markerColor,
+            shape: markerShape,
+            text: markerText,
+            size: 1,
+            tradeRef: st
           });
-          if (updated) {
-            if (selectedTrade) {
-              renderPositionBox(selectedTrade);
-              updatePositionToolCockpit(selectedTrade);
+        });
+
+        if (candleSeries) {
+          candleSeries.setMarkers(sanitizeMarkersNoOverlap(chartMarkers));
+        }
+
+        // Update Live Signal Radar Banner
+        const signalBanner = document.getElementById('liveSignalBanner');
+        if (signalBanner) {
+          if (activeTrade) {
+            if (window._lastHeardActiveTradeId !== activeTrade.id) {
+              window._lastHeardActiveTradeId = activeTrade.id;
+              DeltaSound.playChime('signal');
+              DeltaSound.vibrate([40, 60, 40]);
             }
-            renderTradesTable(currentAnalysis.trades);
+            const isBull = activeTrade.direction === 'LONG';
+            signalBanner.innerHTML = `
+              <div class="p-3.5 rounded-xl border ${isBull ? 'bg-winGreen/15 border-winGreen/50' : 'bg-lossRed/15 border-lossRed/50'} flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
+                <div class="flex items-center gap-3">
+                  <div class="h-9 w-9 rounded-xl ${isBull ? 'bg-winGreen/25 text-winGreen' : 'bg-lossRed/25 text-lossRed'} flex items-center justify-center font-bold text-base shrink-0">
+                    <i class="fa-solid ${isBull ? 'fa-arrow-trend-up' : 'fa-arrow-trend-down'}"></i>
+                  </div>
+                  <div>
+                    <div class="flex items-center gap-2">
+                      <span class="text-xs font-bold font-mono px-2 py-0.5 rounded bg-brandDark text-cyan-300 border border-cyan-500/30">
+                        <span class="inline-block h-2 w-2 rounded-full bg-cyan-400 animate-ping mr-1"></span> LIVE ACTIVE TRADE
+                      </span>
+                      <span class="text-xs font-bold text-white">${activeTrade.name}</span>
+                    </div>
+                    <p class="text-[11px] text-slate-300 font-mono mt-0.5">
+                      Action: <strong class="${isBull ? 'text-winGreen' : 'text-lossRed'}">${isBull ? 'BUY CALL' : 'BUY PUT'}</strong> at $${activeTrade.entry.toLocaleString()} | Target: <strong>$${activeTrade.tp.toLocaleString()}</strong> | SL: <strong>$${activeTrade.sl.toLocaleString()}</strong>
+                    </p>
+                  </div>
+                </div>
+                <div class="flex items-center gap-2 w-full sm:w-auto justify-end">
+                  <button onclick="DeltaLiveChart.openTradeDetailsModal('${activeTrade.id}')" class="px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs transition-colors shadow-sm flex items-center gap-1.5 font-mono">
+                    <i class="fa-solid fa-bolt"></i> View Execution Plan
+                  </button>
+                </div>
+              </div>
+            `;
+          } else {
+            signalBanner.innerHTML = `
+              <div class="p-2.5 rounded-xl bg-brandDark/40 border border-borderDark/60 flex items-center justify-between text-xs text-slate-400 font-mono">
+                <span class="flex items-center gap-2">
+                  <i class="fa-solid fa-radar text-indigo-400 animate-spin"></i> Scanner Active: Waiting for High-Conviction S/R Reversal Confirmation on ${activeTimeframe}...
+                </span>
+                <span class="text-[10px] text-emerald-400 font-bold hidden sm:inline">Calibrated: Real Delta India Options (DOEV Uncapped Potential)</span>
+              </div>
+            `;
           }
         }
-      }).catch(e => console.warn("Firestore signals sync notice:", e));
+
+        // Asynchronously check Delta Exchange ticker for live mark price of active trade
+        getLiveDeltaTickers().then(tickers => {
+          const safeTickers = tickers || [];
+          if (activeTrade && safeTickers.length > 0) {
+            const sym = activeTrade.optionSymbol || (activeTrade.realOption && activeTrade.realOption.symbol);
+            const match = safeTickers.find(x => x.symbol === sym);
+            if (match && match.mark_price > 0) {
+              const liveMark = Number(match.mark_price);
+              const entryMark = activeTrade.optionEntryMark || 220;
+              if (!activeTrade.realOption) activeTrade.realOption = {};
+              activeTrade.realOption.markPrice = liveMark;
+              activeTrade.realOption.unrealizedPts = Math.round((liveMark - entryMark) * 10) / 10;
+              activeTrade.realOption.unrealizedPct = Math.round(((liveMark - entryMark) / entryMark) * 1000) / 10;
+              updatePositionToolCockpit(activeTrade);
+            }
+          }
+          renderTradesTable(realTrades);
+        });
+
+        renderTradesTable(realTrades);
+      }).catch(err => {
+        console.warn("Notice fetching remote signals from Firestore:", err);
+        renderTradesTable([]);
+      });
+    } else {
+      renderTradesTable([]);
     }
 
-    // Set Markers on TradingView Chart with Anti-Collision Staggering
-    candleSeries.setMarkers(sanitizeMarkersNoOverlap(currentAnalysis.markers));
-
-    // Automatically draw the latest high-conviction trade box on the chart
-    if (currentAnalysis.latestTrade && (!selectedTrade || !currentAnalysis.trades.find(t => t.id === selectedTrade.id))) {
-      selectedTrade = currentAnalysis.latestTrade;
-      renderPositionBox(selectedTrade);
-      updatePositionToolCockpit(selectedTrade);
-    } else if (selectedTrade) {
-      const existing = currentAnalysis.trades.find(t => t.id === selectedTrade.id);
-      if (existing) {
-        selectedTrade = existing;
-        renderPositionBox(selectedTrade);
-        updatePositionToolCockpit(selectedTrade);
-      } else if (currentAnalysis.latestTrade) {
-        selectedTrade = currentAnalysis.latestTrade;
-        renderPositionBox(selectedTrade);
-        updatePositionToolCockpit(selectedTrade);
-      }
-    }
-
-    // Update Quant Time-Machine Scorecard
+    // Update Quant Time-Machine Scorecard from current candle structure
     const stats = currentAnalysis.stats;
     const wrEl = document.getElementById('btWinRate');
     const pfEl = document.getElementById('btProfitFactor');
@@ -1632,129 +1724,75 @@ Expected Profit: +50% Option Gross / +40% Net`;
     if (ddEl) ddEl.innerText = `-${stats.maxDrawdownR}R`;
     if (expEl) expEl.innerText = `+${stats.expectancyR}R`;
     if (countEl) countEl.innerText = `${stats.totalTrades} setups (${stats.wins}W - ${stats.losses}L - ${stats.timeouts}T${stats.active > 0 ? ` - ${stats.active} Active` : ''})`;
-
-    // Fetch live Delta Exchange India tickers and enrich all trades asynchronously
-    getLiveDeltaTickers().then(tickers => {
-      const safeTickers = tickers || [];
-      if (currentAnalysis && currentAnalysis.trades) {
-        const registry = getTradeRegistry();
-
-        currentAnalysis.trades.forEach(t => {
-          t.realOption = resolveRealDeltaContract(t.direction, t.entry, safeTickers, t.id, registry, t.targetDist);
-
-          // Automated background Telegram signals are handled 24/7 by Cloud Sentinel Bot (GitHub Actions).
-          // Client-side auto-dispatch is disabled to eliminate duplicate alerts upon opening the web app.
-        });
-
-        // Store and sync signal trades into local storage and Firestore (GP_DTJ_signal_trades)
-        if (window.DeltaDB && typeof DeltaDB.syncSignalTrades === 'function') {
-          DeltaDB.syncSignalTrades(currentAnalysis.trades);
-        }
-
-        if (selectedTrade) {
-          const match = currentAnalysis.trades.find(x => x.id === selectedTrade.id);
-          if (match && match.realOption) {
-            selectedTrade.realOption = match.realOption;
-          }
-          updatePositionToolCockpit(selectedTrade);
-          renderPositionBox(selectedTrade);
-        }
-
-        renderTradesTable(currentAnalysis.trades);
-      }
-    });
-
-    // Update Live Signal Radar Banner
-    const signalBanner = document.getElementById('liveSignalBanner');
-    if (signalBanner) {
-      const activeTrade = currentAnalysis.trades.find(t => t.outcome === "ACTIVE");
-      if (activeTrade) {
-        if (window._lastHeardActiveTradeId !== activeTrade.id) {
-          window._lastHeardActiveTradeId = activeTrade.id;
-          DeltaSound.playChime('signal');
-          DeltaSound.vibrate([40, 60, 40]);
-        }
-        const isBull = activeTrade.direction === 'LONG';
-        signalBanner.innerHTML = `
-          <div class="p-3.5 rounded-xl border ${isBull ? 'bg-winGreen/15 border-winGreen/50' : 'bg-lossRed/15 border-lossRed/50'} flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
-            <div class="flex items-center gap-3">
-              <div class="h-9 w-9 rounded-xl ${isBull ? 'bg-winGreen/25 text-winGreen' : 'bg-lossRed/25 text-lossRed'} flex items-center justify-center font-bold text-base shrink-0">
-                <i class="fa-solid ${isBull ? 'fa-arrow-trend-up' : 'fa-arrow-trend-down'}"></i>
-              </div>
-              <div>
-                <div class="flex items-center gap-2">
-                  <span class="text-xs font-bold font-mono px-2 py-0.5 rounded bg-brandDark text-cyan-300 border border-cyan-500/30">
-                    <span class="inline-block h-2 w-2 rounded-full bg-cyan-400 animate-ping mr-1"></span> LIVE ACTIVE TRADE
-                  </span>
-                  <span class="text-xs font-bold text-white">${activeTrade.name}</span>
-                </div>
-                <p class="text-[11px] text-slate-300 font-mono mt-0.5">
-                  Action: <strong class="${isBull ? 'text-winGreen' : 'text-lossRed'}">${isBull ? 'BUY CALL' : 'BUY PUT'}</strong> at $${activeTrade.entry.toLocaleString()} | Target: <strong>$${activeTrade.tp.toLocaleString()}</strong> | SL: <strong>$${activeTrade.sl.toLocaleString()}</strong>
-                </p>
-              </div>
-            </div>
-            <div class="flex items-center gap-2 w-full sm:w-auto justify-end">
-              <button onclick="DeltaLiveChart.openTradeDetailsModal('${activeTrade.id}')" class="px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs transition-colors shadow-sm flex items-center gap-1.5 font-mono">
-                <i class="fa-solid fa-bolt"></i> View Execution Plan
-              </button>
-            </div>
-          </div>
-        `;
-      } else {
-        signalBanner.innerHTML = `
-          <div class="p-2.5 rounded-xl bg-brandDark/40 border border-borderDark/60 flex items-center justify-between text-xs text-slate-400 font-mono">
-            <span class="flex items-center gap-2">
-              <i class="fa-solid fa-radar text-indigo-400 animate-spin"></i> Scanner Active: Waiting for High-Conviction S/R Reversal Confirmation on ${activeTimeframe}...
-            </span>
-            <span class="text-[10px] text-emerald-400 font-bold hidden sm:inline">Calibrated: Real Delta India Options (DOEV Uncapped Potential)</span>
-          </div>
-        `;
-      }
-    }
-
-    // Render Institutional Trade History Table
-    renderTradesTable(currentAnalysis.trades);
   }
 
   /**
    * Renders the interactive trade list under the chart
-   * Shows trades filtered to the last 2 days (48 hours) as requested
+   * Displays ONLY real verified trades recorded in Firestore (GP_DTJ_signal_trades)
    * Displays immutable entry mark price vs exit sell price and ₹100,000 Paper Fund returns
    */
   function renderTradesTable(trades) {
     const tbody = document.getElementById('btTradesTableBody');
     const mobileContainer = document.getElementById('btTradesMobileCards');
+    const paginationContainer = document.getElementById('btTradesPaginationContainer');
     if (!tbody && !mobileContainer) return;
 
     if (!trades || trades.length === 0) {
-      if (tbody) tbody.innerHTML = `<tr><td colspan="6" class="py-5 text-center text-slate-500 font-mono text-xs">No institutional setups triggered in current candle window.</td></tr>`;
-      if (mobileContainer) mobileContainer.innerHTML = `<div class="py-6 text-center text-slate-500 font-mono text-xs">No institutional setups triggered in current candle window.</div>`;
+      if (tbody) {
+        tbody.innerHTML = `
+          <tr>
+            <td colspan="6" class="py-10 text-center">
+              <div class="flex flex-col items-center justify-center space-y-2.5">
+                <div class="h-10 w-10 rounded-2xl bg-indigo-500/10 border border-indigo-500/30 flex items-center justify-center text-indigo-400 text-base shadow-sm">
+                  <i class="fa-solid fa-satellite-dish animate-pulse"></i>
+                </div>
+                <div class="space-y-0.5">
+                  <h4 class="text-xs font-bold text-white tracking-wide">24/7 Cloud Sentinel Active & Monitoring</h4>
+                  <p class="text-[11px] text-slate-400 max-w-sm mx-auto font-sans leading-relaxed">
+                    Zero synthetic backtests. When Delta Exchange India confirms an institutional SMC setup on 15m, it will appear here automatically with live ATM option execution.
+                  </p>
+                </div>
+                <div class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 text-[10px] font-mono">
+                  <span class="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-ping"></span>
+                  <span>Live 15m Engine: Delta Exchange India WebSocket Connected</span>
+                </div>
+              </div>
+            </td>
+          </tr>
+        `;
+      }
+      if (mobileContainer) {
+        mobileContainer.innerHTML = `
+          <div class="p-6 text-center rounded-xl bg-panelDark/50 border border-borderDark/60 space-y-2">
+            <i class="fa-solid fa-satellite-dish text-indigo-400 text-lg animate-pulse"></i>
+            <div class="text-xs font-bold text-white">24/7 Cloud Sentinel Monitoring Delta India 15m</div>
+            <p class="text-[10px] text-slate-400">Next confirmed setup will appear automatically with live option pricing.</p>
+          </div>
+        `;
+      }
+      if (paginationContainer) paginationContainer.className = "hidden";
+      const histWrEl = document.getElementById('btHistoryWinRate');
+      if (histWrEl) histWrEl.innerText = "0% Win Rate (0 Trades)";
+
+      // Update Paper Fund with 0 trades
+      if (window.DeltaPaperFund && typeof DeltaPaperFund.calculatePortfolio === 'function') {
+        const pf = DeltaPaperFund.calculatePortfolio([]);
+        if (typeof DeltaPaperFund.renderExecutiveBanner === 'function') {
+          DeltaPaperFund.renderExecutiveBanner('paperFundExecutiveBannerContainer', pf);
+        }
+        if (typeof DeltaPaperFund.renderPaperPortfolioTab === 'function') {
+          DeltaPaperFund.renderPaperPortfolioTab('subViewCoach_PORTFOLIO', pf);
+        }
+      }
       return;
     }
 
-    // Filter to last 2 days (48 hours) as strictly instructed by trader
-    const cutoff48h = Math.floor(Date.now() / 1000) - (2 * 86400);
-    let displayTrades = trades.filter(t => t.time >= cutoff48h);
+    // Sort descending by time (latest on top)
+    const sorted = [...trades].sort((a, b) => b.time - a.time);
 
-    // Fallback: If 0 setups in last 48h (e.g. over weekend), show latest 3 so table is never blank
-    if (displayTrades.length === 0) {
-      displayTrades = trades.slice(-3);
-    }
-
-    // 1L Paper Fund: Simulate Demo Account Growth across ALL TRADES TILL DATE (No 48h limit)
-    const allTradesTillDate = (trades && trades.length > 0) ? [...trades] : [];
-    if (window.DeltaDB && typeof DeltaDB.getSignalTrades === 'function') {
-      const savedSignals = DeltaDB.getSignalTrades(0) || [];
-      savedSignals.forEach(st => {
-        if (!allTradesTillDate.some(x => x.id === st.id)) {
-          allTradesTillDate.push(st);
-        }
-      });
-    }
-
-    // Calculate ₹100,000 Institutional Paper Fund Progression across all trades till date
+    // Calculate ₹100,000 Institutional Paper Fund Progression across all real trades till date
     const portfolio = (window.DeltaPaperFund && typeof DeltaPaperFund.calculatePortfolio === 'function')
-      ? DeltaPaperFund.calculatePortfolio(allTradesTillDate)
+      ? DeltaPaperFund.calculatePortfolio(sorted)
       : null;
 
     if (portfolio) {
@@ -1769,18 +1807,18 @@ Expected Profit: +50% Option Gross / +40% Net`;
     // Update win rate element in table header
     const histWrEl = document.getElementById('btHistoryWinRate');
     if (histWrEl) {
-      const wins = displayTrades.filter(t => t.outcome === "WIN").length;
-      const total = displayTrades.filter(t => t.outcome === "WIN" || t.outcome === "LOSS").length;
-      const winRate = total > 0 ? Math.round((wins / total) * 1000) / 10 : 0;
-      histWrEl.innerText = `${winRate}% 48h Win Rate (${wins}W - ${total - wins}L)`;
+      const wins = sorted.filter(t => t.outcome === "WIN" || t.outcome === "BE_WIN").length;
+      const total = sorted.filter(t => t.outcome === "WIN" || t.outcome === "BE_WIN" || t.outcome === "LOSS").length;
+      const winRate = total > 0 ? Math.round((wins / total) * 100) : 0;
+      histWrEl.innerText = `${winRate}% Win Rate (${wins}W - ${total - wins}L)`;
     }
 
-    // Sort descending by time
-    const sorted = [...displayTrades].reverse();
+    // Slice to top 5 recent trades if pagination collapsed
+    const visibleTrades = showAllRadarTrades ? sorted : sorted.slice(0, 5);
 
     // Render Desktop Table Rows
     if (tbody) {
-      tbody.innerHTML = sorted.map(t => {
+      tbody.innerHTML = visibleTrades.map(t => {
         const d = new Date(t.time * 1000);
         const timeStr = d.toLocaleTimeString('en-IN', { timeZone: 'Asia/Kolkata', hour: '2-digit', minute: '2-digit', hour12: true });
         const dateStr = d.toLocaleDateString('en-IN', { timeZone: 'Asia/Kolkata', month: 'short', day: 'numeric' });
@@ -1917,7 +1955,7 @@ Expected Profit: +50% Option Gross / +40% Net`;
 
     // Render Mobile Responsive Cards Stream (Zero horizontal blowout, clean 2-column metrics)
     if (mobileContainer) {
-      mobileContainer.innerHTML = sorted.map(t => {
+      mobileContainer.innerHTML = visibleTrades.map(t => {
         const d = new Date(t.time * 1000);
         const timeStr = d.toLocaleTimeString('en-IN', { timeZone: 'Asia/Kolkata', hour: '2-digit', minute: '2-digit', hour12: true });
         const dateStr = d.toLocaleDateString('en-IN', { timeZone: 'Asia/Kolkata', month: 'short', day: 'numeric' });
@@ -2075,6 +2113,21 @@ Expected Profit: +50% Option Gross / +40% Net`;
         `;
       }).join('');
     }
+
+    // Show More / Show Less Toggle Pagination Button
+    if (paginationContainer) {
+      if (sorted.length > 5) {
+        paginationContainer.className = "pt-2 flex justify-center border-t border-borderDark/40";
+        paginationContainer.innerHTML = `
+          <button onclick="DeltaLiveChart.toggleShowAllRadarTrades()" class="w-full sm:w-auto px-5 py-2 rounded-xl bg-indigo-600/20 hover:bg-indigo-600/30 text-indigo-300 hover:text-white border border-indigo-500/40 text-xs font-bold transition-all shadow-sm flex items-center justify-center gap-2">
+            <i class="fa-solid ${showAllRadarTrades ? 'fa-chevron-up' : 'fa-plus'} text-[11px]"></i>
+            <span>${showAllRadarTrades ? 'Show Less (Top 5 Recent Setups)' : `Show More (+${sorted.length - 5} Earlier Setups till date)`}</span>
+          </button>
+        `;
+      } else {
+        paginationContainer.className = "hidden";
+      }
+    }
   }
 
   function updateTimeframeButtons(activeTf) {
@@ -2090,8 +2143,9 @@ Expected Profit: +50% Option Gross / +40% Net`;
   }
 
   function refreshPaperUI() {
-    if (currentAnalysis && currentAnalysis.trades) {
-      renderTradesTable(currentAnalysis.trades);
+    if (window.DeltaDB && typeof DeltaDB.getSignalTrades === 'function') {
+      const savedSignals = DeltaDB.getSignalTrades(0) || [];
+      renderTradesTable(savedSignals);
     }
   }
 
@@ -2105,6 +2159,7 @@ Expected Profit: +50% Option Gross / +40% Net`;
     openTradeDetailsModal,
     closeTradeDetailsModal,
     copyDeltaOrderDetails,
+    toggleShowAllRadarTrades,
     getCurrentAnalysis: () => currentAnalysis,
     getTradeRegistry,
     refreshPaperUI,

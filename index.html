@@ -883,10 +883,10 @@
             <div class="flex items-center gap-1.5">
               <i class="fa-solid fa-list-check text-indigo-400 text-xs"></i>
               <span class="text-xs font-bold text-white">
-                Institutional Trade History (Last 48 Hours • Click to project)
+                Institutional Trade History (Till Date • Click to project)
               </span>
             </div>
-            <span id="btHistoryWinRate" class="text-[10px] text-emerald-400 font-mono font-bold">--% 48h Win Rate</span>
+            <span id="btHistoryWinRate" class="text-[10px] text-emerald-400 font-mono font-bold">--% Win Rate</span>
           </div>
 
           <!-- Mobile Trades Card Stream (Shown on < md) -->
@@ -895,7 +895,7 @@
           </div>
 
           <!-- Desktop Trades Table (Shown on md:) -->
-          <div class="hidden md:block w-full max-h-[300px] overflow-y-auto overscroll-contain overflow-x-hidden pr-1 custom-scroll">
+          <div class="hidden md:block w-full max-h-[340px] overflow-y-auto overscroll-contain overflow-x-hidden pr-1 custom-scroll">
             <table class="w-full text-left text-xs font-mono table-fixed">
               <thead>
                 <tr class="text-[10px] text-slate-400 uppercase border-b border-borderDark/80">
@@ -912,6 +912,9 @@
               </tbody>
             </table>
           </div>
+
+          <!-- Show More / Show Less Pagination Toggle (5 Default) -->
+          <div id="btTradesPaginationContainer" class="hidden pt-2 flex justify-center border-t border-borderDark/40"></div>
         </div>
       </div>
 
