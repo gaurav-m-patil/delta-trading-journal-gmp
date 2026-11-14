@@ -347,12 +347,13 @@ window.DeltaDB = (function() {
   // 5. DATABASE INITIALIZATION & CONTINUOUS HYDRATION
   // -------------------------------------------------------------
   async function init() {
-    // Automatic Schema & Stale Signal Purge (v3.5.5 Clean Slate Reset)
+    // Automatic Schema & Stale Signal Purge (v3.5.7 Clean Slate Reset)
     const SCHEMA_VERSION_KEY = 'dtj_schema_version';
-    const CURRENT_SCHEMA_VER = '3.5.5';
+    const CURRENT_SCHEMA_VER = '3.5.7';
     if (localStorage.getItem(SCHEMA_VERSION_KEY) !== CURRENT_SCHEMA_VER) {
-      console.log("[DeltaDB] Purging legacy test records and resetting registries for v3.5.5...");
+      console.log("[DeltaDB] Purging legacy test records and resetting registries for v3.5.7...");
       localStorage.removeItem('dtj_signal_trades_v1');
+      localStorage.removeItem('GP_DTJ_signal_registry');
       localStorage.removeItem('dtj_options_trade_registry_v3');
       localStorage.removeItem('dtj_options_trade_registry_v2');
       localStorage.removeItem('dtj_locked_active_plan');
@@ -360,6 +361,8 @@ window.DeltaDB = (function() {
       localStorage.removeItem('dtj_paper_custom_capital_v1');
       localStorage.removeItem('dtj_paper_risk_model_v1');
       localStorage.removeItem('dtj_paper_portfolio_v2');
+      localStorage.removeItem('dtj_paper_custom_capital');
+      localStorage.removeItem('dtj_paper_risk_model');
       localStorage.setItem(SCHEMA_VERSION_KEY, CURRENT_SCHEMA_VER);
     }
 
@@ -883,6 +886,39 @@ window.DeltaDB = (function() {
     }
   }
 
+  function clearAllSignalTrades() {
+    try {
+      localStorage.removeItem(SIGNAL_STORAGE_KEY);
+      localStorage.removeItem('dtj_signal_trades_v1');
+      localStorage.removeItem('GP_DTJ_signal_registry');
+      localStorage.removeItem('dtj_options_trade_registry_v3');
+      localStorage.removeItem('dtj_options_trade_registry_v2');
+      localStorage.removeItem('dtj_locked_active_plan');
+      localStorage.removeItem('dtj_last_alerted_trade_id');
+      localStorage.removeItem('dtj_paper_custom_capital_v1');
+      localStorage.removeItem('dtj_paper_risk_model_v1');
+      localStorage.removeItem('dtj_paper_portfolio_v2');
+      localStorage.removeItem('dtj_paper_custom_capital');
+      localStorage.removeItem('dtj_paper_risk_model');
+
+      const config = getFirebaseConfig();
+      if (!firestoreDb) initFirebase(config);
+      if (firestoreDb) {
+        const col = DeltaConfig.FIRESTORE_COLLECTIONS.SIGNALS || "GP_DTJ_signal_trades";
+        firestoreDb.collection(col).get().then(snapshot => {
+          snapshot.forEach(doc => {
+            doc.ref.delete().catch(() => {});
+          });
+          console.log("[DeltaDB] Purged remote Firestore signal documents.");
+        }).catch(err => {
+          console.warn("[DeltaDB] Firestore wipe notice:", err);
+        });
+      }
+    } catch (e) {
+      console.warn("[DeltaDB] clearAllSignalTrades notice:", e);
+    }
+  }
+
   return {
     init,
     syncFromRawData,
@@ -898,6 +934,7 @@ window.DeltaDB = (function() {
     syncSignalTrades,
     getSignalTrades,
     fetchSignalTradesFromFirestore,
+    clearAllSignalTrades,
     exportJSONBackup,
     exportCSV,
     addListener,

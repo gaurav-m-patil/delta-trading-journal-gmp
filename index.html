@@ -157,6 +157,22 @@
           </button>
         </div>
 
+        <!-- Reset & Cache Purge Tool -->
+        <div class="p-3 bg-brandDark/80 border border-rose-500/30 rounded-xl space-y-2">
+          <div class="flex justify-between items-center">
+            <span class="text-[10px] font-semibold uppercase tracking-wider text-rose-400 flex items-center gap-1.5">
+              <i class="fa-solid fa-broom"></i> Cache & Fresh Start Reset
+            </span>
+            <span class="text-[9px] px-1.5 py-0.5 rounded bg-rose-500/10 text-rose-400 font-mono">v3.5.7</span>
+          </div>
+          <p class="text-[10px] text-slate-400 font-sans leading-relaxed">
+            Purges all local trade caches, wipes simulated demo execution records, clears Service Worker PWA cache, and forces an immediate clean re-fetch from Firebase.
+          </p>
+          <button id="btnClearCacheRefetch" onclick="DeltaApp.clearCacheAndRefetch()" class="w-full bg-rose-500/15 hover:bg-rose-500/25 text-rose-300 hover:text-white border border-rose-500/40 text-xs font-bold py-2 rounded-lg transition-colors flex items-center justify-center gap-1.5 shadow-sm font-mono">
+            <i class="fa-solid fa-trash-can"></i> Clear Cache, Reset All Trades & Re-fetch
+          </button>
+        </div>
+
         <!-- Backups & Exports -->
         <div class="flex gap-2">
           <button onclick="DeltaDB.exportJSONBackup()" class="flex-1 bg-panelDark hover:bg-borderDark border border-borderDark text-slate-200 text-xs py-2 rounded-xl transition-colors">
@@ -1390,20 +1406,20 @@
   </nav>
 
   <!-- Application Script Pipeline -->
-  <script src="vendor/lightweight-charts.js?v=3.5.6"></script>
-  <script src="js/config.js?v=3.5.6"></script>
-  <script src="js/smc-strategy.js?v=3.5.6"></script>
-  <script src="js/macro-sentinel.js?v=3.5.6"></script>
-  <script src="js/paper-fund.js?v=3.5.6"></script>
-  <script src="js/chart-engine.js?v=3.5.6"></script>
-  <script src="js/db.js?v=3.5.6"></script>
-  <script src="js/quant.js?v=3.5.6"></script>
-  <script src="js/coach.js?v=3.5.6"></script>
-  <script src="js/planner.js?v=3.5.6"></script>
-  <script src="js/app.js?v=3.5.6"></script>
+  <script src="vendor/lightweight-charts.js?v=3.5.7"></script>
+  <script src="js/config.js?v=3.5.7"></script>
+  <script src="js/smc-strategy.js?v=3.5.7"></script>
+  <script src="js/macro-sentinel.js?v=3.5.7"></script>
+  <script src="js/paper-fund.js?v=3.5.7"></script>
+  <script src="js/chart-engine.js?v=3.5.7"></script>
+  <script src="js/db.js?v=3.5.7"></script>
+  <script src="js/quant.js?v=3.5.7"></script>
+  <script src="js/coach.js?v=3.5.7"></script>
+  <script src="js/planner.js?v=3.5.7"></script>
+  <script src="js/app.js?v=3.5.7"></script>
   <script>
     if ('serviceWorker' in navigator) {
-      navigator.serviceWorker.register('sw.js?v=3.5.6').then(function(reg) {
+      navigator.serviceWorker.register('sw.js?v=3.5.7').then(function(reg) {
         reg.update();
       });
     }

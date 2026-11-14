@@ -1836,6 +1836,51 @@ window.DeltaApp = (function() {
     alert("Settings saved locally!");
   }
 
+  async function clearCacheAndRefetch() {
+    if (!confirm("Start completely fresh? This will purge all locally cached signal trades, reset the Paper Fund ledger back to ₹100,000, clear PWA caches, and reload the app.")) return;
+    
+    try {
+      // 1. Wipe local DB and trade storage
+      if (window.DeltaDB && typeof DeltaDB.clearAllSignalTrades === 'function') {
+        DeltaDB.clearAllSignalTrades();
+      }
+      
+      // 2. Clear known localStorage keys
+      const keysToPurge = [
+        'dtj_signal_trades_v1',
+        'GP_DTJ_signal_registry',
+        'dtj_options_trade_registry_v3',
+        'dtj_options_trade_registry_v2',
+        'dtj_locked_active_plan',
+        'dtj_last_alerted_trade_id',
+        'dtj_paper_custom_capital_v1',
+        'dtj_paper_risk_model_v1',
+        'dtj_paper_portfolio_v2',
+        'dtj_paper_custom_capital',
+        'dtj_paper_risk_model'
+      ];
+      keysToPurge.forEach(k => localStorage.removeItem(k));
+      localStorage.setItem('dtj_schema_version', '3.5.7');
+
+      // 3. Clear Service Worker Cache Storage
+      if ('caches' in window) {
+        const keys = await caches.keys();
+        await Promise.all(keys.map(k => caches.delete(k)));
+      }
+
+      // 4. Reset chart engine state
+      if (window.DeltaLiveChart && typeof DeltaLiveChart.clearTradeState === 'function') {
+        DeltaLiveChart.clearTradeState();
+      }
+
+      // 5. Force hard refresh
+      window.location.reload(true);
+    } catch (err) {
+      console.warn("Notice during cache clear:", err);
+      window.location.reload();
+    }
+  }
+
   async function triggerFirebaseSync() {
     const btn = document.getElementById('btnSyncFirestore');
     if (btn) {
@@ -2023,6 +2068,7 @@ window.DeltaApp = (function() {
     triggerCoachGeneration,
     toggleGhSettings,
     saveAppSettings,
+    clearCacheAndRefetch,
     triggerFirebaseSync,
     triggerGitHubWorkflow,
     forceSyncFromRawData,

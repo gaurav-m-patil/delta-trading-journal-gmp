@@ -2332,6 +2332,13 @@ Expected Profit: +50% Option Gross / +40% Net`;
     }
   }
 
+  function clearTradeState() {
+    selectedTrade = null;
+    clearPositionBox();
+    updatePositionToolCockpit(null);
+    renderTradesTable([]);
+  }
+
   return {
     initChart,
     loadTimeframe,
@@ -2339,6 +2346,7 @@ Expected Profit: +50% Option Gross / +40% Net`;
     selectTrade,
     showLatestTrade,
     clearLinesAndReset,
+    clearTradeState,
     openTradeDetailsModal,
     closeTradeDetailsModal,
     copyDeltaOrderDetails,

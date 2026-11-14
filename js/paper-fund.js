@@ -28,8 +28,11 @@ window.DeltaPaperFund = (function() {
   function resetPortfolio() {
     localStorage.setItem(STORAGE_KEY_CUSTOM_CAPITAL, DEFAULT_CAPITAL.toString());
     localStorage.setItem(STORAGE_KEY_RISK_MODEL, 'BALANCED');
-    if (window.DeltaLiveChart && typeof DeltaLiveChart.refreshPaperUI === 'function') {
-      DeltaLiveChart.refreshPaperUI();
+    if (window.DeltaDB && typeof DeltaDB.clearAllSignalTrades === 'function') {
+      DeltaDB.clearAllSignalTrades();
+    }
+    if (window.DeltaLiveChart && typeof DeltaLiveChart.clearTradeState === 'function') {
+      DeltaLiveChart.clearTradeState();
     }
   }
 
