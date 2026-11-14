@@ -201,10 +201,8 @@ window.DeltaMacroSentinel = (function() {
     lastScanTime = Date.now();
     isScanning = false;
 
-    // Check if newest high-impact catalyst should be sent to Telegram
-    if (currentCatalysts.length > 0) {
-      checkAndSendTelegramNews(currentCatalysts[0]);
-    }
+    // Automated background news alerts are handled 24/7 by Cloud Sentinel Bot (GitHub Actions).
+    // Client-side auto-dispatch is disabled to eliminate duplicate alerts upon opening the web app.
 
     renderMacroBanner();
     return currentCatalysts;

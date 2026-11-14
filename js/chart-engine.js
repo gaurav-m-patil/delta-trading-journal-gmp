@@ -1363,18 +1363,8 @@ Expected Profit: +50% Option Gross / +40% Net`;
         currentAnalysis.trades.forEach(t => {
           t.realOption = resolveRealDeltaContract(t.direction, t.entry, safeTickers, t.id, registry, t.targetDist);
 
-          // If active trade, lock its real Delta India execution plan and trigger Telegram Alert
-          if (t.outcome === "ACTIVE" && t.realOption) {
-            // Send instant real-time Telegram signal
-            if (window.DeltaApp && typeof DeltaApp.checkAndSendTelegramSignal === 'function') {
-              DeltaApp.checkAndSendTelegramSignal(t);
-            }
-          } else if (t.outcome !== "ACTIVE" && t.realOption) {
-            // If resolved, check if outcome alert should be dispatched to Telegram
-            if (window.DeltaApp && typeof DeltaApp.checkAndSendTelegramOutcome === 'function') {
-              DeltaApp.checkAndSendTelegramOutcome(t, currentAnalysis.trades);
-            }
-          }
+          // Automated background Telegram signals are handled 24/7 by Cloud Sentinel Bot (GitHub Actions).
+          // Client-side auto-dispatch is disabled to eliminate duplicate alerts upon opening the web app.
         });
 
         // Store and sync signal trades into local storage and Firestore (GP_DTJ_signal_trades)
