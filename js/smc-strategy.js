@@ -149,6 +149,26 @@ window.DeltaSMCStrategy = (function() {
     };
   }
 
+  /**
+   * Identifies the institutional market session based on IST (UTC+5:30)
+   */
+  function getTradingSession(timestamp) {
+    const d = new Date(timestamp * 1000);
+    const istHours = (d.getUTCHours() + 5 + Math.floor((d.getUTCMinutes() + 30) / 60)) % 24;
+    const istMinutes = (d.getUTCMinutes() + 30) % 60;
+    const totalMinutes = istHours * 60 + istMinutes;
+
+    if (totalMinutes >= 330 && totalMinutes < 810) {
+      return { code: "ASIA", name: "Asia Session", flag: "🌏", desc: "S/R Sweep & Scalp Regime" };
+    } else if (totalMinutes >= 810 && totalMinutes < 1140) {
+      return { code: "LONDON", name: "London Session", flag: "🇬🇧", desc: "Breakout & Institutional Expansion" };
+    } else if (totalMinutes >= 1140 || totalMinutes < 150) {
+      return { code: "NEW_YORK", name: "New York Session", flag: "🇺🇸", desc: "Peak Volatility & Gamma Acceleration" };
+    } else {
+      return { code: "DRIFT", name: "Off-Hours Drift", flag: "🌙", desc: "Consolidation & Derisk Regime" };
+    }
+  }
+
   // -------------------------------------------------------------
   // 2. BACKTEST & FORWARD SIMULATION ENGINE
   // -------------------------------------------------------------
@@ -609,6 +629,7 @@ window.DeltaSMCStrategy = (function() {
         let barsHeld = 0;
         let reachedResolution = false;
         let exitReason = "ACTIVE";
+        let reachedTp1 = false;
 
         let maxFavorable = 0;
         let maxAdverse = 0;
@@ -624,11 +645,17 @@ window.DeltaSMCStrategy = (function() {
             if (favorable > maxFavorable) maxFavorable = favorable;
             if (adverse > maxAdverse) maxAdverse = adverse;
 
-            if (fwd.low <= setup.sl) {
-              outcome = "LOSS";
+            // Idea 8: Trailing Stop-Loss Simulation (Lock in +50% TP1 & trail SL to BE)
+            const tp1Distance = Math.round(setup.targetDist * 0.45);
+            if (favorable >= tp1Distance) {
+              reachedTp1 = true;
+            }
+
+            if (fwd.low <= (reachedTp1 ? setup.entry : setup.sl)) {
+              outcome = reachedTp1 ? "BE_WIN" : "LOSS";
               exitIndex = j;
-              exitPrice = setup.sl;
-              exitReason = "STOP_LOSS";
+              exitPrice = reachedTp1 ? setup.entry : setup.sl;
+              exitReason = reachedTp1 ? "TRAILED_STOP_BREAKEVEN" : "STOP_LOSS";
               reachedResolution = true;
               break;
             } else if (fwd.high >= setup.tp) {
@@ -646,11 +673,16 @@ window.DeltaSMCStrategy = (function() {
             if (favorable > maxFavorable) maxFavorable = favorable;
             if (adverse > maxAdverse) maxAdverse = adverse;
 
-            if (fwd.high >= setup.sl) {
-              outcome = "LOSS";
+            const tp1Distance = Math.round(setup.targetDist * 0.45);
+            if (favorable >= tp1Distance) {
+              reachedTp1 = true;
+            }
+
+            if (fwd.high >= (reachedTp1 ? setup.entry : setup.sl)) {
+              outcome = reachedTp1 ? "BE_WIN" : "LOSS";
               exitIndex = j;
-              exitPrice = setup.sl;
-              exitReason = "STOP_LOSS";
+              exitPrice = reachedTp1 ? setup.entry : setup.sl;
+              exitReason = reachedTp1 ? "TRAILED_STOP_BREAKEVEN" : "STOP_LOSS";
               reachedResolution = true;
               break;
             } else if (fwd.low <= setup.tp) {
@@ -768,10 +800,14 @@ window.DeltaSMCStrategy = (function() {
           ]
         };
 
+        setup.session = getTradingSession(setup.time);
+        setup.reachedTp1 = reachedTp1;
+
         trades.push(setup);
 
         // Chart Marker: Clean labels with accurate status
         const isWin = outcome === "WIN";
+        const isBeWin = outcome === "BE_WIN";
         const isLoss = outcome === "LOSS";
         const isCall = setup.direction === "LONG";
         const prefix = setup.strategyId.includes("BOS") 
@@ -786,6 +822,9 @@ window.DeltaSMCStrategy = (function() {
         if (isWin) {
           labelText = `${prefix} ${setup.optionPnlPct}`;
           markerColor = isCall ? "#10b981" : "#10b981";
+        } else if (isBeWin) {
+          labelText = `${prefix} +25% Trailed`;
+          markerColor = "#10b981";
         } else if (isLoss) {
           labelText = `${prefix} -1R`;
           markerColor = "#f43f5e";
@@ -837,13 +876,14 @@ window.DeltaSMCStrategy = (function() {
       if (!byRegime[t.regime]) byRegime[t.regime] = { count: 0, wins: 0, losses: 0, netR: 0 };
       byRegime[t.regime].count++;
 
-      if (t.outcome === "WIN") {
+      if (t.outcome === "WIN" || t.outcome === "BE_WIN") {
         wins++;
-        totalGrossWinsR += t.pnlR;
+        const effR = t.outcome === "BE_WIN" ? 0.8 : (t.pnlR || 1.8);
+        totalGrossWinsR += effR;
         byStrategy[t.strategyId].wins++;
-        byStrategy[t.strategyId].netR += t.pnlR;
+        byStrategy[t.strategyId].netR += effR;
         byRegime[t.regime].wins++;
-        byRegime[t.regime].netR += t.pnlR;
+        byRegime[t.regime].netR += effR;
       } else if (t.outcome === "LOSS") {
         losses++;
         totalGrossLossesR += Math.abs(t.pnlR);

@@ -47,6 +47,67 @@ window.DeltaLiveChart = (function() {
     } catch (e) {}
   }
 
+  // Institutional Sound Chimes & Haptic Feedback System (Idea 9)
+  const DeltaSound = {
+    isEnabled: () => localStorage.getItem('dtj_sound_enabled') !== 'false',
+    toggleSound: function() {
+      const current = this.isEnabled();
+      localStorage.setItem('dtj_sound_enabled', (!current).toString());
+      this.updateAudioButton();
+      if (!current) this.playChime('click');
+    },
+    updateAudioButton: function() {
+      const btn = document.getElementById('chartAudioChimeBtn');
+      if (btn) {
+        const active = this.isEnabled();
+        btn.innerHTML = active 
+          ? `<i class="fa-solid fa-volume-high text-indigo-400"></i>` 
+          : `<i class="fa-solid fa-volume-xmark text-slate-500"></i>`;
+        btn.title = active ? "Sound Chimes Active (Click to mute)" : "Sound Chimes Muted (Click to enable)";
+      }
+    },
+    playChime: function(type = 'signal') {
+      if (!this.isEnabled()) return;
+      try {
+        const AudioCtx = window.AudioContext || window.webkitAudioContext;
+        if (!AudioCtx) return;
+        const ctx = new AudioCtx();
+        if (ctx.state === 'suspended') ctx.resume();
+        const now = ctx.currentTime;
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+
+        if (type === 'signal') {
+          // Dual-frequency institutional chime: 587.33Hz (D5) -> 880Hz (A5)
+          osc.type = 'sine';
+          osc.frequency.setValueAtTime(587.33, now);
+          osc.frequency.exponentialRampToValueAtTime(880.00, now + 0.12);
+          gain.gain.setValueAtTime(0.001, now);
+          gain.gain.exponentialRampToValueAtTime(0.12, now + 0.04);
+          gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.45);
+          osc.start(now);
+          osc.stop(now + 0.46);
+        } else if (type === 'click') {
+          osc.type = 'triangle';
+          osc.frequency.setValueAtTime(1200, now);
+          gain.gain.setValueAtTime(0.04, now);
+          gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.04);
+          osc.start(now);
+          osc.stop(now + 0.05);
+        }
+      } catch (e) {}
+    },
+    vibrate: function(pattern = [30]) {
+      try {
+        if ('vibrate' in navigator) {
+          navigator.vibrate(pattern);
+        }
+      } catch (e) {}
+    }
+  };
+
   const TIMEFRAME_MAP = {
     '1m': '1m',
     '5m': '5m',
@@ -121,6 +182,10 @@ window.DeltaLiveChart = (function() {
       const tp1Price = Math.round(simEntry * 1.50 * 10) / 10;
       const tp1GainPct = "+50.0%";
 
+      const ratio = spotPrice > 0 ? (simEntry / spotPrice) : 0.003;
+      const ivBadge = ratio < 0.0028 ? "🟢 CHEAP" : (ratio <= 0.0045 ? "🟡 FAIR" : "🔴 ELEVATED");
+      const ivRating = ratio < 0.0028 ? "CHEAP (High Delta Leverage)" : (ratio <= 0.0045 ? "FAIR (Institutionally Calibrated)" : "ELEVATED (High IV)");
+
       const res = {
         symbol: isCall ? `C-BTC-${atmStrikeEstimate}` : `P-BTC-${atmStrikeEstimate}`,
         strike: atmStrikeEstimate,
@@ -136,6 +201,8 @@ window.DeltaLiveChart = (function() {
         stopLossPct: "-30.0%",
         unrealizedPts: 0,
         unrealizedPct: 0,
+        ivRating,
+        ivBadge,
         isLive: false
       };
       if (registry && tradeId) {
@@ -150,7 +217,9 @@ window.DeltaLiveChart = (function() {
           targetPrice: res.targetPrice,
           stopPrice: res.stopPrice,
           targetGainPct: res.targetGainPct,
-          stopLossPct: res.stopLossPct
+          stopLossPct: res.stopLossPct,
+          ivRating: res.ivRating,
+          ivBadge: res.ivBadge
         };
         saveTradeRegistry(registry);
       }
@@ -289,6 +358,10 @@ window.DeltaLiveChart = (function() {
         ? `$${Math.min(bestBid, mark).toFixed(1)} - $${Math.max(bestAsk, mark).toFixed(1)}`
         : `$${(mark * 0.98).toFixed(1)} - $${(mark * 1.02).toFixed(1)}`;
 
+      const ratio = spotPrice > 0 ? (mark / spotPrice) : 0.003;
+      const ivBadge = ratio < 0.0028 ? "🟢 CHEAP" : (ratio <= 0.0045 ? "🟡 FAIR" : "🔴 ELEVATED");
+      const ivRating = ratio < 0.0028 ? "CHEAP (High Delta Leverage)" : (ratio <= 0.0045 ? "FAIR (Institutionally Calibrated)" : "ELEVATED (High IV)");
+
       const res = {
         symbol: best.symbol,
         strike: parseFloat(best.strike_price),
@@ -306,6 +379,8 @@ window.DeltaLiveChart = (function() {
         stopLossPct: "-30.0%",
         unrealizedPts: 0,
         unrealizedPct: 0,
+        ivRating,
+        ivBadge,
         isLive: true
       };
 
@@ -322,7 +397,9 @@ window.DeltaLiveChart = (function() {
           targetPrice: res.targetPrice,
           stopPrice: res.stopPrice,
           targetGainPct: res.targetGainPct,
-          stopLossPct: res.stopLossPct
+          stopLossPct: res.stopLossPct,
+          ivRating: res.ivRating,
+          ivBadge: res.ivBadge
         };
         saveTradeRegistry(registry);
       }
@@ -374,6 +451,8 @@ window.DeltaLiveChart = (function() {
   function initChart() {
     const container = document.getElementById('tvLiveChartContainer');
     if (!container) return;
+
+    DeltaSound.updateAudioButton();
 
     if (chart) {
       // Container exists and chart already created: refresh layout & ensure candles are loaded
@@ -1046,11 +1125,25 @@ window.DeltaLiveChart = (function() {
       dirBadgeEl.innerHTML = `<i class="fa-solid ${isCall ? 'fa-arrow-trend-up' : 'fa-arrow-trend-down'} mr-1"></i> ${isCall ? 'BUY CALL OPTION' : 'BUY PUT OPTION'}`;
     }
 
+    // Session & IV Badges
+    const sessBadgeEl = document.getElementById('atmModalSessionBadge');
+    if (sessBadgeEl) {
+      if (t.session && t.session.name) {
+        sessBadgeEl.className = "px-2 py-0.5 rounded text-[10px] font-bold font-mono bg-panelDark border border-borderDark text-indigo-300";
+        sessBadgeEl.innerHTML = `${t.session.flag || '🏛️'} ${t.session.name}`;
+      } else {
+        sessBadgeEl.className = "hidden";
+      }
+    }
+
     // Outcome Badge
     const badgeEl = document.getElementById('atmModalOutcomeBadge');
     if (t.outcome === "WIN") {
       badgeEl.className = "px-2.5 py-1 rounded-lg text-xs font-bold font-mono bg-emerald-500/10 text-emerald-400 border border-emerald-500/30";
       badgeEl.innerHTML = `<i class="fa-solid fa-circle-check mr-1"></i> TARGET REACHED (+50% OPTION PROFIT)`;
+    } else if (t.outcome === "BE_WIN") {
+      badgeEl.className = "px-2.5 py-1 rounded-lg text-xs font-bold font-mono bg-teal-500/10 text-teal-300 border border-teal-500/30";
+      badgeEl.innerHTML = `<i class="fa-solid fa-shield-halved mr-1"></i> TRAILED STOP BREAKEVEN (+25% NET GAIN)`;
     } else if (t.outcome === "LOSS") {
       badgeEl.className = "px-2.5 py-1 rounded-lg text-xs font-bold font-mono bg-rose-500/10 text-rose-400 border border-rose-500/30";
       badgeEl.innerHTML = `<i class="fa-solid fa-circle-xmark mr-1"></i> STOP LOSS HIT (-1R CONTROLLED STOP)`;
@@ -1073,6 +1166,16 @@ window.DeltaLiveChart = (function() {
     const contractSymbol = opt ? opt.symbol : (t.direction === "LONG" ? 'C-BTC-' + t.optionStrike : 'P-BTC-' + t.optionStrike);
     const strikeTier = opt ? opt.strikeTier : "Exact ATM (Delta ~0.50)";
 
+    const ivBadgeEl = document.getElementById('atmModalIvBadge');
+    if (ivBadgeEl) {
+      if (opt && opt.ivBadge) {
+        ivBadgeEl.className = "px-2 py-0.5 rounded text-[10px] font-bold font-mono bg-panelDark border border-borderDark text-amber-300";
+        ivBadgeEl.innerHTML = `${opt.ivBadge} IV`;
+      } else {
+        ivBadgeEl.className = "hidden";
+      }
+    }
+
     const entryOpt = (opt && opt.entryPrice) ? opt.entryPrice : ((opt && opt.markPrice > 0) ? opt.markPrice : (t.entryOpt || Math.round((t.entry * 0.003) * 10) / 10));
     let exitOpt = entryOpt;
     let pnlDiff = 0;
@@ -1082,6 +1185,10 @@ window.DeltaLiveChart = (function() {
 
     if (t.outcome === "WIN") {
       exitOpt = (opt && opt.targetPrice) ? opt.targetPrice : (t.exitOpt || Math.round((entryOpt * 1.50) * 10) / 10);
+      pnlDiff = Math.round((exitOpt - entryOpt) * 10) / 10;
+      netTakeHome = Math.round((pnlDiff * 0.85) * 10) / 10;
+    } else if (t.outcome === "BE_WIN") {
+      exitOpt = Math.round((entryOpt * 1.25) * 10) / 10;
       pnlDiff = Math.round((exitOpt - entryOpt) * 10) / 10;
       netTakeHome = Math.round((pnlDiff * 0.85) * 10) / 10;
     } else if (t.outcome === "LOSS") {
@@ -1146,6 +1253,19 @@ window.DeltaLiveChart = (function() {
             Target hit at BTC Spot <strong>$${(t.exitPrice || t.tp).toLocaleString()}</strong>. Option surged from <strong>$${entryOpt.toFixed(1)}</strong> to <strong>$${exitOpt.toFixed(1)}</strong> (+${pnlDiff.toFixed(1)} pts).
           </div>
         `;
+      } else if (t.outcome === "BE_WIN") {
+        actionBanner.className = "p-3 sm:p-3.5 rounded-xl border border-teal-500/40 bg-teal-950/20 text-xs font-mono space-y-1";
+        actionBanner.innerHTML = `
+          <div class="flex items-center justify-between">
+            <span class="text-teal-300 font-bold flex items-center gap-1.5">
+              <i class="fa-solid fa-shield-halved"></i> TP1 HIT & STOP TRAILED TO BREAKEVEN (+25% NET PROFIT)
+            </span>
+            <span class="text-[10px] text-slate-400 font-sans">${exitTimeStr} IST</span>
+          </div>
+          <div class="text-slate-300 text-[11px]">
+            Option triggered TP1 (+50%), securing 50% position, and automatically trailed stop loss to Breakeven. Reversal closed at entry, securing guaranteed +25% net gain.
+          </div>
+        `;
       } else if (t.outcome === "LOSS") {
         actionBanner.className = "p-3 sm:p-3.5 rounded-xl border border-rose-500/30 bg-rose-950/20 text-xs font-mono space-y-1";
         actionBanner.innerHTML = `
@@ -1208,6 +1328,10 @@ window.DeltaLiveChart = (function() {
         exitCard.className = "bg-panelDark/80 p-3 rounded-xl border border-emerald-500/50 space-y-1.5";
         exitTitleEl.innerHTML = `<i class="fa-solid fa-flag-checkered text-emerald-400"></i> 2. Target Hit (${targetGainPct} Structural Expansion)`;
         if (exitSpotEl) exitSpotEl.className = "font-bold text-winGreen";
+      } else if (t.outcome === "BE_WIN") {
+        exitCard.className = "bg-panelDark/80 p-3 rounded-xl border border-teal-500/50 space-y-1.5";
+        exitTitleEl.innerHTML = `<i class="fa-solid fa-shield-halved text-teal-400"></i> 2. Trailed Stop Breakeven (+25% Net Locked)`;
+        if (exitSpotEl) exitSpotEl.className = "font-bold text-teal-300";
       } else if (t.outcome === "LOSS") {
         exitCard.className = "bg-panelDark/80 p-3 rounded-xl border border-rose-500/50 space-y-1.5";
         exitTitleEl.innerHTML = `<i class="fa-solid fa-circle-xmark text-rose-400"></i> 2. Stop Loss Hit (-30% Controlled)`;
@@ -1226,6 +1350,8 @@ window.DeltaLiveChart = (function() {
     if (netReturnEl) {
       if (t.outcome === "WIN") {
         netReturnEl.innerHTML = `<span class="text-winGreen font-bold font-mono">+${pnlDiff.toFixed(1)} pts gross &rarr; +${netTakeHome.toFixed(1)} pts (+${netTakeHomePct}% Net Take-Home)</span>`;
+      } else if (t.outcome === "BE_WIN") {
+        netReturnEl.innerHTML = `<span class="text-teal-300 font-bold font-mono">+${pnlDiff.toFixed(1)} pts (+25% Net Trailed Gain)</span>`;
       } else if (t.outcome === "LOSS") {
         netReturnEl.innerHTML = `<span class="text-lossRed font-bold font-mono">${pnlDiff.toFixed(1)} pts (-30% Controlled Stop Exit)</span>`;
       } else if (t.outcome === "ACTIVE") {
@@ -1239,6 +1365,8 @@ window.DeltaLiveChart = (function() {
     let dynamicNarrative = "";
     if (t.outcome === "WIN") {
       dynamicNarrative = `Price moved aggressively in your favor (+${t.targetDist} pts) within ${t.barsHeld} bars (${durStr}), cleanly hitting Take Profit at $${t.tp.toLocaleString()} at ${exitTimeStr} IST. Your ${contractSymbol} option entered at $${entryOpt.toFixed(1)} and hit target exit at $${exitOpt.toFixed(1)} (${targetGainPct} gross / +${netTakeHomePct}% net take-home after Delta fees).`;
+    } else if (t.outcome === "BE_WIN") {
+      dynamicNarrative = `Price moved favorably towards target, triggering TP1 (+50% option gain) at $${entryOpt.toFixed(1)} -> $${(entryOpt * 1.5).toFixed(1)}. Position stop-loss was automatically trailed to Breakeven. A subsequent pullback closed the trade at entry, banking +25% overall profit with zero downside risk.`;
     } else if (t.outcome === "LOSS") {
       dynamicNarrative = `Price breached invalidation level at $${t.sl.toLocaleString()} at ${exitTimeStr} IST after ${t.barsHeld} bars (${durStr}). Your ${contractSymbol} option entered at $${entryOpt.toFixed(1)} executed controlled stop-loss exit at $${exitOpt.toFixed(1)} (-30.0% stop) preserving 70% of margin capital.`;
     } else if (t.outcome === "ACTIVE") {
@@ -1327,6 +1455,9 @@ Take Profit (Target): $${t.tp.toLocaleString()} (Option ~300)
 Stop Loss (Invalidation): $${t.sl.toLocaleString()} (Option ~140)
 Expected Profit: +50% Option Gross / +40% Net`;
     }
+
+    DeltaSound.playChime('click');
+    DeltaSound.vibrate([40]);
 
     navigator.clipboard.writeText(text).then(() => {
       alert("Real Delta Exchange order plan copied to clipboard! Paste directly into your notes or Delta terminal.");
@@ -1446,6 +1577,11 @@ Expected Profit: +50% Option Gross / +40% Net`;
     if (signalBanner) {
       const activeTrade = currentAnalysis.trades.find(t => t.outcome === "ACTIVE");
       if (activeTrade) {
+        if (window._lastHeardActiveTradeId !== activeTrade.id) {
+          window._lastHeardActiveTradeId = activeTrade.id;
+          DeltaSound.playChime('signal');
+          DeltaSound.vibrate([40, 60, 40]);
+        }
         const isBull = activeTrade.direction === 'LONG';
         signalBanner.innerHTML = `
           <div class="p-3.5 rounded-xl border ${isBull ? 'bg-winGreen/15 border-winGreen/50' : 'bg-lossRed/15 border-lossRed/50'} flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
@@ -1575,6 +1711,10 @@ Expected Profit: +50% Option Gross / +40% Net`;
           sellPrice = (opt && opt.targetPrice > 0) ? opt.targetPrice : (t.exitOpt || Math.round(buyPrice * 1.5 * 10) / 10);
           pnlDiff = Math.round((sellPrice - buyPrice) * 10) / 10;
           optGainPct = `+${Math.round((pnlDiff / buyPrice) * 100)}%`;
+        } else if (t.outcome === "BE_WIN") {
+          sellPrice = Math.round(buyPrice * 1.25 * 10) / 10;
+          pnlDiff = Math.round((sellPrice - buyPrice) * 10) / 10;
+          optGainPct = `+25%`;
         } else if (isLoss) {
           sellPrice = (opt && opt.stopPrice > 0) ? opt.stopPrice : Math.round(buyPrice * 0.7 * 10) / 10;
           pnlDiff = Math.round((sellPrice - buyPrice) * 10) / 10;
@@ -1598,6 +1738,8 @@ Expected Profit: +50% Option Gross / +40% Net`;
           outcomeBadge = `<span class="px-1.5 sm:px-2 py-0.5 rounded text-[9px] sm:text-[10px] font-bold bg-cyan-500/10 text-cyan-400 border border-cyan-500/30 inline-flex items-center gap-1"><span class="h-1.5 w-1.5 rounded-full bg-cyan-400 animate-ping"></span> LIVE</span>`;
         } else if (isWin) {
           outcomeBadge = `<span class="px-1.5 sm:px-2 py-0.5 rounded text-[9px] sm:text-[10px] font-bold bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 whitespace-nowrap">WIN (${targetGainPct})</span>`;
+        } else if (t.outcome === "BE_WIN") {
+          outcomeBadge = `<span class="px-1.5 sm:px-2 py-0.5 rounded text-[9px] sm:text-[10px] font-bold bg-teal-500/10 text-teal-300 border border-teal-500/30 whitespace-nowrap"><i class="fa-solid fa-shield-halved mr-0.5"></i>BE WIN (+25%)</span>`;
         } else if (isLoss) {
           outcomeBadge = `<span class="px-1.5 sm:px-2 py-0.5 rounded text-[9px] sm:text-[10px] font-bold bg-rose-500/10 text-rose-400 border border-rose-500/30 whitespace-nowrap">LOSS (-1R)</span>`;
         } else {
@@ -1611,7 +1753,7 @@ Expected Profit: +50% Option Gross / +40% Net`;
         return `
           <tr id="row_${t.id}" class="bt-trade-row hover:bg-panelDark/60 transition-colors cursor-pointer ${isSelected ? 'bg-indigo-600/20' : ''}" onclick="DeltaLiveChart.selectTrade('${t.id}')">
             <td class="py-2.5 px-2 text-slate-200 font-bold text-[11px] sm:text-xs">
-              <div>${timeStr}</div>
+              <div class="flex items-center gap-1">${t.session ? `<span title="${t.session.name}">${t.session.flag}</span>` : ''}<span>${timeStr}</span></div>
               <div class="text-[9px] text-slate-400 font-normal">${dateStr}</div>
             </td>
             <td class="py-2.5 px-2">
@@ -1623,12 +1765,15 @@ Expected Profit: +50% Option Gross / +40% Net`;
               <span class="text-[10px] text-slate-400 block truncate" title="${t.name}">${cleanPatternName}</span>
             </td>
             <td class="py-2.5 px-2">
-              <span class="text-indigo-300 font-semibold block text-[11px] truncate" title="${contractLabel}">${contractLabel}</span>
+              <div class="flex items-center gap-1">
+                <span class="text-indigo-300 font-semibold block text-[11px] truncate" title="${contractLabel}">${contractLabel}</span>
+                ${opt && opt.ivBadge ? `<span class="text-[8px] font-mono px-1 py-0.2 rounded bg-panelDark border border-borderDark text-amber-300 shrink-0">${opt.ivBadge}</span>` : ''}
+              </div>
               <div class="text-[9px] mt-0.5 space-y-0.5">
                 <div class="flex items-center gap-1">
                   <span class="text-slate-400">Buy: <strong class="text-white">$${buyPrice.toFixed(1)}</strong></span>
                   <span class="text-slate-500">&rarr;</span>
-                  <span class="text-slate-400">${isActive ? 'Live' : 'Sell'}: <strong class="${isWin ? 'text-winGreen' : (isLoss ? 'text-lossRed' : 'text-slate-200')}">$${sellPrice.toFixed(1)}</strong></span>
+                  <span class="text-slate-400">${isActive ? 'Live' : 'Sell'}: <strong class="${(isWin || t.outcome === 'BE_WIN') ? 'text-winGreen' : (isLoss ? 'text-lossRed' : 'text-slate-200')}">$${sellPrice.toFixed(1)}</strong></span>
                 </div>
                 <div class="${pnlDiff >= 0 ? 'text-winGreen' : 'text-lossRed'} font-semibold font-mono">
                   ${pnlDiff >= 0 ? '+' : ''}${pnlDiff.toFixed(1)} pts (${optGainPct})
@@ -1685,6 +1830,10 @@ Expected Profit: +50% Option Gross / +40% Net`;
           sellPrice = (opt && opt.targetPrice > 0) ? opt.targetPrice : (t.exitOpt || Math.round(buyPrice * 1.5 * 10) / 10);
           pnlDiff = Math.round((sellPrice - buyPrice) * 10) / 10;
           optGainPct = `+${Math.round((pnlDiff / buyPrice) * 100)}%`;
+        } else if (t.outcome === "BE_WIN") {
+          sellPrice = Math.round(buyPrice * 1.25 * 10) / 10;
+          pnlDiff = Math.round((sellPrice - buyPrice) * 10) / 10;
+          optGainPct = `+25%`;
         } else if (isLoss) {
           sellPrice = (opt && opt.stopPrice > 0) ? opt.stopPrice : Math.round(buyPrice * 0.7 * 10) / 10;
           pnlDiff = Math.round((sellPrice - buyPrice) * 10) / 10;
@@ -1706,6 +1855,8 @@ Expected Profit: +50% Option Gross / +40% Net`;
           outcomeBadge = `<span class="px-2 py-0.5 rounded text-[9px] font-bold bg-cyan-500/15 text-cyan-400 border border-cyan-500/30 inline-flex items-center gap-1"><span class="h-1.5 w-1.5 rounded-full bg-cyan-400 animate-ping"></span> LIVE</span>`;
         } else if (isWin) {
           outcomeBadge = `<span class="px-2 py-0.5 rounded text-[9px] font-bold bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 whitespace-nowrap">WIN (${targetGainPct})</span>`;
+        } else if (t.outcome === "BE_WIN") {
+          outcomeBadge = `<span class="px-2 py-0.5 rounded text-[9px] font-bold bg-teal-500/15 text-teal-300 border border-teal-500/30 whitespace-nowrap"><i class="fa-solid fa-shield-halved mr-0.5"></i>BE WIN (+25%)</span>`;
         } else if (isLoss) {
           outcomeBadge = `<span class="px-2 py-0.5 rounded text-[9px] font-bold bg-rose-500/15 text-rose-400 border border-rose-500/30 whitespace-nowrap">LOSS (-1R)</span>`;
         } else {
@@ -1738,8 +1889,9 @@ Expected Profit: +50% Option Gross / +40% Net`;
               <div class="flex items-center gap-1 text-indigo-300 font-bold truncate">
                 <i class="fa-solid fa-file-contract text-[10px] text-indigo-400 shrink-0"></i>
                 <span class="truncate" title="${contractLabel}">${contractLabel}</span>
+                ${opt && opt.ivBadge ? `<span class="text-[8px] font-mono px-1 py-0.2 rounded bg-brandDark border border-borderDark text-amber-300 shrink-0">${opt.ivBadge}</span>` : ''}
               </div>
-              <div class="text-[10px] text-slate-400 shrink-0">${timeStr} · ${dateStr}</div>
+              <div class="text-[10px] text-slate-400 shrink-0">${t.session ? `<span class="mr-1" title="${t.session.name}">${t.session.flag}</span>` : ''}${timeStr} · ${dateStr}</div>
             </div>
 
             <!-- 2-Column Institutional Metrics Grid -->
@@ -1833,6 +1985,8 @@ Expected Profit: +50% Option Gross / +40% Net`;
     copyDeltaOrderDetails,
     getCurrentAnalysis: () => currentAnalysis,
     getTradeRegistry,
-    refreshPaperUI
+    refreshPaperUI,
+    toggleAudioChime: () => DeltaSound.toggleSound(),
+    playSound: (type) => DeltaSound.playChime(type)
   };
 })();

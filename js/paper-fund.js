@@ -78,6 +78,10 @@ window.DeltaPaperFund = (function() {
       if (t.outcome === "WIN") {
         sellPrice = (opt && opt.targetPrice > 0) ? opt.targetPrice : (t.exitOpt || Math.round(buyPrice * 1.5 * 10) / 10);
         isResolved = true;
+      } else if (t.outcome === "BE_WIN") {
+        // Idea 8: Trailed Stop-Loss Simulation (50% locked at TP1 (+50%), remainder exited at Breakeven -> Net +25%)
+        sellPrice = Math.round((buyPrice * 1.25) * 10) / 10;
+        isResolved = true;
       } else if (t.outcome === "LOSS") {
         sellPrice = (opt && opt.stopPrice > 0) ? opt.stopPrice : Math.round(buyPrice * 0.7 * 10) / 10;
         isResolved = true;
@@ -343,6 +347,8 @@ window.DeltaPaperFund = (function() {
                 outcomeBadge = `<span class="px-2 py-0.5 rounded text-[9px] font-bold bg-cyan-500/15 text-cyan-400 border border-cyan-500/30 inline-flex items-center gap-1"><span class="h-1.5 w-1.5 rounded-full bg-cyan-400 animate-ping"></span> LIVE</span>`;
               } else if (isWin) {
                 outcomeBadge = `<span class="px-2 py-0.5 rounded text-[9px] font-bold bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 whitespace-nowrap">WIN (${t.pnlPctStr})</span>`;
+              } else if (t.outcome === "BE_WIN") {
+                outcomeBadge = `<span class="px-2 py-0.5 rounded text-[9px] font-bold bg-teal-500/15 text-teal-300 border border-teal-500/30 whitespace-nowrap"><i class="fa-solid fa-shield-halved mr-1"></i>BE WIN (+25% Trailed)</span>`;
               } else if (isLoss) {
                 outcomeBadge = `<span class="px-2 py-0.5 rounded text-[9px] font-bold bg-rose-500/15 text-rose-400 border border-rose-500/30 whitespace-nowrap">LOSS (${t.pnlPctStr})</span>`;
               } else {

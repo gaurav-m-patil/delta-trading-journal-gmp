@@ -136,6 +136,14 @@ def sync_trade_to_firestore(trade_data):
         if trade_data.get("optionSellPrice"):
             fields["optionSellPrice"] = {"doubleValue": float(trade_data["optionSellPrice"])}
 
+        sess = trade_data.get("session", {})
+        if sess and sess.get("name"):
+            fields["sessionName"] = {"stringValue": str(sess["name"])}
+            fields["sessionCode"] = {"stringValue": str(sess.get("code", ""))}
+        if opt.get("iv_rating"):
+            fields["ivRating"] = {"stringValue": str(opt["iv_rating"])}
+            fields["ivBadge"] = {"stringValue": str(opt.get("iv_badge", ""))}
+
         commit_url = f"https://firestore.googleapis.com/v1/projects/{FIREBASE_PROJECT}/databases/(default)/documents:commit?key={FIREBASE_KEY}"
         write_payload = {
             "writes": [{
@@ -261,12 +269,58 @@ def calculate_rsi(candles, period=14):
     return round(100.0 - (100.0 / (1.0 + rs)), 1)
 
 
+def get_current_trading_session():
+    """
+    Determines current active institutional trading session in Indian Standard Time (IST).
+    - Asia Session: 05:30 - 13:30 IST (Mean reversion & range sweeps)
+    - London Session: 13:30 - 19:00 IST (High volume breakout expansion)
+    - New York Session: 19:00 - 02:30 IST (Peak liquidity & gamma acceleration)
+    - Off-Hours Drift: 02:30 - 05:30 IST (Consolidation)
+    """
+    ist_now = datetime.now(timezone(timedelta(hours=5, minutes=30)))
+    total_minutes = ist_now.hour * 60 + ist_now.minute
+
+    if 330 <= total_minutes < 810: # 05:30 - 13:30
+        return {
+            "name": "Asia Session",
+            "code": "ASIA",
+            "flag": "🌏",
+            "volatility": "Moderate (Mean-Reversion & S/R Sweeps)",
+            "tp_bias": "Scalp Focus (TP1 priority)"
+        }
+    elif 810 <= total_minutes < 1140: # 13:30 - 19:00
+        return {
+            "name": "London Session",
+            "code": "LONDON",
+            "flag": "🇬🇧",
+            "volatility": "High (Breakout & Liquidity Expansion)",
+            "tp_bias": "Structural Runner Expansion"
+        }
+    elif (1140 <= total_minutes) or (total_minutes < 150): # 19:00 - 02:30
+        return {
+            "name": "New York Session",
+            "code": "NEW_YORK",
+            "flag": "🇺🇸",
+            "volatility": "Peak Liquidity (Gamma Spikes & Momentum)",
+            "tp_bias": "Maximum DOEV Runner Potential"
+        }
+    else:
+        return {
+            "name": "Off-Hours Drift",
+            "code": "DRIFT",
+            "flag": "🌙",
+            "volatility": "Low (Consolidation Range)",
+            "tp_bias": "Strict Scalp Derisk"
+        }
+
+
 def fetch_delta_option_contract(direction, spot_price, spot_dist=1200):
     """
     Finds the active ATM Delta Exchange India BTC option contract (Call or Put)
     with near-term expiry and realistic mark price.
     Enforces Theta Safety Filter (avoids 0-DTE expiry within 90 minutes of 5:30 PM IST).
     Calculates Dynamic Option Potential (DOEV) uncapped beyond flat 50%.
+    Evaluates Implied Volatility (IV) and Premium Pricing Gauge (Cheap / Fair / Elevated).
     """
     is_call = (direction == "LONG")
     prefix = "C-BTC-" if is_call else "P-BTC-"
@@ -315,6 +369,18 @@ def fetch_delta_option_contract(direction, spot_price, spot_dist=1200):
                 target_tp1 = round(mark * 1.5, 1) # +50% scalp derisk
                 stop_price = round(mark * 0.7, 1) # -30% strict stop
 
+                # Delta IV & Premium Pricing Gauge (Idea 3)
+                ratio = (mark / spot_price) if spot_price > 0 else 0.003
+                if ratio < 0.0028:
+                    iv_rating = "CHEAP (High Delta Leverage)"
+                    iv_badge = "🟢 CHEAP"
+                elif ratio <= 0.0045:
+                    iv_rating = "FAIR (Institutionally Calibrated)"
+                    iv_badge = "🟡 FAIR"
+                else:
+                    iv_rating = "ELEVATED (High IV - Scalp Focus)"
+                    iv_badge = "🔴 ELEVATED"
+
                 return {
                     "symbol": symbol,
                     "mark_price": round(mark, 1),
@@ -324,7 +390,9 @@ def fetch_delta_option_contract(direction, spot_price, spot_dist=1200):
                     "target_price": target_full,
                     "target_pct": f"+{gain_pct_full}%",
                     "stop_price": stop_price,
-                    "eff_delta": round(eff_delta, 2)
+                    "eff_delta": round(eff_delta, 2),
+                    "iv_rating": iv_rating,
+                    "iv_badge": iv_badge
                 }
     except Exception as e:
         print(f"[Sentinel] Error querying Delta option tickers: {e}")
@@ -338,6 +406,9 @@ def fetch_delta_option_contract(direction, spot_price, spot_dist=1200):
     proj_pts = round(spot_dist * eff_delta, 1)
     target_full = round(mark + proj_pts, 1)
     gain_pct_full = round((proj_pts / mark) * 100, 1)
+    ratio = (mark / spot_price) if spot_price > 0 else 0.003
+    iv_badge = "🟡 FAIR" if ratio <= 0.0045 else "🔴 ELEVATED"
+    iv_rating = "FAIR (Calibrated)" if ratio <= 0.0045 else "ELEVATED"
     return {
         "symbol": fallback_sym,
         "mark_price": mark,
@@ -347,7 +418,9 @@ def fetch_delta_option_contract(direction, spot_price, spot_dist=1200):
         "target_price": target_full,
         "target_pct": f"+{gain_pct_full}%",
         "stop_price": round(mark * 0.7, 1),
-        "eff_delta": round(eff_delta, 2)
+        "eff_delta": round(eff_delta, 2),
+        "iv_rating": iv_rating,
+        "iv_badge": iv_badge
     }
 
 
@@ -707,7 +780,9 @@ def run_sentinel():
         if trade_id != last_alerted:
             spot_dist = abs(setup["tp"] - setup["entry"])
             opt = fetch_delta_option_contract(setup["direction"], current_price, spot_dist)
+            session = get_current_trading_session()
             setup["option"] = opt
+            setup["session"] = session
 
             daily_counts["trades_given"] += 1
             is_call = (setup["direction"] == "LONG")
@@ -718,6 +793,8 @@ def run_sentinel():
 🎯 <b>Action:</b> {('🟢 BUY CALL OPTION' if is_call else '🔴 BUY PUT OPTION')}
 📌 <b>Setup Pattern:</b> {setup['name']}
 🏷️ <b>Delta Contract:</b> <code>{opt['symbol']}</code>
+🏛️ <b>Trading Session:</b> {session['flag']} <b>{session['name']}</b> ({session['volatility']})
+💎 <b>Option Pricing (IV):</b> {opt.get('iv_badge', '🟡 FAIR')} <i>({opt.get('iv_rating', 'Calibrated')})</i>
 
 📊 <b>DYNAMIC OPTION TARGETS:</b>
 • <b>Option Buy Zone:</b> {opt['buy_zone']}

@@ -706,14 +706,19 @@
             <span id="chartLivePriceHeader" class="text-lg sm:text-2xl font-bold font-mono text-white">Connecting...</span>
           </div>
 
-                    <!-- Timeframe Selector -->
-          <div class="flex items-center bg-brandDark border border-borderDark rounded-xl p-1 gap-1 overflow-x-auto no-scrollbar shrink-0 max-w-full">
-            <button onclick="DeltaLiveChart.loadTimeframe('1m')" id="btnTf_1m" class="px-2.5 py-1 text-xs font-bold rounded-lg text-slate-400 hover:text-white bg-panelDark font-mono shrink-0">1m</button>
-            <button onclick="DeltaLiveChart.loadTimeframe('5m')" id="btnTf_5m" class="px-2.5 py-1 text-xs font-bold rounded-lg text-slate-400 hover:text-white bg-panelDark font-mono shrink-0">5m</button>
-            <button onclick="DeltaLiveChart.loadTimeframe('15m')" id="btnTf_15m" class="px-2.5 py-1 text-xs font-bold rounded-lg bg-indigo-600 text-white font-mono shadow-sm shrink-0">15m</button>
-            <button onclick="DeltaLiveChart.loadTimeframe('1h')" id="btnTf_1h" class="px-2.5 py-1 text-xs font-bold rounded-lg text-slate-400 hover:text-white bg-panelDark font-mono shrink-0">1h</button>
-            <button onclick="DeltaLiveChart.loadTimeframe('4h')" id="btnTf_4h" class="px-2.5 py-1 text-xs font-bold rounded-lg text-slate-400 hover:text-white bg-panelDark font-mono shrink-0">4h</button>
-            <button onclick="DeltaLiveChart.loadTimeframe('1D')" id="btnTf_1D" class="px-2.5 py-1 text-xs font-bold rounded-lg text-slate-400 hover:text-white bg-panelDark font-mono shrink-0">1D</button>
+          <!-- Timeframe Selector & Audio Chimes Toggle -->
+          <div class="flex items-center gap-1.5 shrink-0">
+            <div class="flex items-center bg-brandDark border border-borderDark rounded-xl p-1 gap-1 overflow-x-auto no-scrollbar shrink-0 max-w-full">
+              <button onclick="DeltaLiveChart.loadTimeframe('1m')" id="btnTf_1m" class="px-2.5 py-1 text-xs font-bold rounded-lg text-slate-400 hover:text-white bg-panelDark font-mono shrink-0">1m</button>
+              <button onclick="DeltaLiveChart.loadTimeframe('5m')" id="btnTf_5m" class="px-2.5 py-1 text-xs font-bold rounded-lg text-slate-400 hover:text-white bg-panelDark font-mono shrink-0">5m</button>
+              <button onclick="DeltaLiveChart.loadTimeframe('15m')" id="btnTf_15m" class="px-2.5 py-1 text-xs font-bold rounded-lg bg-indigo-600 text-white font-mono shadow-sm shrink-0">15m</button>
+              <button onclick="DeltaLiveChart.loadTimeframe('1h')" id="btnTf_1h" class="px-2.5 py-1 text-xs font-bold rounded-lg text-slate-400 hover:text-white bg-panelDark font-mono shrink-0">1h</button>
+              <button onclick="DeltaLiveChart.loadTimeframe('4h')" id="btnTf_4h" class="px-2.5 py-1 text-xs font-bold rounded-lg text-slate-400 hover:text-white bg-panelDark font-mono shrink-0">4h</button>
+              <button onclick="DeltaLiveChart.loadTimeframe('1D')" id="btnTf_1D" class="px-2.5 py-1 text-xs font-bold rounded-lg text-slate-400 hover:text-white bg-panelDark font-mono shrink-0">1D</button>
+            </div>
+            <button onclick="DeltaLiveChart.toggleAudioChime()" id="chartAudioChimeBtn" class="px-2.5 py-1 text-xs font-bold rounded-xl text-slate-400 hover:text-white bg-brandDark border border-borderDark font-mono shrink-0 transition-colors h-[34px] flex items-center justify-center" title="Toggle Sound Chimes">
+              <i class="fa-solid fa-volume-high text-indigo-400"></i>
+            </button>
           </div>
         </div>
       </div>
@@ -1084,6 +1089,12 @@
             <span id="atmModalOutcomeBadge" class="px-2 py-0.5 rounded text-[10px] font-bold font-mono">
               TARGET REACHED (+50%)
             </span>
+            <span id="atmModalSessionBadge" class="px-2 py-0.5 rounded text-[10px] font-bold font-mono bg-panelDark border border-borderDark text-slate-300">
+              --
+            </span>
+            <span id="atmModalIvBadge" class="px-2 py-0.5 rounded text-[10px] font-bold font-mono bg-panelDark border border-borderDark text-amber-300">
+              --
+            </span>
           </div>
           <h3 id="atmModalTitle" class="font-bold text-sm sm:text-base text-white font-mono truncate">
             Confirmed Resistance Rejection
@@ -1368,20 +1379,20 @@
   </nav>
 
   <!-- Application Script Pipeline -->
-  <script src="vendor/lightweight-charts.js?v=3.5.0"></script>
-  <script src="js/config.js?v=3.5.0"></script>
-  <script src="js/smc-strategy.js?v=3.5.0"></script>
-  <script src="js/macro-sentinel.js?v=3.5.0"></script>
-  <script src="js/paper-fund.js?v=3.5.0"></script>
-  <script src="js/chart-engine.js?v=3.5.0"></script>
-  <script src="js/db.js?v=3.5.0"></script>
-  <script src="js/quant.js?v=3.5.0"></script>
-  <script src="js/coach.js?v=3.5.0"></script>
-  <script src="js/planner.js?v=3.5.0"></script>
-  <script src="js/app.js?v=3.5.0"></script>
+  <script src="vendor/lightweight-charts.js?v=3.5.1"></script>
+  <script src="js/config.js?v=3.5.1"></script>
+  <script src="js/smc-strategy.js?v=3.5.1"></script>
+  <script src="js/macro-sentinel.js?v=3.5.1"></script>
+  <script src="js/paper-fund.js?v=3.5.1"></script>
+  <script src="js/chart-engine.js?v=3.5.1"></script>
+  <script src="js/db.js?v=3.5.1"></script>
+  <script src="js/quant.js?v=3.5.1"></script>
+  <script src="js/coach.js?v=3.5.1"></script>
+  <script src="js/planner.js?v=3.5.1"></script>
+  <script src="js/app.js?v=3.5.1"></script>
   <script>
     if ('serviceWorker' in navigator) {
-      navigator.serviceWorker.register('sw.js?v=3.5.0').then(function(reg) {
+      navigator.serviceWorker.register('sw.js?v=3.5.1').then(function(reg) {
         reg.update();
       });
     }
