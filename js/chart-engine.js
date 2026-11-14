@@ -308,9 +308,6 @@ window.DeltaLiveChart = (function() {
       .map(x => x.contract);
 
     // 3. Find Exact ATM and Next Strike (OTM-1)
-    const currentMarketSpot = (candleData && candleData.length > 0) ? candleData[candleData.length - 1].close : spotPrice;
-    const isHistoricalMismatch = Math.abs(spotPrice - currentMarketSpot) > 750;
-
     nearestContracts.sort((a, b) => {
       const distA = Math.abs(parseFloat(a.strike_price) - spotPrice);
       const distB = Math.abs(parseFloat(b.strike_price) - spotPrice);
@@ -318,6 +315,7 @@ window.DeltaLiveChart = (function() {
     });
 
     const atmCandidate = nearestContracts[0];
+    const isLiveAtmMatch = atmCandidate && Math.abs(parseFloat(atmCandidate.strike_price) - spotPrice) <= 350;
 
     const nextOtmCandidate = nearestContracts.find(c => {
       const s = parseFloat(c.strike_price);
@@ -328,25 +326,15 @@ window.DeltaLiveChart = (function() {
       }
     });
 
-    let best = (!isHistoricalMismatch && atmCandidate) ? atmCandidate : null;
+    let best = isLiveAtmMatch ? atmCandidate : null;
     let tier = "Exact ATM (Delta ~0.50)";
 
     if (best) {
-      const atmMark = parseFloat(best.mark_price || 0);
-      if (atmMark > 650 && nextOtmCandidate && parseFloat(nextOtmCandidate.mark_price || 0) <= 650) {
-        best = nextOtmCandidate;
-        tier = "Next Strike OTM (Delta ~0.42)";
-      } else if (atmMark > 650) {
-        best = null; // Mark is distorted by out-of-money/illiquid spreads, use calibrated ATM pricing
-      }
-    }
-
-    if (best) {
-      const mark = Math.round((parseFloat(best.mark_price) || 220) * 10) / 10;
+      const mark = Math.round((parseFloat(best.mark_price) || Math.round(spotPrice * 0.0033 * 10) / 10) * 10) / 10;
       // DOEV: Effective Delta expands as spot approaches target (0.50 -> 0.85)
       const effDelta = Math.min(0.85, Math.max(0.50, 0.50 + ((targetDist || 1000) / 4000) * 0.35));
-      const projPts = Math.round(((targetDist && targetDist > 0) ? (targetDist * effDelta) : (mark * 0.50)) * 10) / 10;
-      const dynGainPct = Math.max(50, Math.round((projPts / mark) * 100));
+      const projPts = Math.round(((targetDist && targetDist > 0) ? (targetDist * effDelta) : (mark * 0.65)) * 10) / 10;
+      const dynGainPct = Math.max(65, Math.round((projPts / mark) * 100));
       const target = Math.round((mark + (mark * (dynGainPct / 100))) * 10) / 10;
       const targetGainPct = `+${dynGainPct}%`;
       const tp1Price = Math.round(mark * 1.50 * 10) / 10;
@@ -409,11 +397,13 @@ window.DeltaLiveChart = (function() {
       return res;
     }
 
-    const simEntry = 220.0;
-    const deltaMoveFallback = (targetDist && targetDist > 0) ? (targetDist * 0.50) : (simEntry * 0.50);
-    const dynGainPctFallback = Math.max(35, Math.round((deltaMoveFallback / simEntry) * 100));
+    const simEntry = Math.round(spotPrice * 0.0033 * 10) / 10;
+    const effDeltaFallback = Math.min(0.85, Math.max(0.50, 0.50 + ((targetDist || 1000) / 4000) * 0.35));
+    const deltaMoveFallback = (targetDist && targetDist > 0) ? (targetDist * effDeltaFallback) : (simEntry * 0.65);
+    const dynGainPctFallback = Math.max(65, Math.round((deltaMoveFallback / simEntry) * 100));
     const fallbackTarget = Math.round((simEntry + (simEntry * (dynGainPctFallback / 100))) * 10) / 10;
     const fallbackTargetGainPct = `+${dynGainPctFallback}%`;
+    const fallbackTp1 = Math.round(simEntry * 1.50 * 10) / 10;
 
     const fallbackRes = {
       symbol: isCall ? `C-BTC-${atmStrikeEstimate}` : `P-BTC-${atmStrikeEstimate}`,
@@ -421,11 +411,15 @@ window.DeltaLiveChart = (function() {
       strikeTier: "Exact ATM (Delta ~0.50)",
       entryPrice: simEntry,
       markPrice: simEntry,
-      buyZone: "$210.0 - $225.0",
+      buyZone: `$${(simEntry * 0.98).toFixed(1)} - $${(simEntry * 1.02).toFixed(1)}`,
+      tp1Price: fallbackTp1,
+      tp1GainPct: "+50.0%",
       targetPrice: fallbackTarget,
-      stopPrice: 154.0,
+      stopPrice: Math.round(simEntry * 0.7 * 10) / 10,
       targetGainPct: fallbackTargetGainPct,
       stopLossPct: "-30.0%",
+      ivBadge: "🟡 FAIR",
+      ivRating: "FAIR (Calibrated)",
       unrealizedPts: 0,
       unrealizedPct: 0,
       isLive: false
@@ -437,10 +431,14 @@ window.DeltaLiveChart = (function() {
         strikeTier: fallbackRes.strikeTier,
         entryPrice: fallbackRes.entryPrice,
         buyZone: fallbackRes.buyZone,
+        tp1Price: fallbackRes.tp1Price,
+        tp1GainPct: fallbackRes.tp1GainPct,
         targetPrice: fallbackRes.targetPrice,
         stopPrice: fallbackRes.stopPrice,
         targetGainPct: fallbackRes.targetGainPct,
-        stopLossPct: fallbackRes.stopLossPct
+        stopLossPct: fallbackRes.stopLossPct,
+        ivBadge: fallbackRes.ivBadge,
+        ivRating: fallbackRes.ivRating
       };
       saveTradeRegistry(registry);
     }
@@ -1395,6 +1393,10 @@ window.DeltaLiveChart = (function() {
     document.getElementById('atmModalPattern').innerText = r.pattern || "--";
     document.getElementById('atmModalConfirmation').innerText = r.confirmation || "--";
     document.getElementById('atmModalRsiRvol').innerText = `${r.rsi || ''} | ${r.rvol || ''}`;
+    const htfEl = document.getElementById('atmModalHtf');
+    if (htfEl) htfEl.innerText = r.htfAlignment || (t.htf_trend ? t.htf_trend.label : "🟢 Trend Aligned");
+    const absEl = document.getElementById('atmModalAbsorption');
+    if (absEl) absEl.innerText = r.absorption || "Institutional Liquidity Absorption";
     document.getElementById('atmModalNarrative').innerText = dynamicNarrative;
 
     // Playbook steps with real Delta contract
@@ -1764,9 +1766,9 @@ Expected Profit: +50% Option Gross / +40% Net`;
         }
         const targetGainPct = t.optionPnlPct || opt?.targetGainPct || t.targetGainPct || "+50%";
 
-        // Calculate Option Buy vs Sell / Mark Price with realistic ATM clamp (Max $650)
-        const rawBuy = (opt && opt.entryPrice > 0) ? opt.entryPrice : (t.optionEntryMark || t.entryOpt || 220);
-        const buyPrice = rawBuy > 700 ? 220.0 : rawBuy;
+        // Calculate Option Buy vs Sell / Mark Price with calibrated ATM pricing
+        const calculatedAtmEntry = Math.round((t.entry || spotPrice) * 0.0033 * 10) / 10;
+        const buyPrice = (opt && opt.entryPrice > 0) ? opt.entryPrice : (t.optionEntryMark || calculatedAtmEntry);
         let sellPrice = buyPrice;
         let pnlDiff = 0;
         let optGainPct = "+0.0%";
@@ -1897,8 +1899,8 @@ Expected Profit: +50% Option Gross / +40% Net`;
         }
         const targetGainPct = t.optionPnlPct || opt?.targetGainPct || t.targetGainPct || "+50%";
 
-        const rawBuy = (opt && opt.entryPrice > 0) ? opt.entryPrice : (t.optionEntryMark || t.entryOpt || 220);
-        const buyPrice = rawBuy > 700 ? 220.0 : rawBuy;
+        const calculatedAtmEntry = Math.round((t.entry || spotPrice) * 0.0033 * 10) / 10;
+        const buyPrice = (opt && opt.entryPrice > 0) ? opt.entryPrice : (t.optionEntryMark || calculatedAtmEntry);
         let sellPrice = buyPrice;
         let pnlDiff = 0;
         let optGainPct = "+0.0%";

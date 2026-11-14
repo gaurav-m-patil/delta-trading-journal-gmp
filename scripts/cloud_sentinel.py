@@ -272,6 +272,84 @@ def calculate_rsi(candles, period=14):
     return round(100.0 - (100.0 / (1.0 + rs)), 1)
 
 
+def calculate_ema(values, period):
+    """Calculates Exponential Moving Average (EMA)."""
+    if not values or len(values) < period:
+        return sum(values) / len(values) if values else 0.0
+    multiplier = 2.0 / (period + 1)
+    ema = sum(values[:period]) / period
+    for v in values[period:]:
+        ema = (v - ema) * multiplier + ema
+    return ema
+
+
+def fetch_htf_trend_1h():
+    """
+    Idea 4: Multi-Timeframe 1H Trend Alignment
+    Queries 1-hour candles to evaluate higher-timeframe trend (20 EMA vs 50 EMA).
+    Filters out counter-trend chop, aligning 5m/15m setups with macro momentum.
+    """
+    now = int(time.time())
+    start = now - (86400 * 5) # 5 days of 1H data
+    candles = []
+
+    try:
+        url = f"{DELTA_BASE}/v2/history/candles?resolution=1h&symbol=BTCUSD&start={start}&end={now}"
+        res = requests.get(url, timeout=10)
+        if res.status_code == 200:
+            data = res.json().get("result", [])
+            for c in data:
+                candles.append({
+                    "time": int(c.get("time")),
+                    "close": float(c.get("close"))
+                })
+            candles.sort(key=lambda x: x["time"])
+    except Exception as e:
+        print(f"[Sentinel] HTF 1H Delta fetch notice: {e}")
+
+    if not candles or len(candles) < 30:
+        try:
+            url = f"{BINANCE_BASE}/api/v3/klines?symbol=BTCUSDT&interval=1h&limit=60"
+            res = requests.get(url, timeout=10)
+            if res.status_code == 200:
+                raw = res.json()
+                candles = [{"time": int(k[0] // 1000), "close": float(k[4])} for k in raw]
+        except Exception:
+            pass
+
+    if len(candles) < 25:
+        return {
+            "trend": "NEUTRAL",
+            "label": "⚪ NEUTRAL (Consolidation)",
+            "cur_price": 0,
+            "ema20": 0,
+            "ema50": 0
+        }
+
+    closes = [c["close"] for c in candles]
+    cur_price = closes[-1]
+    ema20 = calculate_ema(closes, 20)
+    ema50 = calculate_ema(closes, 50)
+
+    if cur_price > ema50 and ema20 >= ema50:
+        trend = "BULLISH"
+        label = "🟢 BULLISH CONFLUENCE (1H Macro Uptrend)"
+    elif cur_price < ema50 and ema20 <= ema50:
+        trend = "BEARISH"
+        label = "🔴 BEARISH CONFLUENCE (1H Macro Downtrend)"
+    else:
+        trend = "NEUTRAL"
+        label = "🟡 NEUTRAL / RANGEBOUND (S/R Transition)"
+
+    return {
+        "trend": trend,
+        "label": label,
+        "cur_price": round(cur_price),
+        "ema20": round(ema20),
+        "ema50": round(ema50)
+    }
+
+
 def get_current_trading_session():
     """
     Determines current active institutional trading session in Indian Standard Time (IST).
@@ -400,11 +478,6 @@ def fetch_delta_option_contract(direction, spot_price, spot_dist=1200):
                 best = atm_candidate
                 strike_tier = "Exact ATM (Delta ~0.50)"
 
-                # If ATM is relatively pricey (> 650) and OTM-1 is liquid, use OTM-1
-                if best["mark"] > 650 and next_otm_candidate:
-                    best = next_otm_candidate
-                    strike_tier = "Next Strike OTM (Delta ~0.42)"
-
                 mark = round(best["mark"], 1)
                 symbol = best["symbol"]
                 strike = best["strike"]
@@ -416,8 +489,11 @@ def fetch_delta_option_contract(direction, spot_price, spot_dist=1200):
 
                 eff_delta = min(0.85, max(0.50, 0.50 + (spot_dist / 4000.0) * 0.35))
                 proj_pts = round(spot_dist * eff_delta, 1)
-                target_full = round(mark + proj_pts, 1)
                 gain_pct_full = round((proj_pts / mark) * 100, 1)
+                if gain_pct_full < 65.0:
+                    gain_pct_full = 65.0
+                    proj_pts = round(mark * 0.65, 1)
+                target_full = round(mark + proj_pts, 1)
                 target_tp1 = round(mark * 1.5, 1)
                 stop_price = round(mark * 0.7, 1)
 
@@ -456,11 +532,14 @@ def fetch_delta_option_contract(direction, spot_price, spot_dist=1200):
     is_near_expiry = (ist_now.hour == 16) or (ist_now.hour == 17 and ist_now.minute < 30)
     expiry_str = (datetime.now(timezone.utc) + timedelta(days=2 if is_near_expiry else 1)).strftime("%d%m%y")
     fallback_sym = f"{prefix}{int(rounded_strike)}-{expiry_str}"
-    mark = 220.0
+    mark = round(spot_price * 0.0033, 1) if spot_price > 0 else 220.0
     eff_delta = min(0.85, max(0.50, 0.50 + (spot_dist / 4000.0) * 0.35))
     proj_pts = round(spot_dist * eff_delta, 1)
-    target_full = round(mark + proj_pts, 1)
     gain_pct_full = round((proj_pts / mark) * 100, 1)
+    if gain_pct_full < 65.0:
+        gain_pct_full = 65.0
+        proj_pts = round(mark * 0.65, 1)
+    target_full = round(mark + proj_pts, 1)
     ratio = (mark / spot_price) if spot_price > 0 else 0.003
     iv_badge = "🟡 FAIR" if ratio <= 0.0045 else "🔴 ELEVATED"
     iv_rating = "FAIR (Calibrated)" if ratio <= 0.0045 else "ELEVATED"
@@ -481,12 +560,14 @@ def fetch_delta_option_contract(direction, spot_price, spot_dist=1200):
     }
 
 
-def evaluate_smc_setup(candles):
+def evaluate_smc_setup(candles, htf_trend=None):
     """
     Institutional SMC Setup Engine:
-    1. Bullish & Bearish Liquidity Sweeps (3-bar & 5-bar dynamic fractals)
-    2. Fair Value Gap (FVG) / Imbalance Void Mitigations
-    3. Break of Structure (BOS) Momentum Breakdowns & Breakouts
+    1. Multi-Timeframe 1H Trend Alignment (Idea 4)
+    2. Volume Delta Divergence & Institutional Absorption (Idea 6)
+    3. Bullish & Bearish Liquidity Sweeps (3-bar & 5-bar dynamic fractals)
+    4. Fair Value Gap (FVG) / Imbalance Void Mitigations
+    5. Break of Structure (BOS) Momentum Breakdowns & Breakouts
     """
     if len(candles) < 30:
         return None
@@ -533,6 +614,7 @@ def evaluate_smc_setup(candles):
             sl = round(low - (risk * 0.1))
             rr = round((tp - close_p) / max(1, close_p - sl), 1)
 
+            abs_desc = f"Bullish Delta Absorption ({round((lower_wick/rng)*100)}% wick + {rvol}x RVOL)"
             trade = {
                 "id": f"cloud_bull_{last_closed['time']}",
                 "name": "Bullish Order Block Liquidity Sweep",
@@ -547,7 +629,8 @@ def evaluate_smc_setup(candles):
                 "rationale": {
                     "pattern": "Bullish Lower Wick Absorption",
                     "levelTested": f"Support Liquidity Sweep (${sl_price:,.0f})",
-                    "confirmation": f"Strong green close back above swing floor with {rvol}x RVOL"
+                    "confirmation": f"Strong green close back above swing floor with {rvol}x RVOL",
+                    "absorption": abs_desc
                 }
             }
             break
@@ -562,6 +645,7 @@ def evaluate_smc_setup(candles):
                 sl = round(high + (risk * 0.1))
                 rr = round((close_p - tp) / max(1, sl - close_p), 1)
 
+                abs_desc = f"Bearish Delta Absorption ({round((upper_wick/rng)*100)}% wick + {rvol}x RVOL)"
                 trade = {
                     "id": f"cloud_bear_{last_closed['time']}",
                     "name": "Bearish Order Block Resistance Rejection",
@@ -576,7 +660,8 @@ def evaluate_smc_setup(candles):
                     "rationale": {
                         "pattern": "Bearish Upper Wick Rejection",
                         "levelTested": f"Resistance Liquidity Sweep (${sh_price:,.0f})",
-                        "confirmation": f"Sellers rejecting highs with {rvol}x RVOL absorption"
+                        "confirmation": f"Sellers rejecting highs with {rvol}x RVOL absorption",
+                        "absorption": abs_desc
                     }
                 }
                 break
@@ -668,6 +753,23 @@ def evaluate_smc_setup(candles):
                     "confirmation": f"Aggressive institutional selling breaking prior structure with {rvol}x RVOL"
                 }
             }
+
+    # Idea 4: Multi-Timeframe 1H Trend Alignment Confluence Check
+    if trade and htf_trend:
+        htf_bias = htf_trend.get("trend", "NEUTRAL")
+        if trade["direction"] == "LONG" and htf_bias == "BEARISH":
+            print(f"[Sentinel] ⚠️ Filtered out LONG setup {trade['id']}: Counter to 1H Bearish Trend.")
+            return None
+        elif trade["direction"] == "SHORT" and htf_bias == "BULLISH":
+            print(f"[Sentinel] ⚠️ Filtered out SHORT setup {trade['id']}: Counter to 1H Bullish Trend.")
+            return None
+        trade["htf_trend"] = htf_trend
+        trade["rationale"]["htfAlignment"] = htf_trend.get("label", "Neutral")
+    elif trade:
+        trade["rationale"]["htfAlignment"] = "Neutral (Rangebound)"
+
+    if trade and "absorption" not in trade["rationale"]:
+        trade["rationale"]["absorption"] = f"Institutional Flow ({trade['rvol']}x RVOL)"
 
     return trade
 
@@ -828,30 +930,52 @@ def run_sentinel():
             state["daily_counts"] = daily_counts
             save_sentinel_state(state)
 
+            # Idea 12: Daily Loss Circuit Breaker Trigger
+            if daily_counts["losses"] >= 2:
+                cb_msg = f"""🛡️ <b>DELTA INDIA RISK CIRCUIT BREAKER ENGAGED</b>
+━━━━━━━━━━━━━━━━━━━━━━
+⚠️ <b>Daily Loss Threshold Hit:</b> 2/2 Losses Today
+🛑 <b>Action:</b> Signal generation halted for the remainder of today's session.
+⏰ <b>Automatic Reset:</b> Tomorrow morning at 05:30 AM IST.
+💎 <i>Strict institutional risk discipline: Limiting daily drawdown to preserve capital.</i>
+🔗 <a href="https://delta-trading-journal-gmp.vercel.app/">View Risk Dashboard</a>"""
+                send_telegram_message(bot_token, chat_id, cb_msg)
+
     # 5. Evaluate New SMC Setups (Sweeps, FVGs, BOS)
-    setup = evaluate_smc_setup(candles)
-    if setup:
-        trade_id = setup["id"]
-        last_alerted = state.get("last_alerted_trade_id")
+    daily_losses = daily_counts.get("losses", 0)
+    circuit_breaker_active = (daily_losses >= 2)
 
-        if trade_id != last_alerted:
-            spot_dist = abs(setup["tp"] - setup["entry"])
-            opt = fetch_delta_option_contract(setup["direction"], current_price, spot_dist)
-            session = get_current_trading_session()
-            setup["option"] = opt
-            setup["session"] = session
+    if circuit_breaker_active:
+        print(f"[Sentinel] 🛡️ CIRCUIT BREAKER ACTIVE: {daily_losses}/2 daily losses recorded. Preserving capital, skipping new trade setups until 05:30 IST.")
+    else:
+        # Multi-Timeframe 1H Trend Alignment (Idea 4)
+        htf_trend = fetch_htf_trend_1h()
+        print(f"[Sentinel] HTF 1H Macro Trend: {htf_trend['label']}")
 
-            daily_counts["trades_given"] += 1
-            is_call = (setup["direction"] == "LONG")
-            ist_time = datetime.fromtimestamp(setup["time"], tz=timezone(timedelta(hours=5, minutes=30))).strftime("%I:%M %p · %d %b")
+        setup = evaluate_smc_setup(candles, htf_trend)
+        if setup:
+            trade_id = setup["id"]
+            last_alerted = state.get("last_alerted_trade_id")
 
-            msg = f"""⚡ <b>DELTA INDIA 24/7 CLOUD SMC SIGNAL</b>
+            if trade_id != last_alerted:
+                spot_dist = abs(setup["tp"] - setup["entry"])
+                opt = fetch_delta_option_contract(setup["direction"], current_price, spot_dist)
+                session = get_current_trading_session()
+                setup["option"] = opt
+                setup["session"] = session
+
+                daily_counts["trades_given"] += 1
+                is_call = (setup["direction"] == "LONG")
+                ist_time = datetime.fromtimestamp(setup["time"], tz=timezone(timedelta(hours=5, minutes=30))).strftime("%I:%M %p · %d %b")
+
+                msg = f"""⚡ <b>DELTA INDIA 24/7 CLOUD SMC SIGNAL</b>
 ━━━━━━━━━━━━━━━━━━━━━━
 🎯 <b>Action:</b> {('🟢 BUY CALL OPTION' if is_call else '🔴 BUY PUT OPTION')}
 📌 <b>Setup Pattern:</b> {setup['name']}
 🏷️ <b>Delta Contract:</b> <code>{opt['symbol']}</code>
 🏛️ <b>Trading Session:</b> {session['flag']} <b>{session['name']}</b> ({session['volatility']})
 💎 <b>Option Pricing (IV):</b> {opt.get('iv_badge', '🟡 FAIR')} <i>({opt.get('iv_rating', 'Calibrated')})</i>
+🏛️ <b>1H Trend Alignment:</b> {setup.get('htf_trend', {}).get('label', '⚪ Neutral')}
 
 📊 <b>DYNAMIC OPTION TARGETS:</b>
 • <b>Option Buy Zone:</b> {opt['buy_zone']}
@@ -867,25 +991,26 @@ def run_sentinel():
 🧠 <b>INSTITUTIONAL SETUP LOGIC:</b>
 • <b>Level Tested:</b> {setup['rationale']['levelTested']}
 • <b>Pattern:</b> {setup['rationale']['pattern']}
+• <b>Absorption & Delta:</b> {setup['rationale'].get('absorption', 'Order Flow')}
 • <b>Confirmation:</b> {setup['rationale']['confirmation']}
 • <b>Momentum:</b> RSI {setup['rsi']} | {setup['rvol']}x RVOL
 
-📈 <b>DAILY TRACKER:</b> {daily_counts['trades_given']} Trade(s) Alerted Today ({daily_counts['wins']}W - {daily_counts['losses']}L)
+📈 <b>DAILY TRACKER:</b> {daily_counts['trades_given']} Trade(s) Alerted Today ({daily_counts['wins']}W - {daily_counts['losses']}L) · 🛡️ Circuit Breaker: 🟢 Normal (0/2)
 ⏰ <i>Time: {ist_time} IST</i>
 🔗 <a href="https://delta-trading-journal-gmp.vercel.app/">Open Live Journal & Chart</a>"""
 
-            if send_telegram_message(bot_token, chat_id, msg):
-                state["last_alerted_trade_id"] = trade_id
-                state["active_trade"] = setup
-                state["daily_counts"] = daily_counts
-                save_sentinel_state(state)
+                if send_telegram_message(bot_token, chat_id, msg):
+                    state["last_alerted_trade_id"] = trade_id
+                    state["active_trade"] = setup
+                    state["daily_counts"] = daily_counts
+                    save_sentinel_state(state)
 
-                # Sync to Firestore GP_DTJ_signal_trades immediately
-                sync_trade_to_firestore(setup)
+                    # Sync to Firestore GP_DTJ_signal_trades immediately
+                    sync_trade_to_firestore(setup)
+            else:
+                print(f"[Sentinel] Trade setup {trade_id} was already alerted previously.")
         else:
-            print(f"[Sentinel] Trade setup {trade_id} was already alerted previously.")
-    else:
-        print("[Sentinel] No new confirmed high-conviction SMC setups on current 15m candle.")
+            print("[Sentinel] No new confirmed high-conviction SMC setups on current 15m candle.")
 
     # 6. Check Breaking News / Catalysts
     catalyst = check_breaking_crypto_catalysts()

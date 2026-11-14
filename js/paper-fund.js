@@ -71,8 +71,8 @@ window.DeltaPaperFund = (function() {
 
     const processedTrades = chronoTrades.map(t => {
       const opt = t.realOption;
-      const rawBuy = (opt && opt.entryPrice > 0) ? opt.entryPrice : (t.optionEntryMark || t.entryOpt || 220);
-      const buyPrice = rawBuy > 700 ? 220.0 : rawBuy;
+      const calculatedAtmEntry = Math.round((t.entry || 65000) * 0.0033 * 10) / 10;
+      const buyPrice = (opt && opt.entryPrice > 0) ? opt.entryPrice : (t.optionEntryMark || calculatedAtmEntry);
       let sellPrice = buyPrice;
       let isResolved = false;
 
@@ -254,6 +254,39 @@ window.DeltaPaperFund = (function() {
     const totalCount = reversedTrades.length;
     const visibleTrades = showAllTrades ? reversedTrades : reversedTrades.slice(0, 5);
 
+    // Idea 12: Daily Loss Circuit Breaker calculation
+    const todayStr = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' });
+    const todayTrades = portfolio.trades.filter(t => {
+      const d = new Date(t.time * 1000).toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' });
+      return d === todayStr;
+    });
+    const todayLosses = todayTrades.filter(t => t.outcome === 'LOSS').length;
+    const isCircuitBreakerTripped = todayLosses >= 2;
+
+    // Idea 11: Daily Performance Heatmap & Calendar View aggregation
+    const dailyMap = {};
+    portfolio.trades.forEach(t => {
+      const d = new Date(t.time * 1000);
+      const dateKey = d.toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' });
+      const displayDate = d.toLocaleDateString('en-IN', { timeZone: 'Asia/Kolkata', month: 'short', day: 'numeric', weekday: 'short' });
+      if (!dailyMap[dateKey]) {
+        dailyMap[dateKey] = {
+          dateKey,
+          displayDate,
+          trades: [],
+          wins: 0,
+          losses: 0,
+          netPnl: 0
+        };
+      }
+      dailyMap[dateKey].trades.push(t);
+      if (t.outcome === 'WIN' || t.outcome === 'BE_WIN') dailyMap[dateKey].wins++;
+      else if (t.outcome === 'LOSS') dailyMap[dateKey].losses++;
+      dailyMap[dateKey].netPnl += (t.netPnlInr || 0);
+    });
+
+    const dailySummaryList = Object.values(dailyMap).sort((a, b) => b.dateKey.localeCompare(a.dateKey));
+
     container.innerHTML = `
       <div class="space-y-4 font-mono">
         <!-- Hero Fund Performance Card -->
@@ -269,7 +302,17 @@ window.DeltaPaperFund = (function() {
               <p class="text-xs text-slate-400 font-sans mt-0.5">Automated paper trading demo account tracking cumulative account growth from ₹100,000 inception till date.</p>
             </div>
 
-            <div class="flex items-center gap-2 w-full sm:w-auto justify-end">
+            <div class="flex items-center gap-2 w-full sm:w-auto justify-end flex-wrap">
+              <!-- Idea 12: Circuit Breaker Status Badge -->
+              ${isCircuitBreakerTripped ? `
+                <span class="px-2.5 py-1 rounded-xl bg-rose-500/15 text-rose-400 border border-rose-500/30 text-xs font-bold flex items-center gap-1.5 shadow-sm">
+                  <i class="fa-solid fa-shield-halved animate-pulse"></i> 🔴 CIRCUIT BREAKER ACTIVE (${todayLosses}/2 Losses)
+                </span>
+              ` : `
+                <span class="px-2.5 py-1 rounded-xl bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 text-xs font-bold flex items-center gap-1.5">
+                  <i class="fa-solid fa-shield-halved"></i> 🛡️ Risk Guard: 🟢 Normal (${todayLosses}/2 Limit)
+                </span>
+              `}
               <button onclick="DeltaPaperFund.promptRiskModelChange()" class="px-3 py-1.5 rounded-xl bg-panelDark hover:bg-borderDark text-slate-300 text-xs font-bold transition-colors flex items-center gap-1.5 border border-borderDark">
                 <i class="fa-solid fa-sliders text-indigo-400"></i> Mode: ${portfolio.riskModel}
               </button>
@@ -313,6 +356,39 @@ window.DeltaPaperFund = (function() {
               <span class="text-[9px] text-slate-500 font-sans">-${portfolio.maxDrawdownPct}% from peak</span>
             </div>
           </div>
+
+          <!-- Idea 11: Daily Performance Heatmap & Calendar View Matrix -->
+          ${dailySummaryList.length > 0 ? `
+            <div class="bg-brandDark/70 border border-borderDark/80 rounded-xl p-3 sm:p-3.5 space-y-2.5">
+              <div class="flex justify-between items-center pb-2 border-b border-borderDark/60">
+                <div class="flex items-center gap-2">
+                  <i class="fa-solid fa-calendar-days text-indigo-400 text-xs"></i>
+                  <span class="text-xs font-bold text-white">Daily Performance Heatmap & Growth Calendar</span>
+                </div>
+                <span class="text-[10px] text-slate-400 font-mono">${dailySummaryList.length} Active Trading Day${dailySummaryList.length > 1 ? 's' : ''}</span>
+              </div>
+              <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-2">
+                ${dailySummaryList.map(day => {
+                  const isGreen = day.netPnl >= 0;
+                  const winRate = day.trades.length > 0 ? Math.round((day.wins / day.trades.length) * 100) : 0;
+                  return `
+                    <div class="p-2.5 rounded-lg border ${isGreen ? 'bg-emerald-950/20 border-emerald-500/30' : 'bg-rose-950/20 border-rose-500/30'} flex flex-col justify-between">
+                      <div class="flex justify-between items-center text-[10px]">
+                        <span class="text-slate-300 font-bold">${day.displayDate}</span>
+                        <span class="${isGreen ? 'text-emerald-400' : 'text-rose-400'} font-bold">${winRate}% WR</span>
+                      </div>
+                      <div class="text-sm font-bold font-mono mt-1 ${isGreen ? 'text-winGreen' : 'text-lossRed'}">
+                        ${isGreen ? '+' : ''}₹${Math.round(day.netPnl).toLocaleString('en-IN')}
+                      </div>
+                      <div class="text-[9px] text-slate-400 font-sans mt-0.5">
+                        ${day.trades.length} setup${day.trades.length > 1 ? 's' : ''} (${day.wins}W - ${day.losses}L)
+                      </div>
+                    </div>
+                  `;
+                }).join('')}
+              </div>
+            </div>
+          ` : ''}
         </div>
 
         <!-- Detailed Execution Ledger -->

@@ -242,14 +242,10 @@ ${catalyst.optionsAdvisory}
 ⚡ <i>Institutional note: Sudden macro catalysts can trigger sharp volatility expansion. Stick strictly to confirmed SMC triggers & Stop Loss limits.</i>
 🔗 <a href="https://delta-trading-journal-gmp.vercel.app/">View Live Terminal & Setups</a>`;
 
-    if (typeof DeltaApp.sendTelegramMessage === 'function') {
-      DeltaApp.sendTelegramMessage(msg).then(ok => {
-        if (ok) {
-          localStorage.setItem('dtj_last_alerted_catalyst_guid', catalyst.guid);
-          console.log(`[MacroSentinel] Telegram catalyst alert dispatched: ${catalyst.title}`);
-        }
-      });
-    }
+    // Automated background Telegram catalyst alerts are handled exclusively by 24/7 Cloud Sentinel (GitHub Actions)
+    // to prevent duplicate messages when opening the app on mobile.
+    localStorage.setItem('dtj_last_alerted_catalyst_guid', catalyst.guid);
+    console.log(`[MacroSentinel] High-impact catalyst detected: ${catalyst.title} (Cloud Sentinel handles Telegram dispatch).`);
   }
 
   /**
