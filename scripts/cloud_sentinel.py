@@ -917,26 +917,36 @@ def run_sentinel():
         is_be_win = False
         is_loss = False
 
+        sl_dist = active_trade.get("slDist") or abs(entry - sl) or 400
+
         if direction == "LONG":
             favorable = current_price - entry
+            # 1. Full Target Expansion (TP) takes absolute priority
             if favorable >= spot_dist or current_price >= tp:
                 is_win = True
-            elif reached_tp1 and current_price <= entry:
-                is_be_win = True
+            elif not reached_tp1 and favorable >= tp1_dist:
+                is_tp1_derisk = True
+            elif reached_tp1:
+                # Post-TP1: Runner is given structural breathing room (0.20x SL buffer) so retest wicks do not choke winning runners
+                retest_tolerance = entry - round(sl_dist * 0.20)
+                if current_price <= retest_tolerance or current_price <= sl:
+                    is_be_win = True
             elif not reached_tp1 and current_price <= sl:
                 is_loss = True
-            elif not reached_tp1 and favorable >= tp1_dist:
-                is_tp1_derisk = True
         else: # SHORT
             favorable = entry - current_price
+            # 1. Full Target Expansion (TP) takes absolute priority
             if favorable >= spot_dist or current_price <= tp:
                 is_win = True
-            elif reached_tp1 and current_price >= entry:
-                is_be_win = True
-            elif not reached_tp1 and current_price >= sl:
-                is_loss = True
             elif not reached_tp1 and favorable >= tp1_dist:
                 is_tp1_derisk = True
+            elif reached_tp1:
+                # Post-TP1: Runner is given structural breathing room (0.20x SL buffer) so retest wicks do not choke winning runners
+                retest_tolerance = entry + round(sl_dist * 0.20)
+                if current_price >= retest_tolerance or current_price >= sl:
+                    is_be_win = True
+            elif not reached_tp1 and current_price >= sl:
+                is_loss = True
 
         if is_tp1_derisk:
             # Trailed Stop Activation: Derisk 50% & Move SL to Breakeven

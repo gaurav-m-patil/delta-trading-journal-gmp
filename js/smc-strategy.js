@@ -645,26 +645,46 @@ window.DeltaSMCStrategy = (function() {
             if (favorable > maxFavorable) maxFavorable = favorable;
             if (adverse > maxAdverse) maxAdverse = adverse;
 
-            // Idea 8: Trailing Stop-Loss Simulation (Lock in +50% TP1 & trail SL to BE)
+            // Multi-Stage Trailing & Target Resolution (Institutional Grade)
             const tp1Distance = Math.round(setup.targetDist * 0.45);
             if (favorable >= tp1Distance) {
               reachedTp1 = true;
             }
 
-            if (fwd.low <= (reachedTp1 ? setup.entry : setup.sl)) {
-              outcome = reachedTp1 ? "BE_WIN" : "LOSS";
-              exitIndex = j;
-              exitPrice = reachedTp1 ? setup.entry : setup.sl;
-              exitReason = reachedTp1 ? "TRAILED_STOP_BREAKEVEN" : "STOP_LOSS";
-              reachedResolution = true;
-              break;
-            } else if (fwd.high >= setup.tp) {
+            // 1. Take Profit (Full Target Expansion) has absolute priority
+            if (fwd.high >= setup.tp) {
               outcome = "WIN";
               exitIndex = j;
               exitPrice = setup.tp;
               exitReason = "TAKE_PROFIT";
               reachedResolution = true;
               break;
+            }
+
+            // 2. Stop Loss & Trailed Stop Evaluation
+            if (!reachedTp1) {
+              // Pre-TP1: Invalidation only triggers on structural hard Stop Loss
+              if (fwd.low <= setup.sl) {
+                outcome = "LOSS";
+                exitIndex = j;
+                exitPrice = setup.sl;
+                exitReason = "STOP_LOSS";
+                reachedResolution = true;
+                break;
+              }
+            } else {
+              // Post-TP1: 50% profit already locked at TP1 (+50%). Runner is active.
+              // Institutional Retest Rule: A wick retesting entry is healthy mitigation/retest, NOT an exit.
+              // Trailed exit only triggers if the candle CLOSES below retest buffer or reaches hard SL.
+              const retestTolerance = setup.entry - Math.round(setup.slDist * 0.20);
+              if (fwd.close <= retestTolerance || fwd.low <= setup.sl) {
+                outcome = "BE_WIN";
+                exitIndex = j;
+                exitPrice = setup.entry;
+                exitReason = "TRAILED_STOP_BREAKEVEN";
+                reachedResolution = true;
+                break;
+              }
             }
           } else {
             // SHORT
@@ -673,25 +693,46 @@ window.DeltaSMCStrategy = (function() {
             if (favorable > maxFavorable) maxFavorable = favorable;
             if (adverse > maxAdverse) maxAdverse = adverse;
 
+            // Multi-Stage Trailing & Target Resolution (Institutional Grade)
             const tp1Distance = Math.round(setup.targetDist * 0.45);
             if (favorable >= tp1Distance) {
               reachedTp1 = true;
             }
 
-            if (fwd.high >= (reachedTp1 ? setup.entry : setup.sl)) {
-              outcome = reachedTp1 ? "BE_WIN" : "LOSS";
-              exitIndex = j;
-              exitPrice = reachedTp1 ? setup.entry : setup.sl;
-              exitReason = reachedTp1 ? "TRAILED_STOP_BREAKEVEN" : "STOP_LOSS";
-              reachedResolution = true;
-              break;
-            } else if (fwd.low <= setup.tp) {
+            // 1. Take Profit (Full Target Expansion) has absolute priority
+            if (fwd.low <= setup.tp) {
               outcome = "WIN";
               exitIndex = j;
               exitPrice = setup.tp;
               exitReason = "TAKE_PROFIT";
               reachedResolution = true;
               break;
+            }
+
+            // 2. Stop Loss & Trailed Stop Evaluation
+            if (!reachedTp1) {
+              // Pre-TP1: Invalidation only triggers on structural hard Stop Loss
+              if (fwd.high >= setup.sl) {
+                outcome = "LOSS";
+                exitIndex = j;
+                exitPrice = setup.sl;
+                exitReason = "STOP_LOSS";
+                reachedResolution = true;
+                break;
+              }
+            } else {
+              // Post-TP1: 50% profit already locked at TP1 (+50%). Runner is active.
+              // Institutional Retest Rule: A wick retesting entry is healthy mitigation/retest, NOT an exit.
+              // Trailed exit only triggers if the candle CLOSES above retest buffer or reaches hard SL.
+              const retestTolerance = setup.entry + Math.round(setup.slDist * 0.20);
+              if (fwd.close >= retestTolerance || fwd.high >= setup.sl) {
+                outcome = "BE_WIN";
+                exitIndex = j;
+                exitPrice = setup.entry;
+                exitReason = "TRAILED_STOP_BREAKEVEN";
+                reachedResolution = true;
+                break;
+              }
             }
           }
         }
@@ -741,6 +782,14 @@ window.DeltaSMCStrategy = (function() {
           setup.optionPnlPct = `+${winGainPct}%`;
           setup.netProfitEstimate = `+${optNetGainPts} pts (+${winNetGainPct}% Net Take-Home)`;
           setup.badgeColor = "text-emerald-400 bg-emerald-500/10 border-emerald-500/30";
+        } else if (outcome === "BE_WIN") {
+          exitOpt = Math.round((entryOpt * 1.25) * 10) / 10;
+          optPnlPts = Math.round((exitOpt - entryOpt) * 10) / 10;
+          optNetGainPts = Math.round((optPnlPts * 0.85) * 10) / 10;
+          setup.pnlR = 0.8;
+          setup.optionPnlPct = "+25.0%";
+          setup.netProfitEstimate = `+${optNetGainPts} pts (50% locked @ +50%, 50% exited @ BE)`;
+          setup.badgeColor = "text-teal-400 bg-teal-500/10 border-teal-500/30";
         } else if (outcome === "LOSS") {
           exitOpt = Math.round((entryOpt * 0.70) * 10) / 10;
           optPnlPts = Math.round((exitOpt - entryOpt) * 10) / 10;
@@ -786,11 +835,13 @@ window.DeltaSMCStrategy = (function() {
           rvol: `${setup.rvol}x Relative Volume (Institutional Presence)`,
           narrative: outcome === "WIN"
             ? `Price expanded aggressively in your favor (+${setup.targetDist} pts) within ${barsHeld} bars, hitting Take Profit at $${setup.tp.toLocaleString()}. Your Option surged from $${entryOpt.toFixed(1)} to $${exitOpt.toFixed(1)} (${setup.optionPnlPct} gross / +${Math.round(parseInt(setup.optionPnlPct) * 0.85)}% net after GST).`
-            : (outcome === "LOSS"
-              ? `Price triggered the structural stop at $${setup.sl.toLocaleString()} within ${barsHeld} bars. Controlled exit executed at Option $${exitOpt.toFixed(1)} (-30% / -1R stop) to protect capital.`
-              : (outcome === "ACTIVE"
-                ? `Trade is LIVE right now (${barsHeld} bars active). Entered Option @ ~$${entryOpt.toFixed(1)}. Monitoring resolution at Target ($${setup.tp.toLocaleString()}) or Stop ($${setup.sl.toLocaleString()}).`
-                : `Price consolidated sideways for 5+ hours (22 bars). Closed at Option $${exitOpt.toFixed(1)} as a Theta defense scratch.`)),
+            : (outcome === "BE_WIN"
+              ? `Target 1 (+50% profit) was locked on half the position. A candle close back across the retest boundary executed the trailed stop at breakeven ($${setup.entry.toLocaleString()}), securing a net +25% profit on the total position.`
+              : (outcome === "LOSS"
+                ? `Price triggered the structural stop at $${setup.sl.toLocaleString()} within ${barsHeld} bars. Controlled exit executed at Option $${exitOpt.toFixed(1)} (-30% / -1R stop) to protect capital.`
+                : (outcome === "ACTIVE"
+                  ? `Trade is LIVE right now (${barsHeld} bars active). Entered Option @ ~$${entryOpt.toFixed(1)}. Monitoring resolution at Target ($${setup.tp.toLocaleString()}) or Stop ($${setup.sl.toLocaleString()}).`
+                  : `Price consolidated sideways for 5+ hours (22 bars). Closed at Option $${exitOpt.toFixed(1)} as a Theta defense scratch.`))),
           deltaSteps: [
             `1. Open Delta Exchange India -> BTC Options.`,
             `2. Select Contract: ${setup.direction === "LONG" ? 'C-BTC-' + setup.optionStrike : 'P-BTC-' + setup.optionStrike} (${setup.direction === "LONG" ? 'ATM Call' : 'ATM Put'}).`,
