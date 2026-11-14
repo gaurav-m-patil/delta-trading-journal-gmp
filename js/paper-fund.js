@@ -460,8 +460,8 @@ window.DeltaPaperFund = (function() {
 
                   <!-- Subheader: IST Time + Allocated Margin -->
                   <div class="flex items-center justify-between text-[11px]">
-                    <div class="text-[10px] text-slate-400 shrink-0">
-                      <i class="fa-regular fa-clock text-[9px] text-slate-500 mr-1"></i>${timeStr} · ${dateStr}
+                    <div class="text-[10px] text-slate-400 shrink-0 font-mono">
+                      <i class="fa-regular fa-clock text-[9px] text-slate-500 mr-1"></i>${timeStr} IST · ${dateStr}
                     </div>
                     <div class="text-[10px] text-slate-300">
                       <span class="text-slate-500">Margin:</span> <strong class="text-slate-200">₹${t.allocatedInr.toLocaleString('en-IN')}</strong>
@@ -568,8 +568,8 @@ window.DeltaPaperFund = (function() {
 
                   return `
                     <tr class="hover:bg-panelDark/60 transition-colors cursor-pointer" onclick="DeltaLiveChart.openTradeDetailsModal('${t.id}')">
-                      <td class="py-2.5 px-2 text-slate-200 font-bold text-[11px]">
-                        <div>${timeStr}</div>
+                      <td class="py-2.5 px-2 text-slate-200 font-bold text-[11px] font-mono">
+                        <div>${timeStr} <span class="text-[9px] text-slate-400 font-normal">IST</span></div>
                         <div class="text-[9px] text-slate-400 font-normal">${dateStr}</div>
                       </td>
                       <td class="py-2.5 px-2">

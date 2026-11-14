@@ -347,6 +347,22 @@ window.DeltaDB = (function() {
   // 5. DATABASE INITIALIZATION & CONTINUOUS HYDRATION
   // -------------------------------------------------------------
   async function init() {
+    // Automatic Schema & Stale Signal Purge (v3.5.4 Clean Slate Reset)
+    const SCHEMA_VERSION_KEY = 'dtj_schema_version';
+    const CURRENT_SCHEMA_VER = '3.5.4';
+    if (localStorage.getItem(SCHEMA_VERSION_KEY) !== CURRENT_SCHEMA_VER) {
+      console.log("[DeltaDB] Purging legacy test records and resetting registries for v3.5.4...");
+      localStorage.removeItem('dtj_signal_trades_v1');
+      localStorage.removeItem('dtj_options_trade_registry_v3');
+      localStorage.removeItem('dtj_options_trade_registry_v2');
+      localStorage.removeItem('dtj_locked_active_plan');
+      localStorage.removeItem('dtj_last_alerted_trade_id');
+      localStorage.removeItem('dtj_paper_custom_capital_v1');
+      localStorage.removeItem('dtj_paper_risk_model_v1');
+      localStorage.removeItem('dtj_paper_portfolio_v2');
+      localStorage.setItem(SCHEMA_VERSION_KEY, CURRENT_SCHEMA_VER);
+    }
+
     await openDatabase();
 
     // 1. Instantly load existing records from local IndexedDB (zero network latency!)
@@ -838,15 +854,10 @@ window.DeltaDB = (function() {
       const snapshot = await query.get();
       
       let registry = {};
-      try {
-        const raw = localStorage.getItem(SIGNAL_STORAGE_KEY);
-        if (raw) registry = JSON.parse(raw);
-      } catch (e) {}
-
       snapshot.forEach(doc => {
         const data = doc.data();
         if (data && data.id) {
-          registry[data.id] = Object.assign(registry[data.id] || {}, data);
+          registry[data.id] = data;
         }
       });
 

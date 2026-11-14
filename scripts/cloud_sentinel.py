@@ -363,31 +363,31 @@ def get_current_trading_session():
 
     if 330 <= total_minutes < 810: # 05:30 - 13:30
         return {
-            "name": "Asia Session",
+            "name": "Asia Session (05:30 - 13:30 IST)",
             "code": "ASIA",
-            "flag": "🌏",
+            "flag": "🌐",
             "volatility": "Moderate (Mean-Reversion & S/R Sweeps)",
             "tp_bias": "Scalp Focus (TP1 priority)"
         }
     elif 810 <= total_minutes < 1140: # 13:30 - 19:00
         return {
-            "name": "London Session",
+            "name": "London Session (13:30 - 19:00 IST)",
             "code": "LONDON",
-            "flag": "🇬🇧",
+            "flag": "⚡",
             "volatility": "High (Breakout & Liquidity Expansion)",
             "tp_bias": "Structural Runner Expansion"
         }
     elif (1140 <= total_minutes) or (total_minutes < 150): # 19:00 - 02:30
         return {
-            "name": "New York Session",
+            "name": "New York Session (19:00 - 02:30 IST)",
             "code": "NEW_YORK",
-            "flag": "🇺🇸",
+            "flag": "🔥",
             "volatility": "Peak Liquidity (Gamma Spikes & Momentum)",
             "tp_bias": "Maximum DOEV Runner Potential"
         }
     else:
         return {
-            "name": "Off-Hours Drift",
+            "name": "Off-Hours Drift (02:30 - 05:30 IST)",
             "code": "DRIFT",
             "flag": "🌙",
             "volatility": "Low (Consolidation Range)",

@@ -815,19 +815,19 @@ window.DeltaSMCStrategy = (function() {
         let markerColor = isCall ? "#38bdf8" : "#818cf8";
 
         if (isWin) {
-          labelText = "+50%";
+          labelText = "TP";
           markerColor = "#10b981";
         } else if (isBeWin) {
-          labelText = "BE +25%";
+          labelText = "BE";
           markerColor = "#10b981";
         } else if (isLoss) {
-          labelText = "-1R";
+          labelText = "SL";
           markerColor = "#f43f5e";
         } else if (outcome === "TIMEOUT") {
           labelText = "SCR";
           markerColor = "#64748b";
         } else {
-          labelText = isCall ? "CALL LIVE" : "PUT LIVE";
+          labelText = isCall ? "CALL" : "PUT";
           markerColor = "#38bdf8";
         }
 

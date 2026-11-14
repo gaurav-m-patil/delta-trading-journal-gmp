@@ -47,6 +47,23 @@ window.DeltaLiveChart = (function() {
     } catch (e) {}
   }
 
+  // Anti-Collision Marker Staggering: prevents overlapping labels on adjacent candles
+  function sanitizeMarkersNoOverlap(markers) {
+    if (!markers || markers.length === 0) return [];
+    const sorted = [...markers].sort((a, b) => a.time - b.time);
+    for (let i = 0; i < sorted.length - 1; i++) {
+      const m1 = sorted[i];
+      const m2 = sorted[i + 1];
+      if (Math.abs(m2.time - m1.time) <= 1800) {
+        if (m1.position === m2.position) {
+          m2.position = m1.position === "aboveBar" ? "belowBar" : "aboveBar";
+          m2.shape = m2.position === "aboveBar" ? "arrowDown" : "arrowUp";
+        }
+      }
+    }
+    return sorted;
+  }
+
   // Institutional Sound Chimes & Haptic Feedback System (Idea 9)
   const DeltaSound = {
     isEnabled: () => localStorage.getItem('dtj_sound_enabled') !== 'false',
@@ -982,24 +999,28 @@ window.DeltaLiveChart = (function() {
       }
     }
 
-    // Underlying Spot Numbers
+    // Underlying Spot Numbers (Guaranteed Non-Undefined)
+    const targetDist = trade.targetDist || Math.abs(trade.tp - trade.entry) || 500;
+    const slDist = trade.slDist || Math.abs(trade.entry - trade.sl) || 250;
+    const rrRatio = trade.rrRatio || Number((targetDist / Math.max(1, slDist)).toFixed(2));
+
     const entryEl = document.getElementById('ptEntry');
     if (entryEl) entryEl.innerText = `$${trade.entry.toLocaleString()}`;
 
     const tpEl = document.getElementById('ptTp');
-    if (tpEl) tpEl.innerText = `$${trade.tp.toLocaleString()} (+${trade.targetDist} pts)`;
+    if (tpEl) tpEl.innerText = `$${trade.tp.toLocaleString()} (+${targetDist} pts)`;
 
     const slEl = document.getElementById('ptSl');
-    if (slEl) slEl.innerText = `$${trade.sl.toLocaleString()} (-${trade.slDist} pts)`;
+    if (slEl) slEl.innerText = `$${trade.sl.toLocaleString()} (-${slDist} pts)`;
 
     const rrEl = document.getElementById('ptRR');
-    if (rrEl) rrEl.innerText = `1 : ${trade.rrRatio}`;
+    if (rrEl) rrEl.innerText = `1 : ${rrRatio}`;
 
     const activeLabel = document.getElementById('ptActiveLabel');
     if (activeLabel) {
       const d = new Date(trade.time * 1000);
-      const timeStr = d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-      activeLabel.innerText = `${trade.name} at ${timeStr} [${trade.regime ? trade.regime.replace(/_/g, ' ') : trade.direction}] (${trade.outcome})`;
+      const timeStr = d.toLocaleTimeString('en-IN', { timeZone: 'Asia/Kolkata', hour: '2-digit', minute: '2-digit', hour12: true });
+      activeLabel.innerText = `${trade.name} at ${timeStr} IST (${trade.outcome})`;
     }
 
     // Real Delta Contract Details
@@ -1011,6 +1032,21 @@ window.DeltaLiveChart = (function() {
     const liveTagEl = document.getElementById('ptDeltaLiveTag');
 
     if (opt) {
+      // Purge any stale legacy monthly symbol (e.g. 271126)
+      if (opt.symbol && opt.symbol.includes("271126")) {
+        const atmStrike = trade.optionStrike || Math.round(trade.entry / 200) * 200;
+        opt.symbol = `${isCall ? 'C-BTC-' : 'P-BTC-'}${atmStrike}`;
+        opt.entryPrice = Math.round(trade.entry * 0.0033 * 10) / 10;
+        opt.markPrice = opt.entryPrice;
+        opt.targetPrice = Math.round(opt.entryPrice * 1.65 * 10) / 10;
+        opt.targetGainPct = "+65.0%";
+        opt.buyZone = `$${(opt.entryPrice * 0.98).toFixed(1)} - $${(opt.entryPrice * 1.02).toFixed(1)}`;
+      }
+
+      const validBuyZone = (opt.buyZone && opt.buyZone !== "undefined")
+        ? opt.buyZone
+        : `$${((opt.entryPrice || 220) * 0.98).toFixed(1)} - $${((opt.entryPrice || 220) * 1.02).toFixed(1)}`;
+
       if (symEl) symEl.innerText = opt.symbol;
       if (markEl) {
         if (opt.unrealizedPts !== undefined && trade.outcome === 'ACTIVE') {
@@ -1020,8 +1056,8 @@ window.DeltaLiveChart = (function() {
           markEl.innerText = `$${opt.markPrice.toFixed(1)}`;
         }
       }
-      if (buyZoneEl) buyZoneEl.innerText = opt.buyZone;
-      if (targetEl) targetEl.innerText = `$${opt.targetPrice.toFixed(1)} (${opt.targetGainPct})`;
+      if (buyZoneEl) buyZoneEl.innerText = validBuyZone;
+      if (targetEl) targetEl.innerText = `$${opt.targetPrice.toFixed(1)} (${opt.targetGainPct || '+65%'})`;
       if (liveTagEl) {
         liveTagEl.className = opt.isLive 
           ? "text-[9px] font-mono px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 font-bold"
@@ -1029,10 +1065,13 @@ window.DeltaLiveChart = (function() {
         liveTagEl.innerText = opt.isLive ? (trade.outcome === 'ACTIVE' ? "Locked Entry Plan" : "Live Delta Feed") : "Simulated Strike";
       }
     } else {
-      if (symEl) symEl.innerText = isCall ? `C-BTC-${trade.optionStrike}` : `P-BTC-${trade.optionStrike}`;
-      if (markEl) markEl.innerText = "$220.0";
-      if (buyZoneEl) buyZoneEl.innerText = "$210.0 - $225.0";
-      if (targetEl) targetEl.innerText = "$330.0 (+50%)";
+      const atmStrike = trade.optionStrike || Math.round(trade.entry / 200) * 200;
+      const simEntry = Math.round(trade.entry * 0.0033 * 10) / 10;
+      const simTarget = Math.round(simEntry * 1.65 * 10) / 10;
+      if (symEl) symEl.innerText = isCall ? `C-BTC-${atmStrike}` : `P-BTC-${atmStrike}`;
+      if (markEl) markEl.innerText = `$${simEntry.toFixed(1)}`;
+      if (buyZoneEl) buyZoneEl.innerText = `$${(simEntry * 0.98).toFixed(1)} - $${(simEntry * 1.02).toFixed(1)}`;
+      if (targetEl) targetEl.innerText = `$${simTarget.toFixed(1)} (+65%)`;
     }
   }
 
@@ -1544,7 +1583,7 @@ Expected Profit: +50% Option Gross / +40% Net`;
                   tradeRef: rs
                 });
                 currentAnalysis.markers.sort((a, b) => a.time - b.time);
-                if (candleSeries) candleSeries.setMarkers(currentAnalysis.markers);
+                if (candleSeries) candleSeries.setMarkers(sanitizeMarkersNoOverlap(currentAnalysis.markers));
               }
             }
           });
@@ -1559,8 +1598,8 @@ Expected Profit: +50% Option Gross / +40% Net`;
       }).catch(e => console.warn("Firestore signals sync notice:", e));
     }
 
-    // Set Markers on TradingView Chart (Clean, uncluttered)
-    candleSeries.setMarkers(currentAnalysis.markers);
+    // Set Markers on TradingView Chart with Anti-Collision Staggering
+    candleSeries.setMarkers(sanitizeMarkersNoOverlap(currentAnalysis.markers));
 
     // Automatically draw the latest high-conviction trade box on the chart
     if (currentAnalysis.latestTrade && (!selectedTrade || !currentAnalysis.trades.find(t => t.id === selectedTrade.id))) {
@@ -1819,7 +1858,10 @@ Expected Profit: +50% Option Gross / +40% Net`;
         return `
           <tr id="row_${t.id}" class="bt-trade-row hover:bg-panelDark/60 transition-colors cursor-pointer ${isSelected ? 'bg-indigo-600/20' : ''}" onclick="DeltaLiveChart.selectTrade('${t.id}')">
             <td class="py-2.5 px-2 text-slate-200 font-bold text-[11px] sm:text-xs">
-              <div class="flex items-center gap-1">${t.session ? `<span title="${t.session.name}">${t.session.flag}</span>` : ''}<span>${timeStr}</span></div>
+              <div class="flex items-center gap-1 font-mono">
+                <span class="text-white">${timeStr}</span>
+                <span class="text-[9px] text-slate-400 font-normal">IST</span>
+              </div>
               <div class="text-[9px] text-slate-400 font-normal">${dateStr}</div>
             </td>
             <td class="py-2.5 px-2">
@@ -1829,6 +1871,7 @@ Expected Profit: +50% Option Gross / +40% Net`;
                 ${t.strategyId && t.strategyId.includes('BOS') ? '<span class="text-[8px] px-1 py-0.2 rounded bg-amber-500/20 text-amber-300 border border-amber-500/40 font-mono">BOS</span>' : ''}
               </div>
               <span class="text-[10px] text-slate-400 block truncate" title="${t.name}">${cleanPatternName}</span>
+              ${t.session ? `<div class="text-[9px] text-indigo-300/80 font-sans mt-0.5">${t.session.name}</div>` : ''}
             </td>
             <td class="py-2.5 px-2">
               <div class="flex items-center gap-1">
@@ -1970,7 +2013,7 @@ Expected Profit: +50% Option Gross / +40% Net`;
                 <span class="truncate" title="${contractLabel}">${contractLabel}</span>
                 ${opt && opt.ivBadge ? `<span class="text-[8px] font-mono px-1 py-0.2 rounded bg-brandDark border border-borderDark text-amber-300 shrink-0">${opt.ivBadge}</span>` : ''}
               </div>
-              <div class="text-[10px] text-slate-400 shrink-0">${t.session ? `<span class="mr-1" title="${t.session.name}">${t.session.flag}</span>` : ''}${timeStr} · ${dateStr}</div>
+              <div class="text-[10px] text-slate-400 shrink-0 font-mono">${timeStr} IST · ${dateStr}</div>
             </div>
 
             <!-- 2-Column Institutional Metrics Grid -->
