@@ -210,24 +210,40 @@ window.DeltaLiveChart = (function() {
     }
   }
 
-  // Institutional SMC Overlay Preferences
+  // Institutional SMC Overlay Preferences: Strictly OFF by default (Clean Trades-Only Chart)
+  // Overlays only activate when user explicitly clicks the FVG, OB, or Asia toggle buttons.
   const activeOverlays = {
-    fvg: localStorage.getItem('dtj_overlay_fvg') !== 'false',
-    ob: localStorage.getItem('dtj_overlay_ob') !== 'false',
-    asia: localStorage.getItem('dtj_overlay_asia') !== 'false'
+    fvg: localStorage.getItem('dtj_overlay_fvg_v2') === 'true',
+    ob: localStorage.getItem('dtj_overlay_ob_v2') === 'true',
+    asia: localStorage.getItem('dtj_overlay_asia_v2') === 'true'
   };
 
   function updateOverlayButtons() {
+    const config = {
+      fvg: { activeBg: 'bg-cyan-500/25', activeText: 'text-cyan-300', activeBorder: 'border-cyan-500/50', dotColor: 'bg-cyan-400' },
+      ob: { activeBg: 'bg-amber-500/25', activeText: 'text-amber-300', activeBorder: 'border-amber-500/50', dotColor: 'bg-amber-400' },
+      asia: { activeBg: 'bg-sky-500/25', activeText: 'text-sky-300', activeBorder: 'border-sky-500/50', dotColor: 'bg-sky-400' }
+    };
+
     ['fvg', 'ob', 'asia'].forEach(name => {
       const btns = document.querySelectorAll(`[id^="btnToggle${name.charAt(0).toUpperCase() + name.slice(1)}"]`);
-      const active = activeOverlays[name];
+      const active = Boolean(activeOverlays[name]);
+      const cfg = config[name] || { activeBg: 'bg-indigo-600', activeText: 'text-white', activeBorder: 'border-indigo-500', dotColor: 'bg-indigo-400' };
+
       btns.forEach(btn => {
+        const dot = btn.querySelector('span');
         if (active) {
-          btn.classList.remove('opacity-40');
-          btn.classList.add('shadow-sm');
+          btn.classList.remove('opacity-40', 'opacity-50', 'text-slate-400', 'bg-panelDark', 'border-borderDark');
+          btn.classList.add(cfg.activeBg, cfg.activeText, cfg.activeBorder, 'shadow-sm');
+          if (dot) {
+            dot.className = `h-1.5 w-1.5 rounded-full ${cfg.dotColor} ring-2 ring-white/20`;
+          }
         } else {
-          btn.classList.add('opacity-40');
-          btn.classList.remove('shadow-sm');
+          btn.classList.remove(cfg.activeBg, cfg.activeText, cfg.activeBorder, 'shadow-sm');
+          btn.classList.add('opacity-40', 'text-slate-400', 'bg-panelDark', 'border-borderDark');
+          if (dot) {
+            dot.className = 'h-1.5 w-1.5 rounded-full bg-slate-500/60';
+          }
         }
       });
     });
@@ -236,10 +252,10 @@ window.DeltaLiveChart = (function() {
   function toggleOverlay(name) {
     if (activeOverlays[name] !== undefined) {
       activeOverlays[name] = !activeOverlays[name];
-      localStorage.setItem(`dtj_overlay_${name}`, activeOverlays[name].toString());
+      localStorage.setItem(`dtj_overlay_${name}_v2`, activeOverlays[name].toString());
       updateOverlayButtons();
       renderPositionBox(selectedTrade);
-      DeltaSound.playChime('click');
+      try { DeltaSound.playChime('click'); } catch (e) {}
     }
   }
 
@@ -1004,6 +1020,7 @@ window.DeltaLiveChart = (function() {
 
     let fvgSvgHTML = '';
     let asiaSvgHTML = '';
+    let obSvgHTML = '';
     let positionBoxHTML = '';
 
     // 1. Render Fair Value Gaps (Volumetric Translucent Imbalance Zones)
@@ -1067,7 +1084,37 @@ window.DeltaLiveChart = (function() {
       });
     }
 
-    // 3. Render Selected Trade Position Box
+    // 3. Render Order Block Liquidity Bands (Supply & Demand Blocks)
+    if (activeOverlays.ob && currentAnalysis && currentAnalysis.overlays && currentAnalysis.overlays.orderBlocks) {
+      const obs = currentAnalysis.overlays.orderBlocks;
+      obs.forEach(o => {
+        const ox1 = chart.timeScale().timeToCoordinate(o.startTime);
+        let ox2 = chart.timeScale().timeToCoordinate(o.endTime);
+        if (ox1 === null) return;
+        if (ox2 === null) ox2 = ox1 + 180;
+        const ow = Math.max(35, ox2 - ox1);
+
+        const oyTop = candleSeries.priceToCoordinate(o.top);
+        const oyBottom = candleSeries.priceToCoordinate(o.bottom);
+        if (oyTop === null || oyBottom === null) return;
+
+        const oy = Math.min(oyTop, oyBottom);
+        const oh = Math.max(4, Math.abs(oyBottom - oyTop));
+        const isBull = o.type === 'BULLISH';
+        const oFill = isBull ? "rgba(245, 158, 11, 0.08)" : "rgba(239, 68, 68, 0.08)";
+        const oStroke = isBull ? "rgba(245, 158, 11, 0.45)" : "rgba(239, 68, 68, 0.45)";
+
+        obSvgHTML += `
+          <g opacity="${o.mitigated ? '0.4' : '0.8'}">
+            <rect x="${ox1}" y="${oy}" width="${ow}" height="${oh}"
+                  fill="${oFill}" stroke="${oStroke}" stroke-width="0.8" stroke-dasharray="3,2" rx="2" />
+            <text x="${ox1 + 4}" y="${oy + Math.min(9, oh)}" font-family="monospace" font-size="7.5" font-weight="bold" fill="${isBull ? '#f59e0b' : '#ef4444'}">OB ${isBull ? 'Demand' : 'Supply'}</text>
+          </g>
+        `;
+      });
+    }
+
+    // 4. Render Selected Trade Position Box
     if (trade) {
       const x1 = chart.timeScale().timeToCoordinate(trade.time);
       let exitTime = trade.exitTime;
@@ -1153,7 +1200,7 @@ window.DeltaLiveChart = (function() {
       }
     }
 
-    svg.innerHTML = fvgSvgHTML + asiaSvgHTML + positionBoxHTML;
+    svg.innerHTML = fvgSvgHTML + asiaSvgHTML + obSvgHTML + positionBoxHTML;
   }
 
   /**
@@ -1898,6 +1945,33 @@ window.DeltaLiveChart = (function() {
       const stepsContainer = document.getElementById('atmModalPlaybook');
       if (stepsContainer) {
         if (opt && (opt.isLive || opt.symbol)) {
+          const tp1PriceVal = opt.tp1Price || Math.round(entryOpt * 1.50 * 10) / 10;
+          const tp2PriceVal = opt.targetPrice || Math.round(entryOpt * 1.72 * 10) / 10;
+          const tp2GainPct = opt.targetGainPct || t.optionPnlPct || '+100%+';
+
+          let tpStepHTML = '';
+          if (tp2PriceVal > tp1PriceVal) {
+            tpStepHTML = `
+              <li class="text-xs text-slate-200 font-mono py-1 flex items-start gap-2">
+                <i class="fa-solid fa-check text-indigo-400 mt-0.5"></i>
+                <div class="w-full">
+                  <span>4. Take Profit GTT Orders:</span>
+                  <div class="mt-1 pl-2 border-l border-indigo-500/30 space-y-1">
+                    <div>• <strong class="text-winGreen">TP1 (50% Scalp / Derisk):</strong> Limit Sell at <strong class="text-white bg-emerald-950/60 px-1 py-0.5 rounded border border-emerald-500/40">$${tp1PriceVal}</strong> (+50.0%) ➔ Lock 50% & Move SL to BE.</div>
+                    <div>• <strong class="text-emerald-300">TP2 (50% Structural Runner):</strong> Limit Sell at <strong class="text-white bg-indigo-950/60 px-1 py-0.5 rounded border border-indigo-500/40">$${tp2PriceVal}</strong> (${tp2GainPct} runner potential).</div>
+                  </div>
+                </div>
+              </li>
+            `;
+          } else {
+            tpStepHTML = `
+              <li class="text-xs text-slate-200 font-mono py-1 flex items-start gap-2">
+                <i class="fa-solid fa-check text-indigo-400 mt-0.5"></i>
+                <span>4. Take Profit GTT Order: Set Limit Sell at <strong class="text-winGreen">$${tp2PriceVal}</strong> (${tp2GainPct} profit target).</span>
+              </li>
+            `;
+          }
+
           stepsContainer.innerHTML = `
             <li class="text-xs text-slate-200 font-mono py-1 flex items-start gap-2">
               <i class="fa-solid fa-check text-indigo-400 mt-0.5"></i>
@@ -1911,13 +1985,10 @@ window.DeltaLiveChart = (function() {
               <i class="fa-solid fa-check text-indigo-400 mt-0.5"></i>
               <span>3. Buy Order: Enter in Buy Zone <strong class="text-emerald-400">${opt.buyZone || `$${(entryOpt * 0.98).toFixed(1)} - $${(entryOpt * 1.02).toFixed(1)}`}</strong> (Current Mark: $${opt.markPrice || entryOpt}).</span>
             </li>
+            ${tpStepHTML}
             <li class="text-xs text-slate-200 font-mono py-1 flex items-start gap-2">
               <i class="fa-solid fa-check text-indigo-400 mt-0.5"></i>
-              <span>4. Take Profit GTT Order: Set Limit Sell at <strong class="text-winGreen">$${opt.targetPrice || Math.round(entryOpt * 1.65 * 10) / 10}</strong> (+50% profit target).</span>
-            </li>
-            <li class="text-xs text-slate-200 font-mono py-1 flex items-start gap-2">
-              <i class="fa-solid fa-check text-indigo-400 mt-0.5"></i>
-              <span>5. Stop Loss GTT Order: Set Stop Market at <strong class="text-lossRed">$${opt.stopPrice || Math.round(entryOpt * 0.70 * 10) / 10}</strong> (Underlying Spot Invalidation: $${slNum.toLocaleString()}).</span>
+              <span>5. Stop Loss GTT Order: Set Stop Market at <strong class="text-lossRed">$${opt.stopPrice || Math.round(entryOpt * 0.70 * 10) / 10}</strong> (-30% preservation stop / Spot Invalidation: $${slNum.toLocaleString()}).</span>
             </li>
           `;
         } else if (r.deltaSteps) {
@@ -1976,12 +2047,19 @@ window.DeltaLiveChart = (function() {
 
     let text = "";
     if (opt && opt.isLive) {
+      const tp1Val = opt.tp1Price || Math.round(opt.entryPrice * 1.50 * 10) / 10;
+      const tp2Val = opt.targetPrice || Math.round(opt.entryPrice * 1.72 * 10) / 10;
+      const tp2Pct = opt.targetGainPct || t.optionPnlPct || '+100%+';
+      const tpLine = tp2Val > tp1Val 
+        ? `Take Profit 1 (50% Scalp / Derisk): $${tp1Val} (+50% Profit ➔ Move SL to BE)\nTake Profit 2 (50% Structural Runner): $${tp2Val} (${tp2Pct} Runner Potential)`
+        : `Take Profit (Target Limit): $${tp2Val} (${tp2Pct} Profit)`;
+
       text = `DELTA EXCHANGE INDIA REAL ORDER PLAN:
 Direction: ${isCall ? 'BUY CALL' : 'BUY PUT'}
 Contract: ${opt.symbol}
 Current Mark Price: $${opt.markPrice}
 Recommended Buy Zone: ${opt.buyZone}
-Take Profit (Target Limit): $${opt.targetPrice} (+50% Profit)
+${tpLine}
 Stop Loss (Stop Market): $${opt.stopPrice} (-30% Controlled Risk)
 Underlying BTC Spot Invalidation: $${t.sl.toLocaleString()}
 Risk-to-Reward: 1 : ${t.rrRatio}`;

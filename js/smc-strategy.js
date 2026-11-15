@@ -258,6 +258,66 @@ window.DeltaSMCStrategy = (function() {
     return fvgs.slice(-15);
   }
 
+  /**
+   * Extracts Institutional Order Blocks (unmitigated displacement origin blocks)
+   */
+  function extractOrderBlocks(candles) {
+    if (!candles || candles.length < 8) return [];
+    const obs = [];
+    const lookback = Math.min(candles.length - 2, 70);
+    const startIdx = Math.max(3, candles.length - lookback);
+
+    for (let i = startIdx; i < candles.length - 2; i++) {
+      const c = candles[i];
+      const next1 = candles[i + 1];
+      const next2 = candles[i + 2];
+      const isDown = c.close < c.open;
+      const isUp = c.close > c.open;
+
+      // Bullish OB: Last down candle before strong 2-candle upward displacement
+      if (isDown && next1.close > next1.open && next2.close > next2.open && (next2.close - c.close) >= 180) {
+        let mitigated = false;
+        let mitigatedTime = null;
+        for (let m = i + 3; m < candles.length; m++) {
+          if (candles[m].low <= c.low) {
+            mitigated = true;
+            mitigatedTime = candles[m].time;
+            break;
+          }
+        }
+        obs.push({
+          startTime: c.time,
+          endTime: mitigatedTime || (candles[candles.length - 1].time + 1800),
+          top: Math.max(c.open, c.close),
+          bottom: c.low,
+          type: 'BULLISH',
+          mitigated
+        });
+      }
+      // Bearish OB: Last up candle before strong 2-candle downward displacement
+      else if (isUp && next1.close < next1.open && next2.close < next2.open && (c.close - next2.close) >= 180) {
+        let mitigated = false;
+        let mitigatedTime = null;
+        for (let m = i + 3; m < candles.length; m++) {
+          if (candles[m].high >= c.high) {
+            mitigated = true;
+            mitigatedTime = candles[m].time;
+            break;
+          }
+        }
+        obs.push({
+          startTime: c.time,
+          endTime: mitigatedTime || (candles[candles.length - 1].time + 1800),
+          top: c.high,
+          bottom: Math.min(c.open, c.close),
+          type: 'BEARISH',
+          mitigated
+        });
+      }
+    }
+    return obs.slice(-6);
+  }
+
   // -------------------------------------------------------------
   // 2. BACKTEST & FORWARD SIMULATION ENGINE
   // -------------------------------------------------------------
@@ -943,8 +1003,8 @@ window.DeltaSMCStrategy = (function() {
             `1. Open Delta Exchange India -> BTC Options.`,
             `2. Select Contract: ${setup.direction === "LONG" ? 'C-BTC-' + setup.optionStrike : 'P-BTC-' + setup.optionStrike} (${setup.direction === "LONG" ? 'ATM Call' : 'ATM Put'}).`,
             `3. Order Type: Buy in zone $${(entryOpt * 0.98).toFixed(1)} - $${(entryOpt * 1.02).toFixed(1)}.`,
-            `4. Take Profit GTT Order: Set Limit Exit at $${exitOpt.toFixed(1)} (${setup.optionPnlPct} profit target).`,
-            `5. Stop Loss GTT Order: Set Stop Exit at $${(entryOpt * 0.70).toFixed(1)} (Underlying Spot SL: $${setup.sl.toLocaleString()}).`
+            `4. Take Profit GTT Orders: Scalp TP1 Limit Exit at $${(entryOpt * 1.50).toFixed(1)} (+50.0% / lock 50% & move SL to BE) · Structural TP2 Limit Exit at $${exitOpt.toFixed(1)} (${setup.optionPnlPct} / runner qty).`,
+            `5. Stop Loss GTT Order: Set Stop Exit at $${(entryOpt * 0.70).toFixed(1)} (-30.0% stop / Underlying Spot SL: $${setup.sl.toLocaleString()}).`
           ]
         };
 
@@ -1080,6 +1140,7 @@ window.DeltaSMCStrategy = (function() {
     // Compute Volumetric SMC Overlays
     const fvgZones = extractFVGZones(candles);
     const asianRanges = extractAsianRanges(candles);
+    const orderBlocks = extractOrderBlocks(candles);
 
     return {
       trades,
@@ -1088,7 +1149,8 @@ window.DeltaSMCStrategy = (function() {
       latestTrade,
       overlays: {
         fvgZones,
-        asianRanges
+        asianRanges,
+        orderBlocks
       },
       stats: {
         totalTrades,
@@ -1114,6 +1176,7 @@ window.DeltaSMCStrategy = (function() {
     runBacktest,
     getTradingSession,
     extractAsianRanges,
-    extractFVGZones
+    extractFVGZones,
+    extractOrderBlocks
   };
 })();
