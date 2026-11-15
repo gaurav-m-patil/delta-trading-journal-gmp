@@ -847,6 +847,12 @@ def check_breaking_crypto_catalysts():
     return None
 
 
+def get_now_ist_str():
+    """Returns current wall-clock timestamp formatted in Indian Standard Time (IST)."""
+    now_ist = datetime.now(timezone.utc) + timedelta(hours=5, minutes=30)
+    return now_ist.strftime("%I:%M %p · %d %b %Y IST")
+
+
 def run_sentinel():
     """Main 24/7 Cloud Sentinel execution routine."""
     print("=" * 60)
@@ -878,6 +884,7 @@ def run_sentinel():
 ⚡ <b>Target Feed:</b> Delta Exchange India (BTCUSD 15m)
 📊 <b>Strategy Engine:</b> Institutional SMC Sweeps, FVGs & BOS
 🎯 <b>Option Execution:</b> Dynamic Delta Potential (TP1 +50% Derisk / TP2 Full Runner)
+⏰ <b>Connection Time:</b> {get_now_ist_str()}
 
 <i>You will now receive confirmed trade entries, profit targets, and market catalysts automatically even when your app is completely closed.</i>
 🔗 <a href="https://delta-trading-journal-gmp.vercel.app/">Open Live Journal & Chart</a>"""
@@ -958,6 +965,7 @@ def run_sentinel():
 🏷️ <b>Contract:</b> <code>{contract}</code>
 💰 <b>Option Fill:</b> Buy: ${buy_p:.1f} ➔ <b>TP1 Booked: ${tp1_p:.1f} (+50.0%)</b>
 🎯 <b>Stop Trailed:</b> Invalidation moved to <b>Breakeven (${entry:,.0f})</b>
+⏰ <b>Alert Time:</b> {get_now_ist_str()}
 ⚡ <i>Risk Status: Zero downside risk remaining. Trailing remaining 50% for full structural expansion to Target 2 (${tp:,.0f})!</i>
 🔗 <a href="https://delta-trading-journal-gmp.vercel.app/">Open Live Journal & Chart</a>"""
             send_telegram_message(bot_token, chat_id, tp1_msg)
@@ -976,6 +984,7 @@ def run_sentinel():
 🏷️ <b>Contract:</b> <code>{contract}</code>
 💰 <b>Option Fill:</b> Buy: ${buy_p:.1f} ➔ <b>Sell: ${sell_p:.1f}</b> (+{pts_gain} pts)
 🎯 <b>BTC Spot:</b> ${entry:,.0f} ➔ <b>${current_price:,.0f} (Target Achieved)</b>
+⏰ <b>Alert Time:</b> {get_now_ist_str()}
 
 📊 <b>TODAY'S SCORECARD:</b>
 • Total Given: <b>{daily_counts['trades_given']}</b>
@@ -1005,6 +1014,7 @@ def run_sentinel():
 🏷️ <b>Contract:</b> <code>{contract}</code>
 💰 <b>Option Realization:</b> 50% booked at ${tp1_p:.1f} (+50%) + 50% at ${buy_p:.1f} (BE) ➔ <b>Net: ${sell_p:.1f} (+25.0%)</b>
 🎯 <b>BTC Spot:</b> Returned to entry ${entry:,.0f} after booking TP1
+⏰ <b>Alert Time:</b> {get_now_ist_str()}
 
 📊 <b>TODAY'S SCORECARD:</b>
 • Total Given: <b>{daily_counts['trades_given']}</b>
@@ -1034,6 +1044,7 @@ def run_sentinel():
 🏷️ <b>Contract:</b> <code>{contract}</code>
 💰 <b>Option Fill:</b> Buy: ${buy_p:.1f} ➔ <b>Exit: ${sell_p:.1f}</b> (-{pts_loss} pts)
 🎯 <b>BTC Spot:</b> ${entry:,.0f} ➔ <b>${current_price:,.0f} (Stop Hit)</b>
+⏰ <b>Alert Time:</b> {get_now_ist_str()}
 
 📊 <b>TODAY'S SCORECARD:</b>
 • Total Given: <b>{daily_counts['trades_given']}</b>
@@ -1057,7 +1068,8 @@ def run_sentinel():
 ━━━━━━━━━━━━━━━━━━━━━━
 ⚠️ <b>Daily Loss Threshold Hit:</b> 2/2 Losses Today
 🛑 <b>Action:</b> Signal generation halted for the remainder of today's session.
-⏰ <b>Automatic Reset:</b> Tomorrow morning at 05:30 AM IST.
+⏰ <b>Trigger Time:</b> {get_now_ist_str()}
+🔄 <b>Automatic Reset:</b> Tomorrow morning at 05:30 AM IST.
 💎 <i>Strict institutional risk discipline: Limiting daily drawdown to preserve capital.</i>
 🔗 <a href="https://delta-trading-journal-gmp.vercel.app/">View Risk Dashboard</a>"""
                 send_telegram_message(bot_token, chat_id, cb_msg)
@@ -1121,7 +1133,7 @@ def run_sentinel():
 • <b>Momentum:</b> RSI {setup['rsi']} | {setup['rvol']}x RVOL
 
 📈 <b>DAILY TRACKER:</b> {daily_counts['trades_given']} Trade(s) Alerted Today ({daily_counts['wins']}W - {daily_counts['losses']}L) · 🛡️ Circuit Breaker: 🟢 Normal (0/2)
-⏰ <i>Time: {ist_time} IST</i>
+⏰ <b>Alert Time:</b> {get_now_ist_str()} · (15m Candle: {ist_time} IST)
 🔗 <a href="https://delta-trading-journal-gmp.vercel.app/">Open Live Journal & Chart</a>"""
 
                 if send_telegram_message(bot_token, chat_id, msg):
@@ -1149,6 +1161,7 @@ def run_sentinel():
 📢 <b>Headline:</b> {catalyst['title']}
 📰 <b>Category:</b> {catalyst['category']}
 ⚡ <b>Market Bias:</b> {bias_emoji} <b>{catalyst['bias']} CATALYST ({'PUTS FAVORED' if catalyst['bias'] == 'BEARISH' else 'CALLS FAVORED'})</b>
+⏰ <b>Alert Time:</b> {get_now_ist_str()}
 
 ⚠️ <i>Institutional Advisory: Breaking macro events trigger heavy volatility. Check Delta option strikes & respect stop loss levels.</i>
 🔗 <a href="https://delta-trading-journal-gmp.vercel.app/">Open Live Journal & Chart</a>"""

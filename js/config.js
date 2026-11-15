@@ -6,7 +6,7 @@
 
 window.DeltaConfig = {
   APP_NAME: "Delta Trading Journal & AI Coach",
-  APP_VERSION: "3.6.0",
+  APP_VERSION: "3.6.1",
 
   // Local Seed / Raw Data URL
   RAW_DATA_URL: "./data/raw_data.json",

@@ -880,6 +880,10 @@ window.DeltaLiveChart = (function() {
     }
   }
 
+  function clearPositionBox() {
+    renderPositionBox(null);
+  }
+
   /**
    * Renders the authentic TradingView Long / Short Position Drawing Tool
    * (Shaded Green Profit Box, Shaded Red Loss Box, Entry line, exact targets)
@@ -2377,6 +2381,77 @@ Expected Profit: +50% Option Gross / +40% Net`;
     }
   }
 
+  let isMaximized = false;
+
+  function toggleMaximizeChart() {
+    const card = document.getElementById('chartCardWrapper');
+    const container = document.getElementById('tvLiveChartContainer');
+    const btnText = document.getElementById('chartMaximizeText');
+    const btnIcon = document.getElementById('chartMaximizeIcon');
+    const btnTextTop = document.getElementById('chartMaximizeTextTop');
+    const btnIconTop = document.getElementById('chartMaximizeIconTop');
+    if (!container || !chart) return;
+
+    const targetEl = card || container;
+    isMaximized = !isMaximized;
+
+    if (isMaximized) {
+      targetEl.classList.add('fixed', 'inset-0', 'z-[9999]', 'bg-[#080b11]', 'p-3', 'sm:p-4', 'flex', 'flex-col', 'gap-2', 'overflow-hidden');
+      document.body.classList.add('overflow-hidden');
+      const availH = window.innerHeight - 80;
+      container.style.height = `${availH}px`;
+      container.classList.remove('min-h-[330px]', 'sm:min-h-[420px]');
+      chart.applyOptions({
+        width: container.clientWidth || window.innerWidth,
+        height: availH
+      });
+      if (btnText) btnText.innerText = "Restore";
+      if (btnIcon) {
+        btnIcon.classList.remove('fa-expand');
+        btnIcon.classList.add('fa-compress');
+      }
+      if (btnTextTop) btnTextTop.innerText = "Restore";
+      if (btnIconTop) {
+        btnIconTop.classList.remove('fa-expand');
+        btnIconTop.classList.add('fa-compress');
+      }
+    } else {
+      targetEl.classList.remove('fixed', 'inset-0', 'z-[9999]', 'bg-[#080b11]', 'p-3', 'sm:p-4', 'flex', 'flex-col', 'gap-2', 'overflow-hidden');
+      document.body.classList.remove('overflow-hidden');
+      const normalHeight = window.innerWidth < 640 ? 350 : 430;
+      container.style.height = '';
+      container.classList.add('min-h-[330px]', 'sm:min-h-[420px]');
+      chart.applyOptions({
+        width: container.clientWidth || (window.innerWidth - 32),
+        height: normalHeight
+      });
+      if (btnText) btnText.innerText = "Maximize";
+      if (btnIcon) {
+        btnIcon.classList.remove('fa-compress');
+        btnIcon.classList.add('fa-expand');
+      }
+      if (btnTextTop) btnTextTop.innerText = "Maximize";
+      if (btnIconTop) {
+        btnIconTop.classList.remove('fa-compress');
+        btnIconTop.classList.add('fa-expand');
+      }
+    }
+
+    chart.timeScale().fitContent();
+    renderPositionBox(selectedTrade);
+  }
+
+  // Restore maximized chart on Escape key
+  window.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && isMaximized) {
+      toggleMaximizeChart();
+    }
+  });
+
+  function openChartInNewTab() {
+    window.open('chart.html', '_blank');
+  }
+
   function clearTradeState() {
     selectedTrade = null;
     clearPositionBox();
@@ -2392,6 +2467,8 @@ Expected Profit: +50% Option Gross / +40% Net`;
     showLatestTrade,
     clearLinesAndReset,
     clearTradeState,
+    toggleMaximizeChart,
+    openChartInNewTab,
     openTradeDetailsModal,
     closeTradeDetailsModal,
     copyDeltaOrderDetails,

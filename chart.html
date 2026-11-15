@@ -1,0 +1,234 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <title>Delta India Live Chart Terminal · BTC/USD 15m</title>
+  <meta name="theme-color" content="#080b11">
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>⚡</text></svg>">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <link rel="stylesheet" href="css/app.css?v=3.6.1">
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          colors: {
+            brandDark: '#080b11',
+            cardDark: '#0f172a',
+            panelDark: '#131d31',
+            borderDark: '#1e293b',
+            winGreen: '#10b981',
+            lossRed: '#f43f5e'
+          }
+        }
+      }
+    };
+  </script>
+  <style>
+    body {
+      background-color: #080b11;
+      color: #f8fafc;
+      overflow: hidden;
+      margin: 0;
+      padding: 0;
+    }
+  </style>
+</head>
+<body class="h-screen w-screen flex flex-col font-sans select-none">
+
+  <!-- Top Header Bar -->
+  <header class="h-14 bg-cardDark/95 border-b border-borderDark px-3 sm:px-4 flex items-center justify-between gap-3 shrink-0 z-20">
+    <div class="flex items-center gap-3">
+      <a href="./" class="px-2.5 py-1.5 rounded-xl bg-panelDark border border-borderDark hover:bg-slate-800 text-slate-300 hover:text-white transition-colors flex items-center gap-1.5 text-xs font-mono font-bold" title="Return to Trading Journal">
+        <i class="fa-solid fa-arrow-left"></i> <span class="hidden sm:inline">Journal</span>
+      </a>
+      <div class="h-5 w-[1px] bg-borderDark"></div>
+      <div class="flex items-center gap-2">
+        <span class="text-sm font-bold text-white tracking-wide flex items-center gap-1.5 font-mono">
+          <i class="fa-brands fa-bitcoin text-amber-400"></i> BTC/USD
+        </span>
+        <span class="text-[10px] font-mono px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 font-bold hidden sm:inline">
+          Delta India 15m
+        </span>
+      </div>
+      <div class="flex items-baseline gap-1.5 pl-1 sm:pl-2">
+        <span id="chartLivePriceHeader" class="text-base sm:text-xl font-bold font-mono text-winGreen">Connecting...</span>
+      </div>
+    </div>
+
+    <!-- Controls -->
+    <div class="flex items-center gap-2">
+      <!-- Timeframe Buttons -->
+      <div class="flex items-center bg-brandDark border border-borderDark rounded-xl p-1 gap-1">
+        <button onclick="DeltaLiveChart.loadTimeframe('1m')" id="btnTf_1m" class="px-2 py-0.5 text-xs font-bold rounded-lg text-slate-400 hover:text-white bg-panelDark font-mono">1m</button>
+        <button onclick="DeltaLiveChart.loadTimeframe('5m')" id="btnTf_5m" class="px-2 py-0.5 text-xs font-bold rounded-lg text-slate-400 hover:text-white bg-panelDark font-mono">5m</button>
+        <button onclick="DeltaLiveChart.loadTimeframe('15m')" id="btnTf_15m" class="px-2 py-0.5 text-xs font-bold rounded-lg bg-indigo-600 text-white font-mono shadow-sm">15m</button>
+        <button onclick="DeltaLiveChart.loadTimeframe('1h')" id="btnTf_1h" class="px-2 py-0.5 text-xs font-bold rounded-lg text-slate-400 hover:text-white bg-panelDark font-mono">1h</button>
+        <button onclick="DeltaLiveChart.loadTimeframe('4h')" id="btnTf_4h" class="px-2 py-0.5 text-xs font-bold rounded-lg text-slate-400 hover:text-white bg-panelDark font-mono">4h</button>
+        <button onclick="DeltaLiveChart.loadTimeframe('1D')" id="btnTf_1D" class="px-2 py-0.5 text-xs font-bold rounded-lg text-slate-400 hover:text-white bg-panelDark font-mono">1D</button>
+      </div>
+
+      <!-- Action Buttons -->
+      <div class="flex items-center gap-1.5">
+        <button onclick="DeltaLiveChart.showLatestTrade()" title="Snap to Latest Institutional Setup" class="text-xs px-2.5 py-1 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white font-mono font-bold transition-colors shadow-sm flex items-center gap-1">
+          <i class="fa-solid fa-crosshairs"></i> Snap
+        </button>
+        <button onclick="DeltaLiveChart.clearLinesAndReset()" title="Hide Position Box Lines" class="text-xs px-2.5 py-1 rounded-lg bg-panelDark text-slate-400 hover:text-white border border-borderDark font-mono transition-colors flex items-center gap-1">
+          <i class="fa-solid fa-eye-slash"></i> Clear
+        </button>
+        <button onclick="DeltaLiveChart.toggleAudioChime()" id="chartAudioChimeBtn" class="px-2.5 py-1 text-xs font-bold rounded-xl text-slate-400 hover:text-white bg-brandDark border border-borderDark font-mono transition-colors h-[30px] flex items-center justify-center" title="Toggle Sound Chimes">
+          <i class="fa-solid fa-volume-high text-indigo-400"></i>
+        </button>
+        <button onclick="toggleHtml5Fullscreen()" id="btnFullscreenApi" class="px-2.5 py-1 text-xs font-bold rounded-xl text-slate-400 hover:text-white bg-brandDark border border-borderDark font-mono transition-colors h-[30px] flex items-center justify-center gap-1" title="Toggle Fullscreen">
+          <i id="fullscreenApiIcon" class="fa-solid fa-expand text-slate-400 hover:text-white"></i>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- Live Chart Canvas Area -->
+  <main class="flex-1 relative w-full h-[calc(100vh-56px)] bg-[#0b0f17]">
+    <div id="tvLiveChartContainer" class="w-full h-full relative"></div>
+
+    <!-- Floating Compact Trade Cockpit Bar (Bottom Overlay) -->
+    <div id="tvPositionToolCockpit" class="absolute bottom-3 left-3 right-3 max-w-4xl mx-auto p-3 rounded-2xl bg-brandDark/90 backdrop-blur border border-borderDark shadow-2xl flex flex-col sm:flex-row items-center justify-between gap-3 z-10 transition-all font-mono">
+      <div class="flex items-center gap-3 w-full sm:w-auto">
+        <div id="ptDirectionBadge" class="h-8 w-8 rounded-xl bg-indigo-500/20 text-indigo-400 flex items-center justify-center font-bold text-sm shrink-0">
+          <i class="fa-solid fa-radar animate-pulse"></i>
+        </div>
+        <div>
+          <div class="flex items-center gap-2">
+            <span id="ptSetupName" class="text-xs font-bold text-white">24/7 Cloud Sentinel Radar</span>
+            <span id="ptOutcomeBadge" class="text-[10px] font-bold px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/30">STANDBY</span>
+          </div>
+          <div class="text-[11px] text-slate-300 mt-0.5 flex flex-wrap gap-x-3 gap-y-0.5">
+            <span>Entry: <strong id="ptEntry" class="text-white">--</strong></span>
+            <span>Target: <strong id="ptTp" class="text-winGreen">--</strong></span>
+            <span>Stop: <strong id="ptSl" class="text-lossRed">--</strong></span>
+            <span>R:R: <strong id="ptRR" class="text-indigo-300">--</strong></span>
+          </div>
+        </div>
+      </div>
+
+      <div class="flex items-center justify-between sm:justify-end gap-3 w-full sm:w-auto border-t sm:border-t-0 pt-2 sm:pt-0 border-borderDark/60">
+        <div class="text-left sm:text-right text-[11px]">
+          <span id="ptContractSymbol" class="font-bold text-indigo-300 block">Delta India Contract</span>
+          <span class="text-slate-400">Mark: <strong id="ptDeltaMark" class="text-white">--</strong> | Target: <strong id="ptDeltaTarget" class="text-winGreen">--</strong></span>
+        </div>
+        <button onclick="DeltaLiveChart.openTradeDetailsModal()" class="px-3 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs transition-colors shadow-sm flex items-center gap-1.5 whitespace-nowrap">
+          <i class="fa-solid fa-brain"></i> Playbook
+        </button>
+      </div>
+    </div>
+  </main>
+
+  <!-- Trade Playbook Modal (Shared) -->
+  <div id="algoTradeModal" class="fixed inset-0 z-50 bg-brandDark/85 backdrop-blur-sm hidden flex items-center justify-center p-3 sm:p-4 overflow-y-auto">
+    <div class="bg-cardDark border border-borderDark rounded-2xl w-full max-w-xl shadow-2xl p-4 sm:p-6 space-y-4 my-auto">
+      <div class="flex justify-between items-start gap-3 border-b border-borderDark/70 pb-3">
+        <div>
+          <span id="atmModalDirectionBadge" class="px-2 py-0.5 rounded text-[10px] font-bold font-mono uppercase bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">BUY PUT</span>
+          <h3 id="atmModalTitle" class="text-base sm:text-lg font-bold text-white mt-1">Institutional Setup</h3>
+          <p id="atmModalTime" class="text-xs text-slate-400 font-mono">15 Nov 2026 IST</p>
+        </div>
+        <button onclick="DeltaLiveChart.closeTradeDetailsModal()" class="text-slate-400 hover:text-white p-1.5 text-base">
+          <i class="fa-solid fa-xmark"></i>
+        </button>
+      </div>
+      <div id="atmModalOutcomeBanner" class="p-3 rounded-xl bg-indigo-950/30 border border-indigo-500/30 text-xs font-mono text-indigo-200">
+        <span id="atmModalOutcomeText">Target Reached</span>
+      </div>
+      <div class="grid grid-cols-4 gap-2 text-center font-mono">
+        <div class="bg-panelDark/60 p-2 rounded-xl border border-borderDark/60">
+          <span class="text-[9px] uppercase tracking-wider text-slate-400 block font-sans">Entry</span>
+          <span id="atmModalEntry" class="font-bold text-white text-xs sm:text-sm">$64,800</span>
+        </div>
+        <div class="bg-panelDark/60 p-2 rounded-xl border border-borderDark/60">
+          <span class="text-[9px] uppercase tracking-wider text-slate-400 block font-sans">Target</span>
+          <span id="atmModalTp" class="font-bold text-winGreen text-xs sm:text-sm">$64,000</span>
+        </div>
+        <div class="bg-panelDark/60 p-2 rounded-xl border border-borderDark/60">
+          <span class="text-[9px] uppercase tracking-wider text-slate-400 block font-sans">Stop</span>
+          <span id="atmModalSl" class="font-bold text-lossRed text-xs sm:text-sm">$65,050</span>
+        </div>
+        <div class="bg-panelDark/60 p-2 rounded-xl border border-borderDark/60">
+          <span class="text-[9px] uppercase tracking-wider text-slate-400 block font-sans">R : R</span>
+          <span id="atmModalRR" class="font-bold text-indigo-300 text-xs sm:text-sm">1:3.0</span>
+        </div>
+      </div>
+      <div class="bg-panelDark/50 rounded-xl p-3 border border-borderDark/60 space-y-2 font-mono text-xs">
+        <div class="flex justify-between items-center text-[10px] text-slate-400 uppercase tracking-wider font-sans font-bold">
+          <span>Execution Details</span>
+          <span id="atmModalContract" class="text-indigo-300 font-mono">P-BTC-64800</span>
+        </div>
+        <div class="grid grid-cols-2 gap-2 text-[11px]">
+          <div>Buy Zone: <strong id="atmModalBuyZone" class="text-white">$350 - $390</strong></div>
+          <div>Sell / Mark: <strong id="atmModalTargetOpt" class="text-winGreen">$714.6</strong></div>
+        </div>
+      </div>
+      <div class="space-y-1.5">
+        <span class="text-[10px] uppercase tracking-wider text-slate-400 font-bold block font-sans">Setup Logic & Narrative</span>
+        <div id="atmModalNarrative" class="text-xs text-slate-300 bg-brandDark/70 p-3 rounded-xl border border-borderDark/50 leading-relaxed max-h-36 overflow-y-auto font-sans">
+          Institutional volume rejection confirmed by 15m order block sweep.
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Scripts -->
+  <script src="vendor/lightweight-charts.js?v=3.6.1"></script>
+  <script src="js/config.js?v=3.6.1"></script>
+  <script src="js/db.js?v=3.6.1"></script>
+  <script src="js/smc-strategy.js?v=3.6.1"></script>
+  <script src="js/paper-fund.js?v=3.6.1"></script>
+  <script src="js/chart-engine.js?v=3.6.1"></script>
+
+  <script>
+    function toggleHtml5Fullscreen() {
+      const icon = document.getElementById('fullscreenApiIcon');
+      if (!document.fullscreenElement) {
+        document.documentElement.requestFullscreen().catch(() => {});
+        if (icon) {
+          icon.classList.remove('fa-expand');
+          icon.classList.add('fa-compress');
+        }
+      } else {
+        if (document.exitFullscreen) document.exitFullscreen().catch(() => {});
+        if (icon) {
+          icon.classList.remove('fa-compress');
+          icon.classList.add('fa-expand');
+        }
+      }
+    }
+
+    document.addEventListener('fullscreenchange', () => {
+      const icon = document.getElementById('fullscreenApiIcon');
+      if (icon) {
+        if (document.fullscreenElement) {
+          icon.classList.remove('fa-expand');
+          icon.classList.add('fa-compress');
+        } else {
+          icon.classList.remove('fa-compress');
+          icon.classList.add('fa-expand');
+        }
+      }
+      setTimeout(() => {
+        const container = document.getElementById('tvLiveChartContainer');
+        if (container && window.LightweightCharts) {
+          window.dispatchEvent(new Event('resize'));
+        }
+      }, 100);
+    });
+
+    document.addEventListener("DOMContentLoaded", () => {
+      setTimeout(() => {
+        if (window.DeltaLiveChart) {
+          DeltaLiveChart.initChart();
+        }
+      }, 50);
+    });
+  </script>
+</body>
+</html>
