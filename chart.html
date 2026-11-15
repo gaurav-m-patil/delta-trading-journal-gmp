@@ -8,7 +8,7 @@
   <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>⚡</text></svg>">
   <script src="https://cdn.tailwindcss.com"></script>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-  <link rel="stylesheet" href="css/app.css?v=3.6.1">
+  <link rel="stylesheet" href="css/app.css?v=3.6.2">
   <script>
     tailwind.config = {
       darkMode: 'class',
@@ -89,7 +89,7 @@
   </header>
 
   <!-- Live Chart Canvas Area -->
-  <main class="flex-1 relative w-full h-[calc(100vh-56px)] bg-[#0b0f17]">
+  <main class="flex-1 relative w-full h-[calc(100vh-56px)] bg-[#0b0f17] overflow-hidden">
     <div id="tvLiveChartContainer" class="w-full h-full relative"></div>
 
     <!-- Floating Compact Trade Cockpit Bar (Bottom Overlay) -->
@@ -125,65 +125,183 @@
   </main>
 
   <!-- Trade Playbook Modal (Shared) -->
-  <div id="algoTradeModal" class="fixed inset-0 z-50 bg-brandDark/85 backdrop-blur-sm hidden flex items-center justify-center p-3 sm:p-4 overflow-y-auto">
-    <div class="bg-cardDark border border-borderDark rounded-2xl w-full max-w-xl shadow-2xl p-4 sm:p-6 space-y-4 my-auto">
-      <div class="flex justify-between items-start gap-3 border-b border-borderDark/70 pb-3">
-        <div>
-          <span id="atmModalDirectionBadge" class="px-2 py-0.5 rounded text-[10px] font-bold font-mono uppercase bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">BUY PUT</span>
-          <h3 id="atmModalTitle" class="text-base sm:text-lg font-bold text-white mt-1">Institutional Setup</h3>
-          <p id="atmModalTime" class="text-xs text-slate-400 font-mono">15 Nov 2026 IST</p>
+  <div id="algoTradeModal" class="fixed inset-0 z-50 bg-brandDark/85 backdrop-blur-md hidden items-center justify-center p-2 sm:p-4">
+    <div class="bg-cardDark border border-borderDark rounded-2xl w-full max-w-xl max-h-[92vh] overflow-y-auto custom-scroll shadow-2xl flex flex-col p-3.5 sm:p-5 space-y-3 sm:space-y-3.5">
+      
+      <!-- Modal Header -->
+      <div class="flex justify-between items-start pb-2.5 border-b border-borderDark gap-2">
+        <div class="min-w-0 flex-1">
+          <div class="flex flex-wrap items-center gap-1.5 sm:gap-2 mb-1">
+            <span id="atmModalDirectionBadge" class="px-2 py-0.5 rounded text-[10px] font-bold font-mono uppercase bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
+              BUY CALL OPTION
+            </span>
+            <span id="atmModalOutcomeBadge" class="px-2 py-0.5 rounded text-[10px] font-bold font-mono">
+              TARGET REACHED (+50%)
+            </span>
+            <span id="atmModalSessionBadge" class="px-2 py-0.5 rounded text-[10px] font-bold font-mono bg-panelDark border border-borderDark text-slate-300">
+              --
+            </span>
+            <span id="atmModalIvBadge" class="px-2 py-0.5 rounded text-[10px] font-bold font-mono bg-panelDark border border-borderDark text-amber-300">
+              --
+            </span>
+          </div>
+          <h3 id="atmModalTitle" class="font-bold text-sm sm:text-base text-white font-mono truncate">
+            Confirmed Resistance Rejection
+          </h3>
+          <p id="atmModalTime" class="text-[10px] sm:text-[11px] text-slate-400 font-mono mt-0.5">--</p>
         </div>
-        <button onclick="DeltaLiveChart.closeTradeDetailsModal()" class="text-slate-400 hover:text-white p-1.5 text-base">
+        <button onclick="DeltaLiveChart.closeTradeDetailsModal()" class="h-8 w-8 shrink-0 rounded-lg bg-panelDark text-slate-400 hover:text-white flex items-center justify-center border border-borderDark transition-colors">
           <i class="fa-solid fa-xmark"></i>
         </button>
       </div>
-      <div id="atmModalOutcomeBanner" class="p-3 rounded-xl bg-indigo-950/30 border border-indigo-500/30 text-xs font-mono text-indigo-200">
-        <span id="atmModalOutcomeText">Target Reached</span>
-      </div>
-      <div class="grid grid-cols-4 gap-2 text-center font-mono">
-        <div class="bg-panelDark/60 p-2 rounded-xl border border-borderDark/60">
-          <span class="text-[9px] uppercase tracking-wider text-slate-400 block font-sans">Entry</span>
-          <span id="atmModalEntry" class="font-bold text-white text-xs sm:text-sm">$64,800</span>
+
+      <!-- Trader Action & Execution Guidance Banner -->
+      <div id="atmModalActionBanner" class="p-3 rounded-xl border border-borderDark/60 bg-panelDark/40 text-xs font-mono"></div>
+
+      <!-- Underlying BTC Spot Price Targets (2x2 on mobile, 4 across on desktop) -->
+      <div class="grid grid-cols-2 sm:grid-cols-4 gap-2 text-center font-mono">
+        <div class="bg-panelDark/70 p-2 sm:p-2.5 rounded-xl border border-borderDark/60">
+          <span class="text-[9px] uppercase tracking-wider text-slate-400 block font-sans">Entry Price</span>
+          <span id="atmModalEntry" class="text-xs sm:text-sm font-bold text-white">--</span>
         </div>
-        <div class="bg-panelDark/60 p-2 rounded-xl border border-borderDark/60">
-          <span class="text-[9px] uppercase tracking-wider text-slate-400 block font-sans">Target</span>
-          <span id="atmModalTp" class="font-bold text-winGreen text-xs sm:text-sm">$64,000</span>
+        <div class="bg-panelDark/70 p-2 sm:p-2.5 rounded-xl border border-borderDark/60">
+          <span class="text-[9px] uppercase tracking-wider text-slate-400 block font-sans">Target (TP)</span>
+          <span id="atmModalTp" class="text-xs sm:text-sm font-bold text-winGreen">--</span>
         </div>
-        <div class="bg-panelDark/60 p-2 rounded-xl border border-borderDark/60">
-          <span class="text-[9px] uppercase tracking-wider text-slate-400 block font-sans">Stop</span>
-          <span id="atmModalSl" class="font-bold text-lossRed text-xs sm:text-sm">$65,050</span>
+        <div class="bg-panelDark/70 p-2 sm:p-2.5 rounded-xl border border-borderDark/60">
+          <span class="text-[9px] uppercase tracking-wider text-slate-400 block font-sans">Stop Loss</span>
+          <span id="atmModalSl" class="text-xs sm:text-sm font-bold text-lossRed">--</span>
         </div>
-        <div class="bg-panelDark/60 p-2 rounded-xl border border-borderDark/60">
-          <span class="text-[9px] uppercase tracking-wider text-slate-400 block font-sans">R : R</span>
-          <span id="atmModalRR" class="font-bold text-indigo-300 text-xs sm:text-sm">1:3.0</span>
-        </div>
-      </div>
-      <div class="bg-panelDark/50 rounded-xl p-3 border border-borderDark/60 space-y-2 font-mono text-xs">
-        <div class="flex justify-between items-center text-[10px] text-slate-400 uppercase tracking-wider font-sans font-bold">
-          <span>Execution Details</span>
-          <span id="atmModalContract" class="text-indigo-300 font-mono">P-BTC-64800</span>
-        </div>
-        <div class="grid grid-cols-2 gap-2 text-[11px]">
-          <div>Buy Zone: <strong id="atmModalBuyZone" class="text-white">$350 - $390</strong></div>
-          <div>Sell / Mark: <strong id="atmModalTargetOpt" class="text-winGreen">$714.6</strong></div>
+        <div class="bg-panelDark/70 p-2 sm:p-2.5 rounded-xl border border-borderDark/60">
+          <span class="text-[9px] uppercase tracking-wider text-slate-400 block font-sans">Risk : Reward</span>
+          <span id="atmModalRR" class="text-xs sm:text-sm font-bold text-indigo-300">--</span>
         </div>
       </div>
-      <div class="space-y-1.5">
-        <span class="text-[10px] uppercase tracking-wider text-slate-400 font-bold block font-sans">Setup Logic & Narrative</span>
-        <div id="atmModalNarrative" class="text-xs text-slate-300 bg-brandDark/70 p-3 rounded-xl border border-borderDark/50 leading-relaxed max-h-36 overflow-y-auto font-sans">
-          Institutional volume rejection confirmed by 15m order block sweep.
+
+      <!-- DELTA OPTIONS EXECUTION & RESOLUTION TIMELINE -->
+      <div class="bg-indigo-950/20 border border-indigo-500/30 rounded-xl p-3 sm:p-3.5 space-y-2.5 font-mono">
+        <div class="flex flex-wrap justify-between items-center pb-2 border-b border-borderDark/60 gap-1.5">
+          <span class="text-xs font-bold text-white font-sans flex items-center gap-1.5">
+            <i class="fa-solid fa-timeline text-indigo-400"></i> Option Execution & Resolution Timeline
+          </span>
+          <span id="atmModalContractBadge" class="text-[10px] font-bold px-2 py-0.5 rounded bg-indigo-600/30 text-indigo-300 border border-indigo-500/40 truncate max-w-[200px] sm:max-w-none">
+            --
+          </span>
         </div>
+
+        <!-- 2-Stage Timeline: Entry vs Resolution -->
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+          <!-- Stage 1: Entry Snapshot -->
+          <div class="bg-panelDark/80 p-2.5 sm:p-3 rounded-xl border border-borderDark/70 space-y-1.5">
+            <div class="flex justify-between items-center text-[10px] text-slate-400 font-sans">
+              <span class="font-bold flex items-center gap-1 text-sky-300"><i class="fa-solid fa-play text-sky-400"></i> 1. Entry Execution</span>
+              <span id="atmModalEntryTime" class="text-slate-300">--</span>
+            </div>
+            <div class="flex justify-between items-baseline text-xs">
+              <span class="text-slate-400 font-sans">BTC Spot:</span>
+              <span id="atmModalEntrySpot" class="font-bold text-white">--</span>
+            </div>
+            <div class="flex justify-between items-baseline pt-1 border-t border-borderDark/40">
+              <span class="text-xs text-indigo-300 font-sans font-bold">Option Premium:</span>
+              <span id="atmModalOptionEntry" class="text-sm font-bold text-sky-400">--</span>
+            </div>
+          </div>
+
+          <!-- Stage 2: Resolution / Exit Snapshot -->
+          <div id="atmModalExitCard" class="bg-panelDark/80 p-2.5 sm:p-3 rounded-xl border border-emerald-500/40 space-y-1.5">
+            <div class="flex justify-between items-center text-[10px] text-slate-400 font-sans">
+              <span class="font-bold flex items-center gap-1" id="atmModalExitTitle"><i class="fa-solid fa-flag-checkered text-emerald-400"></i> 2. Resolution</span>
+              <span id="atmModalExitTime" class="text-slate-300">--</span>
+            </div>
+            <div class="flex justify-between items-baseline text-xs">
+              <span class="text-slate-400 font-sans">BTC Spot Exit:</span>
+              <span id="atmModalExitSpot" class="font-bold text-winGreen">--</span>
+            </div>
+            <div class="flex justify-between items-baseline pt-1 border-t border-borderDark/40">
+              <span class="text-xs text-emerald-300 font-sans font-bold">Option Exit Premium:</span>
+              <span id="atmModalOptionExit" class="text-sm font-bold text-winGreen">--</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Net Take-Home Calculation Strip -->
+        <div id="atmModalNetReturnStrip" class="p-2 sm:p-2.5 rounded-lg bg-panelDark/90 border border-borderDark/70 flex justify-between items-center text-xs">
+          <span class="text-slate-300 font-sans text-[11px]">Net PnL (excl. brokerage & GST):</span>
+          <span id="atmModalNetPoints" class="font-bold text-winGreen">--</span>
+        </div>
+      </div>
+
+      <!-- Institutional Rationale Breakdown (Clean 2x2 Grid) -->
+      <div class="bg-brandDark/70 border border-borderDark rounded-xl p-3 sm:p-3.5 space-y-2">
+        <h4 class="text-xs font-bold text-white flex items-center gap-2 font-sans">
+          <i class="fa-solid fa-brain text-indigo-400"></i> Why Was This Trade Marked? (Institutional Confluence)
+        </h4>
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs font-mono">
+          <div class="bg-panelDark/60 p-2 sm:p-2.5 rounded-lg border border-borderDark/50">
+            <span class="text-[9px] uppercase tracking-wider text-slate-400 block font-sans mb-0.5">Level Tested</span>
+            <span id="atmModalLevel" class="font-bold text-white text-xs">--</span>
+          </div>
+          <div class="bg-panelDark/60 p-2 sm:p-2.5 rounded-lg border border-borderDark/50">
+            <span class="text-[9px] uppercase tracking-wider text-slate-400 block font-sans mb-0.5">Rejection Pattern</span>
+            <span id="atmModalPattern" class="font-bold text-indigo-300 text-xs">--</span>
+          </div>
+          <div class="bg-panelDark/60 p-2 sm:p-2.5 rounded-lg border border-borderDark/50">
+            <span class="text-[9px] uppercase tracking-wider text-slate-400 block font-sans mb-0.5">Confirmation Candle</span>
+            <span id="atmModalConfirmation" class="font-bold text-slate-200 text-xs">--</span>
+          </div>
+          <div class="bg-panelDark/60 p-2 sm:p-2.5 rounded-lg border border-borderDark/50">
+            <span class="text-[9px] uppercase tracking-wider text-slate-400 block font-sans mb-0.5">Momentum & Flow</span>
+            <span id="atmModalRsiRvol" class="font-bold text-slate-200 text-xs">--</span>
+          </div>
+          <div class="bg-panelDark/60 p-2 sm:p-2.5 rounded-lg border border-borderDark/50">
+            <span class="text-[9px] uppercase tracking-wider text-slate-400 block font-sans mb-0.5">1H Macro Alignment</span>
+            <span id="atmModalHtf" class="font-bold text-emerald-400 text-xs">--</span>
+          </div>
+          <div class="bg-panelDark/60 p-2 sm:p-2.5 rounded-lg border border-borderDark/50">
+            <span class="text-[9px] uppercase tracking-wider text-slate-400 block font-sans mb-0.5">Absorption & Delta</span>
+            <span id="atmModalAbsorption" class="font-bold text-amber-400 text-xs">--</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- What Happened Next Narrative -->
+      <div class="bg-brandDark/80 border-l-4 border-l-indigo-500 rounded-r-xl p-3 border border-borderDark/50 space-y-1">
+        <h4 class="text-xs font-bold text-slate-200 flex items-center gap-2 font-sans">
+          <i class="fa-solid fa-route text-emerald-400"></i> What Happened Next? (Trade Narrative)
+        </h4>
+        <p id="atmModalNarrative" class="text-xs text-slate-300 font-mono leading-relaxed">--</p>
+      </div>
+
+      <!-- Delta Options Execution Playbook -->
+      <div class="bg-indigo-950/30 border border-indigo-500/30 rounded-xl p-3 sm:p-3.5 space-y-2">
+        <div class="flex justify-between items-center">
+          <h4 class="text-xs font-bold text-indigo-300 flex items-center gap-2 font-sans">
+            <i class="fa-solid fa-bolt text-indigo-400"></i> Delta Exchange Options Execution Playbook
+          </h4>
+          <button onclick="DeltaLiveChart.copyDeltaOrderDetails()" class="text-[10px] px-2.5 py-1 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white font-mono font-bold transition-colors shadow-sm flex items-center gap-1">
+            <i class="fa-solid fa-copy"></i> Copy Order
+          </button>
+        </div>
+        <ul id="atmModalPlaybook" class="space-y-1 list-none font-mono text-xs">
+          <!-- Populated dynamically -->
+        </ul>
+      </div>
+
+      <div class="flex justify-end gap-2 pt-2 border-t border-borderDark">
+        <button onclick="DeltaLiveChart.closeTradeDetailsModal()" class="px-4 py-2 rounded-xl bg-panelDark text-slate-300 hover:text-white border border-borderDark font-bold text-xs transition-colors">
+          Close Playbook
+        </button>
       </div>
     </div>
   </div>
 
   <!-- Scripts -->
-  <script src="vendor/lightweight-charts.js?v=3.6.1"></script>
-  <script src="js/config.js?v=3.6.1"></script>
-  <script src="js/db.js?v=3.6.1"></script>
-  <script src="js/smc-strategy.js?v=3.6.1"></script>
-  <script src="js/paper-fund.js?v=3.6.1"></script>
-  <script src="js/chart-engine.js?v=3.6.1"></script>
+  <script src="vendor/lightweight-charts.js?v=3.6.2"></script>
+  <script src="js/config.js?v=3.6.2"></script>
+  <script src="js/db.js?v=3.6.2"></script>
+  <script src="js/smc-strategy.js?v=3.6.2"></script>
+  <script src="js/paper-fund.js?v=3.6.2"></script>
+  <script src="js/chart-engine.js?v=3.6.2"></script>
 
   <script>
     function toggleHtml5Fullscreen() {

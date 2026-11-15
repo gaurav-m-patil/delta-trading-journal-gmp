@@ -530,7 +530,9 @@ window.DeltaLiveChart = (function() {
       return;
     }
 
-    const chartHeight = window.innerWidth < 640 ? 350 : 430;
+    const isStandalone = !!document.getElementById('btnFullscreenApi') || window.location.pathname.includes('chart.html');
+    const containerH = container.clientHeight;
+    const chartHeight = (isStandalone && containerH > 200) ? containerH : (containerH > 480 ? containerH : (window.innerWidth < 640 ? 350 : 430));
     const initialWidth = container.clientWidth || (window.innerWidth < 640 ? (window.innerWidth - 32) : 800);
 
     // Create TradingView Chart
@@ -629,13 +631,39 @@ window.DeltaLiveChart = (function() {
       }
     });
 
-    // Responsive window resizing
-    window.addEventListener('resize', () => {
+    // Responsive window & container resizing
+    const updateChartDimensions = () => {
       if (chart && container) {
-        chart.applyOptions({ width: container.clientWidth });
+        const isStandalonePage = !!document.getElementById('btnFullscreenApi') || window.location.pathname.includes('chart.html');
+        const cH = container.clientHeight;
+        const targetHeight = (isStandalonePage && cH > 200) ? cH : (cH > 480 ? cH : (window.innerWidth < 640 ? 350 : 430));
+        chart.applyOptions({
+          width: container.clientWidth,
+          height: targetHeight
+        });
         renderPositionBox(selectedTrade);
       }
-    });
+    };
+
+    window.addEventListener('resize', updateChartDimensions);
+
+    if (window.ResizeObserver && container) {
+      try {
+        const ro = new ResizeObserver((entries) => {
+          if (!entries || !entries.length) return;
+          const entry = entries[0];
+          const w = Math.floor(entry.contentRect.width);
+          const h = Math.floor(entry.contentRect.height);
+          if (w > 0 && h > 0 && chart) {
+            const isStandalonePage = !!document.getElementById('btnFullscreenApi') || window.location.pathname.includes('chart.html');
+            const targetHeight = (isStandalonePage && h > 200) ? h : (h > 480 ? h : (window.innerWidth < 640 ? 350 : 430));
+            chart.applyOptions({ width: w, height: targetHeight });
+            renderPositionBox(selectedTrade);
+          }
+        });
+        ro.observe(container);
+      } catch (e) {}
+    }
 
     isInitialized = true;
     loadTimeframe(activeTimeframe);
@@ -1269,8 +1297,11 @@ window.DeltaLiveChart = (function() {
       ? DeltaSMCStrategy.getTradingSession(Math.floor(Date.now() / 1000))
       : { flag: '🔥', name: 'New York Session (19:00 - 02:30 IST)' };
 
-    document.getElementById('atmModalTitle').innerText = "24/7 Cloud Sentinel Confluence Playbook";
-    document.getElementById('atmModalTime').innerText = `${dateStr} at ${timeStr} IST (Live Radar Active)`;
+    const titleEl = document.getElementById('atmModalTitle');
+    if (titleEl) titleEl.innerText = "24/7 Cloud Sentinel Confluence Playbook";
+
+    const timeEl = document.getElementById('atmModalTime');
+    if (timeEl) timeEl.innerText = `${dateStr} at ${timeStr} IST (Live Radar Active)`;
 
     const dirBadgeEl = document.getElementById('atmModalDirectionBadge');
     if (dirBadgeEl) {
@@ -1291,10 +1322,17 @@ window.DeltaLiveChart = (function() {
       outcomeEl.innerHTML = `<span class="h-2 w-2 rounded-full bg-emerald-400 animate-ping"></span> 24/7 SCANNER ACTIVE · MONITORING 15M CONFLUENCE`;
     }
 
-    document.getElementById('atmModalEntry').innerText = spotStr;
-    document.getElementById('atmModalTp').innerText = "Auto-Calculated 2.0R";
-    document.getElementById('atmModalSl').innerText = "-30% Risk Cap";
-    document.getElementById('atmModalRR').innerText = "1 : 2.0+";
+    const entryEl = document.getElementById('atmModalEntry');
+    if (entryEl) entryEl.innerText = spotStr;
+
+    const tpEl = document.getElementById('atmModalTp');
+    if (tpEl) tpEl.innerText = "Auto-Calculated 2.0R";
+
+    const slEl = document.getElementById('atmModalSl');
+    if (slEl) slEl.innerText = "-30% Risk Cap";
+
+    const rrEl = document.getElementById('atmModalRR');
+    if (rrEl) rrEl.innerText = "1 : 2.0+";
 
     const ivBadgeEl = document.getElementById('atmModalIvBadge');
     if (ivBadgeEl) {
@@ -1326,359 +1364,406 @@ window.DeltaLiveChart = (function() {
 
     modal.classList.remove('hidden');
     modal.classList.add('flex');
-    DeltaSound.playChime('modal');
+    try { DeltaSound.playChime('modal'); } catch (e) {}
   }
 
   /**
    * Opens the deep-dive educational breakdown modal for a trade
    */
   function openTradeDetailsModal(tradeId) {
-    let t = null;
-    if (tradeId) {
-      if (currentAnalysis && currentAnalysis.trades) {
-        t = currentAnalysis.trades.find(x => x.id === tradeId);
-      }
-      if (!t && window.DeltaPaperFund) {
-        const pf = DeltaPaperFund.getPortfolio();
-        if (pf && pf.trades) {
-          t = pf.trades.find(x => x.id === tradeId);
+    try {
+      let t = null;
+      if (tradeId) {
+        if (currentAnalysis && currentAnalysis.trades) {
+          t = currentAnalysis.trades.find(x => x.id === tradeId);
+        }
+        if (!t && window.DeltaPaperFund && typeof DeltaPaperFund.getPortfolio === 'function') {
+          const pf = DeltaPaperFund.getPortfolio();
+          if (pf && pf.trades) {
+            t = pf.trades.find(x => x.id === tradeId);
+          }
+        }
+        if (!t && window.DeltaDB && typeof DeltaDB.getSignalTrades === 'function') {
+          const signals = DeltaDB.getSignalTrades(0);
+          if (signals) {
+            t = signals.find(x => x.id === tradeId);
+          }
         }
       }
-      if (!t && window.DeltaDB) {
+      if (!t && selectedTrade) {
+        t = (currentAnalysis && currentAnalysis.trades) ? (currentAnalysis.trades.find(x => x.id === selectedTrade.id) || selectedTrade) : selectedTrade;
+      }
+      // If still no trade, pick the latest confirmed trade from DeltaDB
+      if (!t && window.DeltaDB && typeof DeltaDB.getSignalTrades === 'function') {
         const signals = DeltaDB.getSignalTrades(0);
-        if (signals) {
-          t = signals.find(x => x.id === tradeId);
+        if (signals && signals.length > 0) {
+          t = signals[0]; // Most recent confirmed institutional trade
         }
       }
-    }
-    if (!t && selectedTrade) {
-      t = (currentAnalysis && currentAnalysis.trades) ? (currentAnalysis.trades.find(x => x.id === selectedTrade.id) || selectedTrade) : selectedTrade;
-    }
-    // If still no trade, pick the latest confirmed trade from DeltaDB
-    if (!t && window.DeltaDB && typeof DeltaDB.getSignalTrades === 'function') {
-      const signals = DeltaDB.getSignalTrades(0);
-      if (signals && signals.length > 0) {
-        t = signals[0]; // Most recent confirmed institutional trade
+      if (!t) {
+        renderSentinelStandbyPlaybookModal();
+        return;
       }
-    }
-    if (!t) {
-      renderSentinelStandbyPlaybookModal();
-      return;
-    }
 
-    const modal = document.getElementById('algoTradeModal');
-    if (!modal) return;
+      // Update selectedTrade reference so copy order actions match the modal
+      selectedTrade = t;
 
-    const isCall = t.direction === "LONG";
-    const d = new Date(t.time * 1000);
-    const timeStr = d.toLocaleTimeString('en-IN', { timeZone: 'Asia/Kolkata', hour: '2-digit', minute: '2-digit', hour12: true });
-    const dateStr = d.toLocaleDateString('en-IN', { timeZone: 'Asia/Kolkata', month: 'short', day: 'numeric', year: 'numeric' });
+      const modal = document.getElementById('algoTradeModal');
+      if (!modal) return;
 
-    document.getElementById('atmModalTitle').innerText = t.name;
-    document.getElementById('atmModalTime').innerText = `${dateStr} at ${timeStr} IST (Indian Standard Time)`;
+      const isCall = t.direction === "LONG";
+      const tradeTimestamp = t.time ? (t.time * 1000) : Date.now();
+      const d = new Date(tradeTimestamp);
+      const timeStr = d.toLocaleTimeString('en-IN', { timeZone: 'Asia/Kolkata', hour: '2-digit', minute: '2-digit', hour12: true });
+      const dateStr = d.toLocaleDateString('en-IN', { timeZone: 'Asia/Kolkata', month: 'short', day: 'numeric', year: 'numeric' });
 
-    const dirBadgeEl = document.getElementById('atmModalDirectionBadge');
-    if (dirBadgeEl) {
-      dirBadgeEl.className = `px-2 py-0.5 rounded text-[10px] font-bold font-mono uppercase ${isCall ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' : 'bg-rose-500/20 text-rose-400 border border-rose-500/30'}`;
-      dirBadgeEl.innerHTML = `<i class="fa-solid ${isCall ? 'fa-arrow-trend-up' : 'fa-arrow-trend-down'} mr-1"></i> ${isCall ? 'BUY CALL OPTION' : 'BUY PUT OPTION'}`;
-    }
+      const titleEl = document.getElementById('atmModalTitle');
+      if (titleEl) titleEl.innerText = t.name || (isCall ? "Bullish Institutional Setup" : "Bearish Institutional Setup");
 
-    // Session & IV Badges
-    const sessBadgeEl = document.getElementById('atmModalSessionBadge');
-    if (sessBadgeEl) {
-      if (t.session && t.session.name) {
-        sessBadgeEl.className = "px-2 py-0.5 rounded text-[10px] font-bold font-mono bg-panelDark border border-borderDark text-indigo-300";
-        const sessionClean = t.session.name.replace(/^(US|GB)\s*/, '');
-        sessBadgeEl.innerHTML = `${t.session.flag || '🏛️'} ${sessionClean}`;
-      } else {
-        sessBadgeEl.className = "hidden";
+      const timeEl = document.getElementById('atmModalTime');
+      if (timeEl) timeEl.innerText = `${dateStr} at ${timeStr} IST (Indian Standard Time)`;
+
+      const dirBadgeEl = document.getElementById('atmModalDirectionBadge');
+      if (dirBadgeEl) {
+        dirBadgeEl.className = `px-2 py-0.5 rounded text-[10px] font-bold font-mono uppercase ${isCall ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' : 'bg-rose-500/20 text-rose-400 border border-rose-500/30'}`;
+        dirBadgeEl.innerHTML = `<i class="fa-solid ${isCall ? 'fa-arrow-trend-up' : 'fa-arrow-trend-down'} mr-1"></i> ${isCall ? 'BUY CALL OPTION' : 'BUY PUT OPTION'}`;
       }
-    }
 
-    // Outcome Badge
-    const badgeEl = document.getElementById('atmModalOutcomeBadge');
-    if (t.outcome === "WIN") {
-      badgeEl.className = "px-2.5 py-1 rounded-lg text-xs font-bold font-mono bg-emerald-500/10 text-emerald-400 border border-emerald-500/30";
-      badgeEl.innerHTML = `<i class="fa-solid fa-circle-check mr-1"></i> TARGET REACHED (+50% OPTION PROFIT)`;
-    } else if (t.outcome === "BE_WIN") {
-      badgeEl.className = "px-2.5 py-1 rounded-lg text-xs font-bold font-mono bg-teal-500/10 text-teal-300 border border-teal-500/30";
-      badgeEl.innerHTML = `<i class="fa-solid fa-shield-halved mr-1"></i> TRAILED STOP BREAKEVEN (+25% NET GAIN)`;
-    } else if (t.outcome === "LOSS") {
-      badgeEl.className = "px-2.5 py-1 rounded-lg text-xs font-bold font-mono bg-rose-500/10 text-rose-400 border border-rose-500/30";
-      badgeEl.innerHTML = `<i class="fa-solid fa-circle-xmark mr-1"></i> STOP LOSS HIT (-1R CONTROLLED STOP)`;
-    } else if (t.outcome === "ACTIVE") {
-      badgeEl.className = "px-2.5 py-1 rounded-lg text-xs font-bold font-mono bg-cyan-500/10 text-cyan-400 border border-cyan-500/30 flex items-center gap-1.5";
-      badgeEl.innerHTML = `<span class="h-2 w-2 rounded-full bg-cyan-400 animate-ping"></span> LIVE IN MARKET (${t.barsHeld} bars)`;
-    } else {
-      badgeEl.className = "px-2.5 py-1 rounded-lg text-xs font-bold font-mono bg-slate-500/10 text-slate-400 border border-slate-500/30";
-      badgeEl.innerHTML = `<i class="fa-solid fa-hourglass-end mr-1"></i> TIMEOUT (SCRATCH / BREAKEVEN)`;
-    }
-
-    // Trade Numbers
-    document.getElementById('atmModalEntry').innerText = `$${t.entry.toLocaleString()}`;
-    document.getElementById('atmModalTp').innerText = `$${t.tp.toLocaleString()} (+${t.targetDist} pts)`;
-    document.getElementById('atmModalSl').innerText = `$${t.sl.toLocaleString()} (-${t.slDist} pts)`;
-    document.getElementById('atmModalRR').innerText = `1 : ${t.rrRatio}`;
-
-    // Option Execution & Resolution Timeline Details
-    const opt = t.realOption || resolveRealDeltaContract(t.direction, t.entry, cachedDeltaTickers, t.id, getTradeRegistry(), t.targetDist);
-    const contractSymbol = opt ? opt.symbol : (t.direction === "LONG" ? 'C-BTC-' + t.optionStrike : 'P-BTC-' + t.optionStrike);
-    const strikeTier = opt ? opt.strikeTier : "Exact ATM (Delta ~0.50)";
-
-    const ivBadgeEl = document.getElementById('atmModalIvBadge');
-    if (ivBadgeEl) {
-      if (opt && opt.ivBadge) {
-        ivBadgeEl.className = "px-2 py-0.5 rounded text-[10px] font-bold font-mono bg-panelDark border border-borderDark text-amber-300";
-        ivBadgeEl.innerHTML = `${opt.ivBadge} IV`;
-      } else {
-        ivBadgeEl.className = "hidden";
+      // Session & IV Badges
+      const sessBadgeEl = document.getElementById('atmModalSessionBadge');
+      if (sessBadgeEl) {
+        if (t.session && t.session.name) {
+          sessBadgeEl.className = "px-2 py-0.5 rounded text-[10px] font-bold font-mono bg-panelDark border border-borderDark text-indigo-300";
+          const sessionClean = t.session.name.replace(/^(US|GB)\s*/, '');
+          sessBadgeEl.innerHTML = `${t.session.flag || '🏛️'} ${sessionClean}`;
+        } else {
+          sessBadgeEl.className = "hidden";
+        }
       }
-    }
 
-    const entryOpt = (opt && opt.entryPrice) ? opt.entryPrice : ((opt && opt.markPrice > 0) ? opt.markPrice : (t.entryOpt || Math.round((t.entry * 0.003) * 10) / 10));
-    let exitOpt = entryOpt;
-    let pnlDiff = 0;
-    let netTakeHome = 0;
-    const targetGainPct = (opt && opt.targetGainPct) ? opt.targetGainPct : (t.optionPnlPct || "+50%");
-    const netTakeHomePct = Math.round(parseInt(targetGainPct.replace('+', '').replace('%', '') || 50) * 0.85);
+      // Outcome Badge
+      const badgeEl = document.getElementById('atmModalOutcomeBadge');
+      if (badgeEl) {
+        if (t.outcome === "WIN") {
+          badgeEl.className = "px-2.5 py-1 rounded-lg text-xs font-bold font-mono bg-emerald-500/10 text-emerald-400 border border-emerald-500/30";
+          badgeEl.innerHTML = `<i class="fa-solid fa-circle-check mr-1"></i> TARGET REACHED (+50% OPTION PROFIT)`;
+        } else if (t.outcome === "BE_WIN") {
+          badgeEl.className = "px-2.5 py-1 rounded-lg text-xs font-bold font-mono bg-teal-500/10 text-teal-300 border border-teal-500/30";
+          badgeEl.innerHTML = `<i class="fa-solid fa-shield-halved mr-1"></i> TRAILED STOP BREAKEVEN (+25% NET GAIN)`;
+        } else if (t.outcome === "LOSS") {
+          badgeEl.className = "px-2.5 py-1 rounded-lg text-xs font-bold font-mono bg-rose-500/10 text-rose-400 border border-rose-500/30";
+          badgeEl.innerHTML = `<i class="fa-solid fa-circle-xmark mr-1"></i> STOP LOSS HIT (-1R CONTROLLED STOP)`;
+        } else if (t.outcome === "ACTIVE") {
+          badgeEl.className = "px-2.5 py-1 rounded-lg text-xs font-bold font-mono bg-cyan-500/10 text-cyan-400 border border-cyan-500/30 flex items-center gap-1.5";
+          badgeEl.innerHTML = `<span class="h-2 w-2 rounded-full bg-cyan-400 animate-ping"></span> LIVE IN MARKET (${t.barsHeld || 1} bars)`;
+        } else {
+          badgeEl.className = "px-2.5 py-1 rounded-lg text-xs font-bold font-mono bg-slate-500/10 text-slate-400 border border-slate-500/30";
+          badgeEl.innerHTML = `<i class="fa-solid fa-hourglass-end mr-1"></i> TIMEOUT (SCRATCH / BREAKEVEN)`;
+        }
+      }
 
-    if (t.outcome === "WIN") {
-      exitOpt = (opt && opt.targetPrice) ? opt.targetPrice : (t.exitOpt || Math.round((entryOpt * 1.50) * 10) / 10);
-      pnlDiff = Math.round((exitOpt - entryOpt) * 10) / 10;
-      netTakeHome = Math.round((pnlDiff * 0.85) * 10) / 10;
-    } else if (t.outcome === "BE_WIN") {
-      exitOpt = Math.round((entryOpt * 1.25) * 10) / 10;
-      pnlDiff = Math.round((exitOpt - entryOpt) * 10) / 10;
-      netTakeHome = Math.round((pnlDiff * 0.85) * 10) / 10;
-    } else if (t.outcome === "LOSS") {
-      exitOpt = (opt && opt.stopPrice) ? opt.stopPrice : Math.round((entryOpt * 0.70) * 10) / 10;
-      pnlDiff = Math.round((exitOpt - entryOpt) * 10) / 10;
-      netTakeHome = pnlDiff;
-    } else if (t.outcome === "ACTIVE") {
-      const currentLive = (opt && opt.markPrice) ? opt.markPrice : entryOpt;
-      exitOpt = currentLive;
-      pnlDiff = Math.round((currentLive - entryOpt) * 10) / 10;
-      netTakeHome = pnlDiff;
-    } else {
-      // TIMEOUT
-      exitOpt = Math.round((entryOpt * 0.82) * 10) / 10;
-      pnlDiff = Math.round((exitOpt - entryOpt) * 10) / 10;
-      netTakeHome = pnlDiff;
-    }
+      // Safe Trade Numbers
+      const entryNum = Number(t.entry) || 0;
+      const tpNum = Number(t.tp) || 0;
+      const slNum = Number(t.sl) || 0;
+      const targetDist = t.targetDist || Math.abs(tpNum - entryNum) || 500;
+      const slDist = t.slDist || Math.abs(entryNum - slNum) || 250;
+      const rrRatio = t.rrRatio || (slDist > 0 ? (targetDist / slDist).toFixed(2) : "2.0");
 
-    const entryTimeStr = new Date(t.time * 1000).toLocaleTimeString('en-IN', { timeZone: 'Asia/Kolkata', hour: '2-digit', minute: '2-digit', hour12: true });
-    const exitTimeStr = new Date((t.exitTime || t.time) * 1000).toLocaleTimeString('en-IN', { timeZone: 'Asia/Kolkata', hour: '2-digit', minute: '2-digit', hour12: true });
-    const durMin = (t.barsHeld || 1) * 15;
-    const durStr = durMin >= 60 ? `${Math.floor(durMin / 60)}h ${durMin % 60}m` : `${durMin}m`;
+      const entryEl = document.getElementById('atmModalEntry');
+      if (entryEl) entryEl.innerText = `$${entryNum.toLocaleString()}`;
 
-    // Dynamic Action Guidance Banner
-    const actionBanner = document.getElementById('atmModalActionBanner');
-    if (actionBanner) {
-      if (t.outcome === "ACTIVE") {
-        const targetPriceVal = (opt && opt.targetPrice) ? opt.targetPrice : Math.round(entryOpt * 1.5 * 10) / 10;
-        const stopPriceVal = (opt && opt.stopPrice) ? opt.stopPrice : Math.round(entryOpt * 0.7 * 10) / 10;
-        const currentLiveVal = (opt && opt.markPrice) ? opt.markPrice : entryOpt;
-        const pnlPctStr = ((pnlDiff / entryOpt) * 100).toFixed(1);
+      const tpEl = document.getElementById('atmModalTp');
+      if (tpEl) tpEl.innerText = `$${tpNum.toLocaleString()} (+${targetDist} pts)`;
 
-        actionBanner.className = "p-3 sm:p-3.5 rounded-xl border border-emerald-500/50 bg-emerald-950/30 text-xs font-mono space-y-1.5";
-        actionBanner.innerHTML = `
-          <div class="flex items-center justify-between">
-            <span class="text-winGreen font-bold flex items-center gap-1.5">
-              <span class="h-2 w-2 rounded-full bg-emerald-400 animate-ping"></span>
-              ⚡ ACTIVE SETUP: ENTER ${isCall ? 'CALL OPTION' : 'PUT OPTION'}
-            </span>
-            <span class="text-[10px] text-slate-400 font-sans">Locked Inception Order</span>
-          </div>
-          <div class="text-slate-200">
-            Buy <strong class="text-white bg-indigo-900/60 px-1.5 py-0.5 rounded">${contractSymbol}</strong> in Buy Zone <strong class="text-emerald-400">${opt.buyZone || `$${(entryOpt * 0.98).toFixed(1)} - $${(entryOpt * 1.02).toFixed(1)}`}</strong>.
-          </div>
-          <div class="text-[11px] text-slate-400 pt-1 border-t border-emerald-500/20 flex flex-wrap justify-between gap-2">
-            <span>TP1 (Scalp / Derisk): <strong class="text-emerald-300">$${(opt.tp1Price || Math.round(entryOpt * 1.5 * 10) / 10).toFixed(1)} (+50%)</strong></span>
-            <span>TP2 (Runner): <strong class="text-winGreen">$${targetPriceVal.toFixed(1)} (${targetGainPct})</strong></span>
-            <span>SL Stop: <strong class="text-lossRed">$${stopPriceVal.toFixed(1)} (-30%)</strong></span>
-            <span>Current Mark: <strong class="${pnlDiff >= 0 ? 'text-winGreen' : 'text-lossRed'}">$${currentLiveVal.toFixed(1)} (${pnlDiff >= 0 ? '+' : ''}${pnlPctStr}%)</strong></span>
-          </div>
-        `;
-      } else if (t.outcome === "WIN") {
-        actionBanner.className = "p-3 sm:p-3.5 rounded-xl border border-emerald-500/30 bg-emerald-950/20 text-xs font-mono space-y-1";
-        actionBanner.innerHTML = `
-          <div class="flex items-center justify-between">
-            <span class="text-winGreen font-bold flex items-center gap-1.5">
-              <i class="fa-solid fa-circle-check"></i> TARGET REACHED (${targetGainPct} GROSS / +${netTakeHomePct}% NET)
-            </span>
-            <span class="text-[10px] text-slate-400 font-sans">${exitTimeStr} IST</span>
-          </div>
-          <div class="text-slate-300 text-[11px]">
-            Target hit at BTC Spot <strong>$${(t.exitPrice || t.tp).toLocaleString()}</strong>. Option surged from <strong>$${entryOpt.toFixed(1)}</strong> to <strong>$${exitOpt.toFixed(1)}</strong> (+${pnlDiff.toFixed(1)} pts).
-          </div>
-        `;
+      const slEl = document.getElementById('atmModalSl');
+      if (slEl) slEl.innerText = `$${slNum.toLocaleString()} (-${slDist} pts)`;
+
+      const rrEl = document.getElementById('atmModalRR');
+      if (rrEl) rrEl.innerText = `1 : ${rrRatio}`;
+
+      // Option Execution & Resolution Timeline Details
+      const opt = t.realOption || resolveRealDeltaContract(t.direction, entryNum, cachedDeltaTickers, t.id, getTradeRegistry(), targetDist) || {};
+      const contractSymbol = opt.symbol || (isCall ? 'C-BTC-' + (t.optionStrike || 65000) : 'P-BTC-' + (t.optionStrike || 65000));
+      const strikeTier = opt.strikeTier || "Exact ATM (Delta ~0.50)";
+
+      const ivBadgeEl = document.getElementById('atmModalIvBadge');
+      if (ivBadgeEl) {
+        if (opt.ivBadge) {
+          ivBadgeEl.className = "px-2 py-0.5 rounded text-[10px] font-bold font-mono bg-panelDark border border-borderDark text-amber-300";
+          ivBadgeEl.innerHTML = `${opt.ivBadge} IV`;
+        } else {
+          ivBadgeEl.className = "hidden";
+        }
+      }
+
+      const entryOpt = (opt.entryPrice && opt.entryPrice > 0) ? opt.entryPrice : ((opt.markPrice && opt.markPrice > 0) ? opt.markPrice : (t.entryOpt || Math.round((entryNum * 0.003) * 10) / 10));
+      let exitOpt = entryOpt;
+      let pnlDiff = 0;
+      let netTakeHome = 0;
+      const targetGainPct = opt.targetGainPct || t.optionPnlPct || "+50%";
+      const netTakeHomePct = Math.round(parseInt(String(targetGainPct).replace('+', '').replace('%', '') || '50') * 0.85);
+
+      if (t.outcome === "WIN") {
+        exitOpt = opt.targetPrice ? opt.targetPrice : (t.exitOpt || Math.round((entryOpt * 1.50) * 10) / 10);
+        pnlDiff = Math.round((exitOpt - entryOpt) * 10) / 10;
+        netTakeHome = Math.round((pnlDiff * 0.85) * 10) / 10;
       } else if (t.outcome === "BE_WIN") {
-        actionBanner.className = "p-3 sm:p-3.5 rounded-xl border border-teal-500/40 bg-teal-950/20 text-xs font-mono space-y-1";
-        actionBanner.innerHTML = `
-          <div class="flex items-center justify-between">
-            <span class="text-teal-300 font-bold flex items-center gap-1.5">
-              <i class="fa-solid fa-shield-halved"></i> TP1 HIT & STOP TRAILED TO BREAKEVEN (+25% NET PROFIT)
-            </span>
-            <span class="text-[10px] text-slate-400 font-sans">${exitTimeStr} IST</span>
-          </div>
-          <div class="text-slate-300 text-[11px]">
-            Option triggered TP1 (+50%), securing 50% position, and automatically trailed stop loss to Breakeven. Reversal closed at entry, securing guaranteed +25% net gain.
-          </div>
-        `;
+        exitOpt = Math.round((entryOpt * 1.25) * 10) / 10;
+        pnlDiff = Math.round((exitOpt - entryOpt) * 10) / 10;
+        netTakeHome = Math.round((pnlDiff * 0.85) * 10) / 10;
       } else if (t.outcome === "LOSS") {
-        actionBanner.className = "p-3 sm:p-3.5 rounded-xl border border-rose-500/30 bg-rose-950/20 text-xs font-mono space-y-1";
-        actionBanner.innerHTML = `
-          <div class="flex items-center justify-between">
-            <span class="text-lossRed font-bold flex items-center gap-1.5">
-              <i class="fa-solid fa-circle-xmark"></i> STOP LOSS HIT (-30% PRESERVATION EXIT)
-            </span>
-            <span class="text-[10px] text-slate-400 font-sans">${exitTimeStr} IST</span>
-          </div>
-          <div class="text-slate-300 text-[11px]">
-            Price touched invalidation at <strong>$${t.sl.toLocaleString()}</strong>. Controlled stop closed option at <strong>$${exitOpt.toFixed(1)}</strong>, protecting 70% of capital.
-          </div>
-        `;
+        exitOpt = opt.stopPrice ? opt.stopPrice : Math.round((entryOpt * 0.70) * 10) / 10;
+        pnlDiff = Math.round((exitOpt - entryOpt) * 10) / 10;
+        netTakeHome = pnlDiff;
+      } else if (t.outcome === "ACTIVE") {
+        const currentLive = (opt.markPrice && opt.markPrice > 0) ? opt.markPrice : entryOpt;
+        exitOpt = currentLive;
+        pnlDiff = Math.round((currentLive - entryOpt) * 10) / 10;
+        netTakeHome = pnlDiff;
       } else {
         // TIMEOUT
-        actionBanner.className = "p-3 sm:p-3.5 rounded-xl border border-slate-500/30 bg-panelDark/60 text-xs font-mono space-y-1";
-        actionBanner.innerHTML = `
-          <div class="flex items-center justify-between">
-            <span class="text-slate-300 font-bold flex items-center gap-1.5">
-              <i class="fa-solid fa-hourglass-end text-amber-400"></i> TIMEOUT SCRATCH (THETA DECAY DEFENSE)
-            </span>
-            <span class="text-[10px] text-slate-400 font-sans">${exitTimeStr} IST</span>
-          </div>
-          <div class="text-slate-300 text-[11px]">
-            Sideways consolidation for 5+ hours (${t.barsHeld} bars). Closed position cleanly to avoid compounding theta erosion.
-          </div>
-        `;
+        exitOpt = Math.round((entryOpt * 0.82) * 10) / 10;
+        pnlDiff = Math.round((exitOpt - entryOpt) * 10) / 10;
+        netTakeHome = pnlDiff;
       }
-    }
 
-    const contractBadge = document.getElementById('atmModalContractBadge');
-    if (contractBadge) contractBadge.innerText = `${contractSymbol} (${strikeTier})`;
+      const entryTimeStr = new Date((t.time || Date.now() / 1000) * 1000).toLocaleTimeString('en-IN', { timeZone: 'Asia/Kolkata', hour: '2-digit', minute: '2-digit', hour12: true });
+      const exitTimeStr = new Date((t.exitTime || t.time || Date.now() / 1000) * 1000).toLocaleTimeString('en-IN', { timeZone: 'Asia/Kolkata', hour: '2-digit', minute: '2-digit', hour12: true });
+      const durMin = (t.barsHeld || 1) * 15;
+      const durStr = durMin >= 60 ? `${Math.floor(durMin / 60)}h ${durMin % 60}m` : `${durMin}m`;
 
-    const entryTimeEl = document.getElementById('atmModalEntryTime');
-    if (entryTimeEl) entryTimeEl.innerText = `${entryTimeStr} IST`;
+      // Dynamic Action Guidance Banner
+      const actionBanner = document.getElementById('atmModalActionBanner');
+      if (actionBanner) {
+        if (t.outcome === "ACTIVE") {
+          const targetPriceVal = opt.targetPrice ? opt.targetPrice : Math.round(entryOpt * 1.5 * 10) / 10;
+          const stopPriceVal = opt.stopPrice ? opt.stopPrice : Math.round(entryOpt * 0.7 * 10) / 10;
+          const currentLiveVal = (opt.markPrice && opt.markPrice > 0) ? opt.markPrice : entryOpt;
+          const pnlPctStr = entryOpt > 0 ? ((pnlDiff / entryOpt) * 100).toFixed(1) : '0.0';
 
-    const entrySpotEl = document.getElementById('atmModalEntrySpot');
-    if (entrySpotEl) entrySpotEl.innerText = `$${t.entry.toLocaleString()}`;
+          actionBanner.className = "p-3 sm:p-3.5 rounded-xl border border-emerald-500/50 bg-emerald-950/30 text-xs font-mono space-y-1.5";
+          actionBanner.innerHTML = `
+            <div class="flex items-center justify-between">
+              <span class="text-winGreen font-bold flex items-center gap-1.5">
+                <span class="h-2 w-2 rounded-full bg-emerald-400 animate-ping"></span>
+                ⚡ ACTIVE SETUP: ENTER ${isCall ? 'CALL OPTION' : 'PUT OPTION'}
+              </span>
+              <span class="text-[10px] text-slate-400 font-sans">Locked Inception Order</span>
+            </div>
+            <div class="text-slate-200">
+              Buy <strong class="text-white bg-indigo-900/60 px-1.5 py-0.5 rounded">${contractSymbol}</strong> in Buy Zone <strong class="text-emerald-400">${opt.buyZone || `$${(entryOpt * 0.98).toFixed(1)} - $${(entryOpt * 1.02).toFixed(1)}`}</strong>.
+            </div>
+            <div class="text-[11px] text-slate-400 pt-1 border-t border-emerald-500/20 flex flex-wrap justify-between gap-2">
+              <span>TP1 (Scalp / Derisk): <strong class="text-emerald-300">$${(opt.tp1Price || Math.round(entryOpt * 1.5 * 10) / 10).toFixed(1)} (+50%)</strong></span>
+              <span>TP2 (Runner): <strong class="text-winGreen">$${targetPriceVal.toFixed(1)} (${targetGainPct})</strong></span>
+              <span>SL Stop: <strong class="text-lossRed">$${stopPriceVal.toFixed(1)} (-30%)</strong></span>
+              <span>Current Mark: <strong class="${pnlDiff >= 0 ? 'text-winGreen' : 'text-lossRed'}">$${currentLiveVal.toFixed(1)} (${pnlDiff >= 0 ? '+' : ''}${pnlPctStr}%)</strong></span>
+            </div>
+          `;
+        } else if (t.outcome === "WIN") {
+          actionBanner.className = "p-3 sm:p-3.5 rounded-xl border border-emerald-500/30 bg-emerald-950/20 text-xs font-mono space-y-1";
+          actionBanner.innerHTML = `
+            <div class="flex items-center justify-between">
+              <span class="text-winGreen font-bold flex items-center gap-1.5">
+                <i class="fa-solid fa-circle-check"></i> TARGET REACHED (${targetGainPct} GROSS / +${netTakeHomePct}% NET)
+              </span>
+              <span class="text-[10px] text-slate-400 font-sans">${exitTimeStr} IST</span>
+            </div>
+            <div class="text-slate-300 text-[11px]">
+              Target hit at BTC Spot <strong>$${Number(t.exitPrice || tpNum).toLocaleString()}</strong>. Option surged from <strong>$${entryOpt.toFixed(1)}</strong> to <strong>$${exitOpt.toFixed(1)}</strong> (+${pnlDiff.toFixed(1)} pts).
+            </div>
+          `;
+        } else if (t.outcome === "BE_WIN") {
+          actionBanner.className = "p-3 sm:p-3.5 rounded-xl border border-teal-500/40 bg-teal-950/20 text-xs font-mono space-y-1";
+          actionBanner.innerHTML = `
+            <div class="flex items-center justify-between">
+              <span class="text-teal-300 font-bold flex items-center gap-1.5">
+                <i class="fa-solid fa-shield-halved"></i> TP1 HIT & STOP TRAILED TO BREAKEVEN (+25% NET PROFIT)
+              </span>
+              <span class="text-[10px] text-slate-400 font-sans">${exitTimeStr} IST</span>
+            </div>
+            <div class="text-slate-300 text-[11px]">
+              Option triggered TP1 (+50%), securing 50% position, and automatically trailed stop loss to Breakeven. Reversal closed at entry, securing guaranteed +25% net gain.
+            </div>
+          `;
+        } else if (t.outcome === "LOSS") {
+          actionBanner.className = "p-3 sm:p-3.5 rounded-xl border border-rose-500/30 bg-rose-950/20 text-xs font-mono space-y-1";
+          actionBanner.innerHTML = `
+            <div class="flex items-center justify-between">
+              <span class="text-lossRed font-bold flex items-center gap-1.5">
+                <i class="fa-solid fa-circle-xmark"></i> STOP LOSS HIT (-30% PRESERVATION EXIT)
+              </span>
+              <span class="text-[10px] text-slate-400 font-sans">${exitTimeStr} IST</span>
+            </div>
+            <div class="text-slate-300 text-[11px]">
+              Price touched invalidation at <strong>$${slNum.toLocaleString()}</strong>. Controlled stop closed option at <strong>$${exitOpt.toFixed(1)}</strong>, protecting 70% of capital.
+            </div>
+          `;
+        } else {
+          // TIMEOUT
+          actionBanner.className = "p-3 sm:p-3.5 rounded-xl border border-slate-500/30 bg-panelDark/60 text-xs font-mono space-y-1";
+          actionBanner.innerHTML = `
+            <div class="flex items-center justify-between">
+              <span class="text-slate-300 font-bold flex items-center gap-1.5">
+                <i class="fa-solid fa-hourglass-end text-amber-400"></i> TIMEOUT SCRATCH (THETA DECAY DEFENSE)
+              </span>
+              <span class="text-[10px] text-slate-400 font-sans">${exitTimeStr} IST</span>
+            </div>
+            <div class="text-slate-300 text-[11px]">
+              Sideways consolidation for 5+ hours (${t.barsHeld || 1} bars). Closed position cleanly to avoid compounding theta erosion.
+            </div>
+          `;
+        }
+      }
 
-    const optionEntryEl = document.getElementById('atmModalOptionEntry');
-    if (optionEntryEl) optionEntryEl.innerText = `$${entryOpt.toFixed(1)}`;
+      const contractBadge = document.getElementById('atmModalContractBadge');
+      if (contractBadge) contractBadge.innerText = `${contractSymbol} (${strikeTier})`;
 
-    const exitCard = document.getElementById('atmModalExitCard');
-    const exitTitleEl = document.getElementById('atmModalExitTitle');
-    const exitTimeEl = document.getElementById('atmModalExitTime');
-    const exitSpotEl = document.getElementById('atmModalExitSpot');
-    const optionExitEl = document.getElementById('atmModalOptionExit');
-    const netReturnEl = document.getElementById('atmModalNetPoints');
+      const entryTimeEl = document.getElementById('atmModalEntryTime');
+      if (entryTimeEl) entryTimeEl.innerText = `${entryTimeStr} IST`;
 
-    if (exitTimeEl) exitTimeEl.innerText = `${exitTimeStr} IST (${durStr} hold)`;
-    if (exitSpotEl) exitSpotEl.innerText = `$${t.exitPrice.toLocaleString()}`;
-    if (optionExitEl) {
-      const pnlPct = ((pnlDiff / entryOpt) * 100).toFixed(1);
-      optionExitEl.innerText = `$${exitOpt.toFixed(1)} (${pnlDiff >= 0 ? '+' : ''}${pnlPct}%)`;
-      optionExitEl.className = `text-sm font-bold ${pnlDiff >= 0 ? 'text-winGreen' : 'text-lossRed'}`;
-    }
+      const entrySpotEl = document.getElementById('atmModalEntrySpot');
+      if (entrySpotEl) entrySpotEl.innerText = `$${entryNum.toLocaleString()}`;
 
-    if (exitCard && exitTitleEl) {
+      const optionEntryEl = document.getElementById('atmModalOptionEntry');
+      if (optionEntryEl) optionEntryEl.innerText = `$${entryOpt.toFixed(1)}`;
+
+      const exitCard = document.getElementById('atmModalExitCard');
+      const exitTitleEl = document.getElementById('atmModalExitTitle');
+      const exitTimeEl = document.getElementById('atmModalExitTime');
+      const exitSpotEl = document.getElementById('atmModalExitSpot');
+      const optionExitEl = document.getElementById('atmModalOptionExit');
+      const netReturnEl = document.getElementById('atmModalNetPoints');
+
+      if (exitTimeEl) exitTimeEl.innerText = t.outcome === "ACTIVE" ? "Monitoring Live..." : `${exitTimeStr} IST (${durStr} hold)`;
+      if (exitSpotEl) {
+        if (t.outcome === "ACTIVE") {
+          exitSpotEl.innerText = "Monitoring Spot...";
+          exitSpotEl.className = "font-bold text-cyan-300";
+        } else {
+          exitSpotEl.innerText = `$${Number(t.exitPrice || tpNum).toLocaleString()}`;
+          exitSpotEl.className = `font-bold ${t.outcome === 'WIN' || t.outcome === 'BE_WIN' ? 'text-winGreen' : 'text-lossRed'}`;
+        }
+      }
+      if (optionExitEl) {
+        const pnlPct = entryOpt > 0 ? ((pnlDiff / entryOpt) * 100).toFixed(1) : '0.0';
+        optionExitEl.innerText = `$${exitOpt.toFixed(1)} (${pnlDiff >= 0 ? '+' : ''}${pnlPct}%)`;
+        optionExitEl.className = `text-sm font-bold ${pnlDiff >= 0 ? 'text-winGreen' : 'text-lossRed'}`;
+      }
+
+      if (exitCard && exitTitleEl) {
+        if (t.outcome === "WIN") {
+          exitCard.className = "bg-panelDark/80 p-3 rounded-xl border border-emerald-500/50 space-y-1.5";
+          exitTitleEl.innerHTML = `<i class="fa-solid fa-flag-checkered text-emerald-400"></i> 2. Target Hit (${targetGainPct} Structural Expansion)`;
+        } else if (t.outcome === "BE_WIN") {
+          exitCard.className = "bg-panelDark/80 p-3 rounded-xl border border-teal-500/50 space-y-1.5";
+          exitTitleEl.innerHTML = `<i class="fa-solid fa-shield-halved text-teal-400"></i> 2. Trailed Stop Breakeven (+25% Net Locked)`;
+        } else if (t.outcome === "LOSS") {
+          exitCard.className = "bg-panelDark/80 p-3 rounded-xl border border-rose-500/50 space-y-1.5";
+          exitTitleEl.innerHTML = `<i class="fa-solid fa-circle-xmark text-rose-400"></i> 2. Stop Loss Hit (-30% Controlled)`;
+        } else if (t.outcome === "ACTIVE") {
+          exitCard.className = "bg-panelDark/80 p-3 rounded-xl border border-cyan-500/50 space-y-1.5";
+          exitTitleEl.innerHTML = `<i class="fa-solid fa-circle-notch fa-spin text-cyan-400"></i> 2. Live in Market`;
+        } else {
+          exitCard.className = "bg-panelDark/80 p-3 rounded-xl border border-slate-500/50 space-y-1.5";
+          exitTitleEl.innerHTML = `<i class="fa-solid fa-hourglass-end text-amber-400"></i> 2. Timeout Scratch (Theta Protection)`;
+        }
+      }
+
+      if (netReturnEl) {
+        if (t.outcome === "WIN") {
+          netReturnEl.innerHTML = `<span class="text-winGreen font-bold font-mono">+${pnlDiff.toFixed(1)} pts gross &rarr; +${netTakeHome.toFixed(1)} pts (+${netTakeHomePct}% Net Take-Home)</span>`;
+        } else if (t.outcome === "BE_WIN") {
+          netReturnEl.innerHTML = `<span class="text-teal-300 font-bold font-mono">+${pnlDiff.toFixed(1)} pts (+25% Net Trailed Gain)</span>`;
+        } else if (t.outcome === "LOSS") {
+          netReturnEl.innerHTML = `<span class="text-lossRed font-bold font-mono">${pnlDiff.toFixed(1)} pts (-30% Controlled Stop Exit)</span>`;
+        } else if (t.outcome === "ACTIVE") {
+          netReturnEl.innerHTML = `<span class="text-cyan-300 font-bold font-mono">${pnlDiff >= 0 ? '+' : ''}${pnlDiff.toFixed(1)} pts (Unrealized Current Mark)</span>`;
+        } else {
+          netReturnEl.innerHTML = `<span class="text-slate-300 font-bold font-mono">${pnlDiff.toFixed(1)} pts (-18% Scratch to avoid overnight theta)</span>`;
+        }
+      }
+
+      // Dynamic Narrative with exact contract, real prices, and time
+      let dynamicNarrative = "";
       if (t.outcome === "WIN") {
-        exitCard.className = "bg-panelDark/80 p-3 rounded-xl border border-emerald-500/50 space-y-1.5";
-        exitTitleEl.innerHTML = `<i class="fa-solid fa-flag-checkered text-emerald-400"></i> 2. Target Hit (${targetGainPct} Structural Expansion)`;
-        if (exitSpotEl) exitSpotEl.className = "font-bold text-winGreen";
+        dynamicNarrative = `Price moved aggressively in your favor (+${targetDist} pts) within ${t.barsHeld || 1} bars (${durStr}), cleanly hitting Take Profit at $${tpNum.toLocaleString()} at ${exitTimeStr} IST. Your ${contractSymbol} option entered at $${entryOpt.toFixed(1)} and hit target exit at $${exitOpt.toFixed(1)} (${targetGainPct} gross / +${netTakeHomePct}% net take-home after Delta fees).`;
       } else if (t.outcome === "BE_WIN") {
-        exitCard.className = "bg-panelDark/80 p-3 rounded-xl border border-teal-500/50 space-y-1.5";
-        exitTitleEl.innerHTML = `<i class="fa-solid fa-shield-halved text-teal-400"></i> 2. Trailed Stop Breakeven (+25% Net Locked)`;
-        if (exitSpotEl) exitSpotEl.className = "font-bold text-teal-300";
+        dynamicNarrative = `Price moved favorably towards target, triggering TP1 (+50% option gain) at $${entryOpt.toFixed(1)} -> $${(entryOpt * 1.5).toFixed(1)}. Position stop-loss was automatically trailed to Breakeven. A subsequent pullback closed the trade at entry, banking +25% overall profit with zero downside risk.`;
       } else if (t.outcome === "LOSS") {
-        exitCard.className = "bg-panelDark/80 p-3 rounded-xl border border-rose-500/50 space-y-1.5";
-        exitTitleEl.innerHTML = `<i class="fa-solid fa-circle-xmark text-rose-400"></i> 2. Stop Loss Hit (-30% Controlled)`;
-        if (exitSpotEl) exitSpotEl.className = "font-bold text-lossRed";
+        dynamicNarrative = `Price breached invalidation level at $${slNum.toLocaleString()} at ${exitTimeStr} IST after ${t.barsHeld || 1} bars (${durStr}). Your ${contractSymbol} option entered at $${entryOpt.toFixed(1)} executed controlled stop-loss exit at $${exitOpt.toFixed(1)} (-30.0% stop) preserving 70% of margin capital.`;
       } else if (t.outcome === "ACTIVE") {
-        exitCard.className = "bg-panelDark/80 p-3 rounded-xl border border-cyan-500/50 space-y-1.5";
-        exitTitleEl.innerHTML = `<i class="fa-solid fa-circle-notch fa-spin text-cyan-400"></i> 2. Live in Market`;
-        if (exitSpotEl) exitSpotEl.className = "font-bold text-cyan-300";
+        dynamicNarrative = `Trade is LIVE right now (${t.barsHeld || 1} bars in progress). Entered at $${entryNum.toLocaleString()} with ${contractSymbol} @ $${entryOpt.toFixed(1)}. Current mark: $${exitOpt.toFixed(1)}. Monitoring Take Profit at $${tpNum.toLocaleString()} or Stop Loss at $${slNum.toLocaleString()}.`;
       } else {
-        exitCard.className = "bg-panelDark/80 p-3 rounded-xl border border-slate-500/50 space-y-1.5";
-        exitTitleEl.innerHTML = `<i class="fa-solid fa-hourglass-end text-amber-400"></i> 2. Timeout Scratch (Theta Protection)`;
-        if (exitSpotEl) exitSpotEl.className = "font-bold text-slate-300";
+        dynamicNarrative = `Price moved sideways for 5 hours (${t.barsHeld || 1} bars). Closed at $${Number(t.exitPrice || entryNum).toLocaleString()} at ${exitTimeStr} IST. Option exited at $${exitOpt.toFixed(1)} as a scratch exit to prevent theta decay from destroying remaining option value.`;
+      }
+
+      // Rationale fields
+      const r = t.rationale || {};
+      const levelEl = document.getElementById('atmModalLevel');
+      if (levelEl) levelEl.innerText = r.levelTested || "--";
+
+      const patternEl = document.getElementById('atmModalPattern');
+      if (patternEl) patternEl.innerText = r.pattern || "--";
+
+      const confEl = document.getElementById('atmModalConfirmation');
+      if (confEl) confEl.innerText = r.confirmation || "--";
+
+      const rsiRvolEl = document.getElementById('atmModalRsiRvol');
+      if (rsiRvolEl) rsiRvolEl.innerText = `${r.rsi || ''} | ${r.rvol || ''}`;
+
+      const htfEl = document.getElementById('atmModalHtf');
+      if (htfEl) htfEl.innerText = r.htfAlignment || (t.htf_trend ? t.htf_trend.label : "🟢 Trend Aligned");
+
+      const absEl = document.getElementById('atmModalAbsorption');
+      if (absEl) absEl.innerText = r.absorption || "Institutional Liquidity Absorption";
+
+      const narrEl = document.getElementById('atmModalNarrative');
+      if (narrEl) narrEl.innerText = dynamicNarrative;
+
+      // Playbook steps with real Delta contract
+      const stepsContainer = document.getElementById('atmModalPlaybook');
+      if (stepsContainer) {
+        if (opt && (opt.isLive || opt.symbol)) {
+          stepsContainer.innerHTML = `
+            <li class="text-xs text-slate-200 font-mono py-1 flex items-start gap-2">
+              <i class="fa-solid fa-check text-indigo-400 mt-0.5"></i>
+              <span>1. Open Delta Exchange India -> BTC Options.</span>
+            </li>
+            <li class="text-xs text-slate-200 font-mono py-1 flex items-start gap-2">
+              <i class="fa-solid fa-check text-indigo-400 mt-0.5"></i>
+              <span>2. Select Real Live Contract: <strong class="text-white bg-indigo-900/60 px-1.5 py-0.5 rounded">${opt.symbol || contractSymbol}</strong>.</span>
+            </li>
+            <li class="text-xs text-slate-200 font-mono py-1 flex items-start gap-2">
+              <i class="fa-solid fa-check text-indigo-400 mt-0.5"></i>
+              <span>3. Buy Order: Enter in Buy Zone <strong class="text-emerald-400">${opt.buyZone || `$${(entryOpt * 0.98).toFixed(1)} - $${(entryOpt * 1.02).toFixed(1)}`}</strong> (Current Mark: $${opt.markPrice || entryOpt}).</span>
+            </li>
+            <li class="text-xs text-slate-200 font-mono py-1 flex items-start gap-2">
+              <i class="fa-solid fa-check text-indigo-400 mt-0.5"></i>
+              <span>4. Take Profit GTT Order: Set Limit Sell at <strong class="text-winGreen">$${opt.targetPrice || Math.round(entryOpt * 1.65 * 10) / 10}</strong> (+50% profit target).</span>
+            </li>
+            <li class="text-xs text-slate-200 font-mono py-1 flex items-start gap-2">
+              <i class="fa-solid fa-check text-indigo-400 mt-0.5"></i>
+              <span>5. Stop Loss GTT Order: Set Stop Market at <strong class="text-lossRed">$${opt.stopPrice || Math.round(entryOpt * 0.70 * 10) / 10}</strong> (Underlying Spot Invalidation: $${slNum.toLocaleString()}).</span>
+            </li>
+          `;
+        } else if (r.deltaSteps) {
+          stepsContainer.innerHTML = r.deltaSteps.map(s => `<li class="text-xs text-slate-200 font-mono py-1 flex items-start gap-2"><i class="fa-solid fa-check text-indigo-400 mt-0.5"></i><span>${s}</span></li>`).join('');
+        }
+      }
+
+      modal.classList.remove('hidden');
+      modal.classList.add('flex');
+      try { DeltaSound.playChime('modal'); } catch (e) {}
+    } catch (err) {
+      console.error("Critical error in openTradeDetailsModal:", err);
+      const modal = document.getElementById('algoTradeModal');
+      if (modal) {
+        modal.classList.remove('hidden');
+        modal.classList.add('flex');
       }
     }
-
-    if (netReturnEl) {
-      if (t.outcome === "WIN") {
-        netReturnEl.innerHTML = `<span class="text-winGreen font-bold font-mono">+${pnlDiff.toFixed(1)} pts gross &rarr; +${netTakeHome.toFixed(1)} pts (+${netTakeHomePct}% Net Take-Home)</span>`;
-      } else if (t.outcome === "BE_WIN") {
-        netReturnEl.innerHTML = `<span class="text-teal-300 font-bold font-mono">+${pnlDiff.toFixed(1)} pts (+25% Net Trailed Gain)</span>`;
-      } else if (t.outcome === "LOSS") {
-        netReturnEl.innerHTML = `<span class="text-lossRed font-bold font-mono">${pnlDiff.toFixed(1)} pts (-30% Controlled Stop Exit)</span>`;
-      } else if (t.outcome === "ACTIVE") {
-        netReturnEl.innerHTML = `<span class="text-cyan-300 font-bold font-mono">${pnlDiff >= 0 ? '+' : ''}${pnlDiff.toFixed(1)} pts (Unrealized Current Mark)</span>`;
-      } else {
-        netReturnEl.innerHTML = `<span class="text-slate-300 font-bold font-mono">${pnlDiff.toFixed(1)} pts (-18% Scratch to avoid overnight theta)</span>`;
-      }
-    }
-
-    // Dynamic Narrative with exact contract, real prices, and time
-    let dynamicNarrative = "";
-    if (t.outcome === "WIN") {
-      dynamicNarrative = `Price moved aggressively in your favor (+${t.targetDist} pts) within ${t.barsHeld} bars (${durStr}), cleanly hitting Take Profit at $${t.tp.toLocaleString()} at ${exitTimeStr} IST. Your ${contractSymbol} option entered at $${entryOpt.toFixed(1)} and hit target exit at $${exitOpt.toFixed(1)} (${targetGainPct} gross / +${netTakeHomePct}% net take-home after Delta fees).`;
-    } else if (t.outcome === "BE_WIN") {
-      dynamicNarrative = `Price moved favorably towards target, triggering TP1 (+50% option gain) at $${entryOpt.toFixed(1)} -> $${(entryOpt * 1.5).toFixed(1)}. Position stop-loss was automatically trailed to Breakeven. A subsequent pullback closed the trade at entry, banking +25% overall profit with zero downside risk.`;
-    } else if (t.outcome === "LOSS") {
-      dynamicNarrative = `Price breached invalidation level at $${t.sl.toLocaleString()} at ${exitTimeStr} IST after ${t.barsHeld} bars (${durStr}). Your ${contractSymbol} option entered at $${entryOpt.toFixed(1)} executed controlled stop-loss exit at $${exitOpt.toFixed(1)} (-30.0% stop) preserving 70% of margin capital.`;
-    } else if (t.outcome === "ACTIVE") {
-      dynamicNarrative = `Trade is LIVE right now (${t.barsHeld} bars in progress). Entered at $${t.entry.toLocaleString()} with ${contractSymbol} @ $${entryOpt.toFixed(1)}. Current mark: $${exitOpt.toFixed(1)}. Monitoring Take Profit at $${t.tp.toLocaleString()} or Stop Loss at $${t.sl.toLocaleString()}.`;
-    } else {
-      dynamicNarrative = `Price moved sideways for 5 hours (${t.barsHeld} bars). Closed at $${t.exitPrice.toLocaleString()} at ${exitTimeStr} IST. Option exited at $${exitOpt.toFixed(1)} as a scratch exit to prevent theta decay from destroying remaining option value.`;
-    }
-
-    // Rationale fields
-    const r = t.rationale || {};
-    document.getElementById('atmModalLevel').innerText = r.levelTested || "--";
-    document.getElementById('atmModalPattern').innerText = r.pattern || "--";
-    document.getElementById('atmModalConfirmation').innerText = r.confirmation || "--";
-    document.getElementById('atmModalRsiRvol').innerText = `${r.rsi || ''} | ${r.rvol || ''}`;
-    const htfEl = document.getElementById('atmModalHtf');
-    if (htfEl) htfEl.innerText = r.htfAlignment || (t.htf_trend ? t.htf_trend.label : "🟢 Trend Aligned");
-    const absEl = document.getElementById('atmModalAbsorption');
-    if (absEl) absEl.innerText = r.absorption || "Institutional Liquidity Absorption";
-    document.getElementById('atmModalNarrative').innerText = dynamicNarrative;
-
-    // Playbook steps with real Delta contract
-    const stepsContainer = document.getElementById('atmModalPlaybook');
-    if (stepsContainer) {
-      if (opt && opt.isLive) {
-        stepsContainer.innerHTML = `
-          <li class="text-xs text-slate-200 font-mono py-1 flex items-start gap-2">
-            <i class="fa-solid fa-check text-indigo-400 mt-0.5"></i>
-            <span>1. Open Delta Exchange India -> BTC Options.</span>
-          </li>
-          <li class="text-xs text-slate-200 font-mono py-1 flex items-start gap-2">
-            <i class="fa-solid fa-check text-indigo-400 mt-0.5"></i>
-            <span>2. Select Real Live Contract: <strong class="text-white bg-indigo-900/60 px-1.5 py-0.5 rounded">${opt.symbol}</strong>.</span>
-          </li>
-          <li class="text-xs text-slate-200 font-mono py-1 flex items-start gap-2">
-            <i class="fa-solid fa-check text-indigo-400 mt-0.5"></i>
-            <span>3. Buy Order: Enter in Buy Zone <strong class="text-emerald-400">${opt.buyZone}</strong> (Current Mark: $${opt.markPrice}).</span>
-          </li>
-          <li class="text-xs text-slate-200 font-mono py-1 flex items-start gap-2">
-            <i class="fa-solid fa-check text-indigo-400 mt-0.5"></i>
-            <span>4. Take Profit GTT Order: Set Limit Sell at <strong class="text-winGreen">$${opt.targetPrice}</strong> (+50% profit target).</span>
-          </li>
-          <li class="text-xs text-slate-200 font-mono py-1 flex items-start gap-2">
-            <i class="fa-solid fa-check text-indigo-400 mt-0.5"></i>
-            <span>5. Stop Loss GTT Order: Set Stop Market at <strong class="text-lossRed">$${opt.stopPrice}</strong> (Underlying Spot Invalidation: $${t.sl.toLocaleString()}).</span>
-          </li>
-        `;
-      } else if (r.deltaSteps) {
-        stepsContainer.innerHTML = r.deltaSteps.map(s => `<li class="text-xs text-slate-200 font-mono py-1 flex items-start gap-2"><i class="fa-solid fa-check text-indigo-400 mt-0.5"></i><span>${s}</span></li>`).join('');
-      }
-    }
-
-    modal.classList.remove('hidden');
-    modal.classList.add('flex');
   }
 
   function closeTradeDetailsModal() {
