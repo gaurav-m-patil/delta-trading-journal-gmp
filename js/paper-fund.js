@@ -80,7 +80,10 @@ window.DeltaPaperFund = (function() {
       let isResolved = false;
 
       if (t.outcome === "WIN") {
-        sellPrice = (opt && opt.targetPrice > 0) ? opt.targetPrice : (t.exitOpt || Math.round(buyPrice * 1.5 * 10) / 10);
+        // Scaled Exit: 50% booked at TP1 (+50%), remaining 50% runner closed at TP2 (structural target)
+        const tp1Price = (opt && opt.tp1Price > 0) ? opt.tp1Price : Math.round(buyPrice * 1.50 * 10) / 10;
+        const tp2Price = (opt && opt.targetPrice > 0) ? opt.targetPrice : (t.exitOpt || Math.round(buyPrice * 1.50 * 10) / 10);
+        sellPrice = Math.round(((tp1Price * 0.5) + (tp2Price * 0.5)) * 10) / 10;
         isResolved = true;
       } else if (t.outcome === "BE_WIN") {
         // Idea 8: Trailed Stop-Loss Simulation (50% locked at TP1 (+50%), remainder exited at Breakeven -> Net +25%)

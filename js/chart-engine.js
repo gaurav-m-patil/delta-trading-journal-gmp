@@ -1505,7 +1505,9 @@ window.DeltaLiveChart = (function() {
       const netTakeHomePct = Math.round(parseInt(String(targetGainPct).replace('+', '').replace('%', '') || '50') * 0.85);
 
       if (t.outcome === "WIN") {
-        exitOpt = opt.targetPrice ? opt.targetPrice : (t.exitOpt || Math.round((entryOpt * 1.50) * 10) / 10);
+        const tp1Price = (opt.tp1Price && opt.tp1Price > 0) ? opt.tp1Price : Math.round(entryOpt * 1.50 * 10) / 10;
+        const tp2Price = opt.targetPrice ? opt.targetPrice : (t.exitOpt || Math.round((entryOpt * 1.50) * 10) / 10);
+        exitOpt = Math.round(((tp1Price * 0.5) + (tp2Price * 0.5)) * 10) / 10;
         pnlDiff = Math.round((exitOpt - entryOpt) * 10) / 10;
         netTakeHome = Math.round((pnlDiff * 0.85) * 10) / 10;
       } else if (t.outcome === "BE_WIN") {
@@ -1562,16 +1564,19 @@ window.DeltaLiveChart = (function() {
             </div>
           `;
         } else if (t.outcome === "WIN") {
+          const tp1Price = (opt.tp1Price && opt.tp1Price > 0) ? opt.tp1Price : Math.round(entryOpt * 1.50 * 10) / 10;
+          const tp2Price = opt.targetPrice ? opt.targetPrice : (t.exitOpt || Math.round(entryOpt * 1.50 * 10) / 10);
+          const blendedPct = entryOpt > 0 ? Math.round(((exitOpt - entryOpt) / entryOpt) * 100) : 75;
           actionBanner.className = "p-3 sm:p-3.5 rounded-xl border border-emerald-500/30 bg-emerald-950/20 text-xs font-mono space-y-1";
           actionBanner.innerHTML = `
             <div class="flex items-center justify-between">
               <span class="text-winGreen font-bold flex items-center gap-1.5">
-                <i class="fa-solid fa-circle-check"></i> TARGET REACHED (${targetGainPct} GROSS / +${netTakeHomePct}% NET)
+                <i class="fa-solid fa-circle-check"></i> TARGET REACHED (+${blendedPct}% BLENDED PROFIT)
               </span>
               <span class="text-[10px] text-slate-400 font-sans">${exitTimeStr} IST</span>
             </div>
             <div class="text-slate-300 text-[11px]">
-              Target hit at BTC Spot <strong>$${Number(t.exitPrice || tpNum).toLocaleString()}</strong>. Option surged from <strong>$${entryOpt.toFixed(1)}</strong> to <strong>$${exitOpt.toFixed(1)}</strong> (+${pnlDiff.toFixed(1)} pts).
+              Scaled exit completed: 50% locked at TP1 ($${tp1Price.toFixed(1)} / +50%) and 50% runner closed at TP2 ($${tp2Price.toFixed(1)} / ${targetGainPct}). Blended exit: <strong>$${exitOpt.toFixed(1)} (+${blendedPct}%)</strong>.
             </div>
           `;
         } else if (t.outcome === "BE_WIN") {
@@ -1688,7 +1693,10 @@ window.DeltaLiveChart = (function() {
       // Dynamic Narrative with exact contract, real prices, and time
       let dynamicNarrative = "";
       if (t.outcome === "WIN") {
-        dynamicNarrative = `Price moved aggressively in your favor (+${targetDist} pts) within ${t.barsHeld || 1} bars (${durStr}), cleanly hitting Take Profit at $${tpNum.toLocaleString()} at ${exitTimeStr} IST. Your ${contractSymbol} option entered at $${entryOpt.toFixed(1)} and hit target exit at $${exitOpt.toFixed(1)} (${targetGainPct} gross / +${netTakeHomePct}% net take-home after Delta fees).`;
+        const tp1Price = (opt.tp1Price && opt.tp1Price > 0) ? opt.tp1Price : Math.round(entryOpt * 1.50 * 10) / 10;
+        const tp2Price = opt.targetPrice ? opt.targetPrice : (t.exitOpt || Math.round(entryOpt * 1.50 * 10) / 10);
+        const blendedPct = entryOpt > 0 ? Math.round(((exitOpt - entryOpt) / entryOpt) * 100) : 75;
+        dynamicNarrative = `Price moved aggressively in your favor (+${targetDist} pts) within ${t.barsHeld || 1} bars (${durStr}), cleanly hitting Take Profit at $${tpNum.toLocaleString()} at ${exitTimeStr} IST. Scaled execution locked 50% at TP1 ($${tp1Price.toFixed(1)} / +50%) and 50% runner at TP2 ($${tp2Price.toFixed(1)} / ${targetGainPct}), producing a blended exit of $${exitOpt.toFixed(1)} (+${blendedPct}% gross / +${netTakeHomePct}% net take-home after Delta fees).`;
       } else if (t.outcome === "BE_WIN") {
         dynamicNarrative = `Price moved favorably towards target, triggering TP1 (+50% option gain) at $${entryOpt.toFixed(1)} -> $${(entryOpt * 1.5).toFixed(1)}. Position stop-loss was automatically trailed to Breakeven. A subsequent pullback closed the trade at entry, banking +25% overall profit with zero downside risk.`;
       } else if (t.outcome === "LOSS") {

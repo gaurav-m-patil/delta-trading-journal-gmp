@@ -778,14 +778,17 @@ window.DeltaSMCStrategy = (function() {
 
         if (outcome === "WIN") {
           const dynWin = calcDynamicOptionTarget(entryOpt, setup.targetDist);
-          exitOpt = dynWin.targetPrice;
+          // Scaled Exit: 50% locked at TP1 (+50%), remainder 50% closed at TP2 runner
+          const tp1Price = Math.round(entryOpt * 1.50 * 10) / 10;
+          const tp2Price = dynWin.targetPrice;
+          exitOpt = Math.round(((tp1Price * 0.5) + (tp2Price * 0.5)) * 10) / 10;
           optPnlPts = Math.round((exitOpt - entryOpt) * 10) / 10;
-          const winGainPct = dynWin.gainPct;
+          const winGainPct = entryOpt > 0 ? Math.round(((exitOpt - entryOpt) / entryOpt) * 100) : 75;
           const winNetGainPct = Math.round(winGainPct * 0.85); // Post-fee & 18% GST take home
           optNetGainPts = Math.round((optPnlPts * 0.85) * 10) / 10;
           setup.pnlR = setup.rrRatio;
           setup.optionPnlPct = `+${winGainPct}%`;
-          setup.netProfitEstimate = `+${optNetGainPts} pts (+${winNetGainPct}% Net Take-Home)`;
+          setup.netProfitEstimate = `+${optNetGainPts} pts (+${winNetGainPct}% Net Blended Take-Home)`;
           setup.badgeColor = "text-emerald-400 bg-emerald-500/10 border-emerald-500/30";
         } else if (outcome === "BE_WIN") {
           exitOpt = Math.round((entryOpt * 1.25) * 10) / 10;

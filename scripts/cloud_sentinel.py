@@ -975,14 +975,18 @@ def run_sentinel():
 
         elif is_win:
             daily_counts["wins"] += 1
-            sell_p = target_p
+            # Scaled Exit: 50% closed at TP1 (+50%) and 50% closed at TP2 (target_p)
+            tp1_exit = tp1_p  # buy_p * 1.50
+            tp2_exit = target_p  # full runner target
+            sell_p = round((tp1_exit * 0.5) + (tp2_exit * 0.5), 1)
             pts_gain = round(sell_p - buy_p, 1)
+            blended_pct = round(((sell_p - buy_p) / buy_p) * 100, 1)
 
-            msg = f"""🏆 <b>DELTA INDIA TRADE TARGET HIT ({target_pct})</b>
+            msg = f"""🏆 <b>DELTA INDIA TRADE TARGET HIT (+{blended_pct:.1f}%)</b>
 ━━━━━━━━━━━━━━━━━━━━━━
-🎯 <b>Result:</b> 🟢 <b>WIN ({target_pct} Structural Potential)</b>
+🎯 <b>Result:</b> 🟢 <b>WIN (+{blended_pct:.1f}% Blended Gain)</b>
 🏷️ <b>Contract:</b> <code>{contract}</code>
-💰 <b>Option Fill:</b> Buy: ${buy_p:.1f} ➔ <b>Sell: ${sell_p:.1f}</b> (+{pts_gain} pts)
+💰 <b>Option Realization:</b> 50% booked at ${tp1_exit:.1f} (+50%) + 50% at ${tp2_exit:.1f} ({target_pct}) ➔ <b>Blended Fill: ${sell_p:.1f} (+{blended_pct:.1f}%)</b>
 🎯 <b>BTC Spot:</b> ${entry:,.0f} ➔ <b>${current_price:,.0f} (Target Achieved)</b>
 ⏰ <b>Alert Time:</b> {get_now_ist_str()}
 
@@ -991,7 +995,7 @@ def run_sentinel():
 • Won: <b>{daily_counts['wins']}</b> | Lost: <b>{daily_counts['losses']}</b>
 • Win Rate: <b>{round((daily_counts['wins'] / max(1, daily_counts['wins'] + daily_counts['losses'])) * 100)}%</b>
 
-⚡ <i>Institutional execution: Scalp target booked at TP1 (+50%), runner captured full structural liquidity expansion!</i>
+⚡ <i>Institutional execution: Scalp target booked at TP1 (+50%), runner captured full structural liquidity expansion at TP2! Blended net return: +{blended_pct:.1f}%.</i>
 🔗 <a href="https://delta-trading-journal-gmp.vercel.app/">Open Live Journal & Chart</a>"""
             send_telegram_message(bot_token, chat_id, msg)
             active_trade["outcome"] = "WIN"
@@ -1105,6 +1109,12 @@ def run_sentinel():
                 is_call = (setup["direction"] == "LONG")
                 ist_time = datetime.fromtimestamp(setup["time"], tz=timezone(timedelta(hours=5, minutes=30))).strftime("%I:%M %p · %d %b")
 
+                try:
+                    tp2_pct_val = float(str(opt.get('target_pct', '+100%')).replace('+', '').replace('%', '').strip() or 100)
+                    blended_target_pct = round(0.5 * 50.0 + 0.5 * tp2_pct_val, 1)
+                except Exception:
+                    blended_target_pct = 75.0
+
                 msg = f"""⚡ <b>DELTA INDIA 24/7 CLOUD SMC SIGNAL</b>
 ━━━━━━━━━━━━━━━━━━━━━━
 🎯 <b>Action:</b> {('🟢 BUY CALL OPTION' if is_call else '🔴 BUY PUT OPTION')}
@@ -1118,6 +1128,7 @@ def run_sentinel():
 • <b>Option Buy Zone:</b> {opt['buy_zone']}
 • <b>Target 1 (Scalp / Derisk):</b> ${opt['tp1_price']:.1f} ({opt['tp1_pct']}) ➔ <i>Lock 50% & Move SL to BE</i>
 • <b>Target 2 (Structural Potential):</b> ${opt['target_price']:.1f} ({opt['target_pct']} Runner)
+• <b>Blended Net Target:</b> +{blended_target_pct:.1f}% <i>(50% @ TP1 + 50% @ TP2)</i>
 • <b>Option Invalidation (SL):</b> ${opt['stop_price']:.1f} (-30.0%)
 
 🎯 <b>BTC SPOT TRIGGER LEVEL:</b>
