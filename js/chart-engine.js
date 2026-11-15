@@ -1245,6 +1245,9 @@ window.DeltaLiveChart = (function() {
       } else if (isLoss) {
         outcomeEl.className = "text-[10px] font-bold font-mono px-2 py-0.5 rounded bg-rose-500/10 text-rose-400 border border-rose-500/30";
         outcomeEl.innerHTML = `<i class="fa-solid fa-circle-xmark mr-1"></i> STOP LOSS HIT (-30% Controlled Stop)`;
+      } else if (trade.outcome === "SKIPPED_CIRCUIT_BREAKER" || trade.skipped) {
+        outcomeEl.className = "text-[10px] font-bold font-mono px-2 py-0.5 rounded bg-amber-500/10 text-amber-400 border border-amber-500/30";
+        outcomeEl.innerHTML = `<i class="fa-solid fa-shield-halved mr-1"></i> NOT TAKEN (2 SL Hit)`;
       } else {
         outcomeEl.className = "text-[10px] font-bold font-mono px-2 py-0.5 rounded bg-slate-500/10 text-slate-400 border border-slate-500/30";
         outcomeEl.innerHTML = `<i class="fa-solid fa-hourglass-end mr-1"></i> TIMEOUT (Closed at Scratch)`;
@@ -1579,6 +1582,9 @@ window.DeltaLiveChart = (function() {
         } else if (t.outcome === "LOSS") {
           badgeEl.className = "px-2.5 py-1 rounded-lg text-xs font-bold font-mono bg-rose-500/10 text-rose-400 border border-rose-500/30";
           badgeEl.innerHTML = `<i class="fa-solid fa-circle-xmark mr-1"></i> STOP LOSS HIT (-1R CONTROLLED STOP)`;
+        } else if (t.outcome === "SKIPPED_CIRCUIT_BREAKER" || t.skipped) {
+          badgeEl.className = "px-2.5 py-1 rounded-lg text-xs font-bold font-mono bg-amber-500/10 text-amber-400 border border-amber-500/30";
+          badgeEl.innerHTML = `<i class="fa-solid fa-shield-halved mr-1"></i> NOT TAKEN (2 SL HIT - RISK GUARD)`;
         } else if (t.outcome === "ACTIVE") {
           badgeEl.className = "px-2.5 py-1 rounded-lg text-xs font-bold font-mono bg-cyan-500/10 text-cyan-400 border border-cyan-500/30 flex items-center gap-1.5";
           badgeEl.innerHTML = `<span class="h-2 w-2 rounded-full bg-cyan-400 animate-ping"></span> LIVE IN MARKET (${t.barsHeld || 1} bars)`;
@@ -1644,6 +1650,10 @@ window.DeltaLiveChart = (function() {
         exitOpt = opt.stopPrice ? opt.stopPrice : Math.round((entryOpt * 0.70) * 10) / 10;
         pnlDiff = Math.round((exitOpt - entryOpt) * 10) / 10;
         netTakeHome = pnlDiff;
+      } else if (t.outcome === "SKIPPED_CIRCUIT_BREAKER" || t.skipped) {
+        exitOpt = entryOpt;
+        pnlDiff = 0;
+        netTakeHome = 0;
       } else if (t.outcome === "ACTIVE") {
         const currentLive = (opt.markPrice && opt.markPrice > 0) ? opt.markPrice : entryOpt;
         exitOpt = currentLive;
@@ -1731,6 +1741,19 @@ window.DeltaLiveChart = (function() {
               Price touched invalidation at <strong>$${slNum.toLocaleString()}</strong>. Controlled stop closed option at <strong>$${exitOpt.toFixed(1)}</strong>, protecting 70% of capital.
             </div>
           `;
+        } else if (t.outcome === "SKIPPED_CIRCUIT_BREAKER" || t.skipped) {
+          actionBanner.className = "p-3 sm:p-3.5 rounded-xl border border-amber-500/40 bg-amber-950/25 text-xs font-mono space-y-1";
+          actionBanner.innerHTML = `
+            <div class="flex items-center justify-between">
+              <span class="text-amber-400 font-bold flex items-center gap-1.5">
+                <i class="fa-solid fa-shield-halved"></i> 🛡️ SHADOW SETUP: NOT EXECUTED (2 SL RISK GUARD ENGAGED)
+              </span>
+              <span class="text-[10px] text-slate-400 font-sans">${exitTimeStr} IST</span>
+            </div>
+            <div class="text-slate-300 text-[11px]">
+              Strict Institutional Capital Preservation: 2 Stop Losses were reached earlier today. All live and paper order executions were halted to preserve equity. This setup was captured in Shadow Mode for observation and learning.
+            </div>
+          `;
         } else {
           // TIMEOUT
           actionBanner.className = "p-3 sm:p-3.5 rounded-xl border border-slate-500/30 bg-panelDark/60 text-xs font-mono space-y-1";
@@ -1767,20 +1790,28 @@ window.DeltaLiveChart = (function() {
       const optionExitEl = document.getElementById('atmModalOptionExit');
       const netReturnEl = document.getElementById('atmModalNetPoints');
 
-      if (exitTimeEl) exitTimeEl.innerText = t.outcome === "ACTIVE" ? "Monitoring Live..." : `${exitTimeStr} IST (${durStr} hold)`;
+      if (exitTimeEl) exitTimeEl.innerText = (t.outcome === "SKIPPED_CIRCUIT_BREAKER" || t.skipped) ? `${exitTimeStr} IST (Shadow Setup - Zero Capital Allocated)` : (t.outcome === "ACTIVE" ? "Monitoring Live..." : `${exitTimeStr} IST (${durStr} hold)`);
       if (exitSpotEl) {
         if (t.outcome === "ACTIVE") {
           exitSpotEl.innerText = "Monitoring Spot...";
           exitSpotEl.className = "font-bold text-cyan-300";
+        } else if (t.outcome === "SKIPPED_CIRCUIT_BREAKER" || t.skipped) {
+          exitSpotEl.innerText = "Execution Skipped (Capital Protected)";
+          exitSpotEl.className = "font-bold text-amber-400";
         } else {
           exitSpotEl.innerText = `$${Number(t.exitPrice || tpNum).toLocaleString()}`;
           exitSpotEl.className = `font-bold ${t.outcome === 'WIN' || t.outcome === 'BE_WIN' ? 'text-winGreen' : 'text-lossRed'}`;
         }
       }
       if (optionExitEl) {
-        const pnlPct = entryOpt > 0 ? ((pnlDiff / entryOpt) * 100).toFixed(1) : '0.0';
-        optionExitEl.innerText = `$${exitOpt.toFixed(1)} (${pnlDiff >= 0 ? '+' : ''}${pnlPct}%)`;
-        optionExitEl.className = `text-sm font-bold ${pnlDiff >= 0 ? 'text-winGreen' : 'text-lossRed'}`;
+        if (t.outcome === "SKIPPED_CIRCUIT_BREAKER" || t.skipped) {
+          optionExitEl.innerText = "$0.0 (Zero Capital Allocated)";
+          optionExitEl.className = "text-sm font-bold text-amber-400";
+        } else {
+          const pnlPct = entryOpt > 0 ? ((pnlDiff / entryOpt) * 100).toFixed(1) : '0.0';
+          optionExitEl.innerText = `$${exitOpt.toFixed(1)} (${pnlDiff >= 0 ? '+' : ''}${pnlPct}%)`;
+          optionExitEl.className = `text-sm font-bold ${pnlDiff >= 0 ? 'text-winGreen' : 'text-lossRed'}`;
+        }
       }
 
       if (exitCard && exitTitleEl) {
@@ -1793,6 +1824,9 @@ window.DeltaLiveChart = (function() {
         } else if (t.outcome === "LOSS") {
           exitCard.className = "bg-panelDark/80 p-3 rounded-xl border border-rose-500/50 space-y-1.5";
           exitTitleEl.innerHTML = `<i class="fa-solid fa-circle-xmark text-rose-400"></i> 2. Stop Loss Hit (-30% Controlled)`;
+        } else if (t.outcome === "SKIPPED_CIRCUIT_BREAKER" || t.skipped) {
+          exitCard.className = "bg-panelDark/80 p-3 rounded-xl border border-amber-500/50 space-y-1.5";
+          exitTitleEl.innerHTML = `<i class="fa-solid fa-shield-halved text-amber-400"></i> 2. Skipped Execution (Risk Guard Engaged)`;
         } else if (t.outcome === "ACTIVE") {
           exitCard.className = "bg-panelDark/80 p-3 rounded-xl border border-cyan-500/50 space-y-1.5";
           exitTitleEl.innerHTML = `<i class="fa-solid fa-circle-notch fa-spin text-cyan-400"></i> 2. Live in Market`;
@@ -1809,6 +1843,8 @@ window.DeltaLiveChart = (function() {
           netReturnEl.innerHTML = `<span class="text-teal-300 font-bold font-mono">+${pnlDiff.toFixed(1)} pts (+25% Net Trailed Gain)</span>`;
         } else if (t.outcome === "LOSS") {
           netReturnEl.innerHTML = `<span class="text-lossRed font-bold font-mono">${pnlDiff.toFixed(1)} pts (-30% Controlled Stop Exit)</span>`;
+        } else if (t.outcome === "SKIPPED_CIRCUIT_BREAKER" || t.skipped) {
+          netReturnEl.innerHTML = `<span class="text-amber-400 font-bold font-mono">₹0 Net PnL (100% Capital Protected)</span>`;
         } else if (t.outcome === "ACTIVE") {
           netReturnEl.innerHTML = `<span class="text-cyan-300 font-bold font-mono">${pnlDiff >= 0 ? '+' : ''}${pnlDiff.toFixed(1)} pts (Unrealized Current Mark)</span>`;
         } else {
@@ -1827,6 +1863,8 @@ window.DeltaLiveChart = (function() {
         dynamicNarrative = `Price moved favorably towards target, triggering TP1 (+50% option gain) at $${entryOpt.toFixed(1)} -> $${(entryOpt * 1.5).toFixed(1)}. Position stop-loss was automatically trailed to Breakeven. A subsequent pullback closed the trade at entry, banking +25% overall profit with zero downside risk.`;
       } else if (t.outcome === "LOSS") {
         dynamicNarrative = `Price breached invalidation level at $${slNum.toLocaleString()} at ${exitTimeStr} IST after ${t.barsHeld || 1} bars (${durStr}). Your ${contractSymbol} option entered at $${entryOpt.toFixed(1)} executed controlled stop-loss exit at $${exitOpt.toFixed(1)} (-30.0% stop) preserving 70% of margin capital.`;
+      } else if (t.outcome === "SKIPPED_CIRCUIT_BREAKER" || t.skipped) {
+        dynamicNarrative = `2 Stop Losses were hit earlier today. To protect your trading capital, this setup was NOT taken (0% capital allocated), but is fully tracked and recorded in your SMC Setup Radar & Paper Fund for knowledge growth and observation.`;
       } else if (t.outcome === "ACTIVE") {
         dynamicNarrative = `Trade is LIVE right now (${t.barsHeld || 1} bars in progress). Entered at $${entryNum.toLocaleString()} with ${contractSymbol} @ $${entryOpt.toFixed(1)}. Current mark: $${exitOpt.toFixed(1)}. Monitoring Take Profit at $${tpNum.toLocaleString()} or Stop Loss at $${slNum.toLocaleString()}.`;
       } else {
@@ -2061,6 +2099,9 @@ Expected Profit: +50% Option Gross / +40% Net`;
             } else if (isLoss) {
               markerText = "-30%";
               markerColor = "#f43f5e";
+            } else if (st.outcome === "SKIPPED_CIRCUIT_BREAKER" || st.skipped) {
+              markerText = "SKP (2SL)";
+              markerColor = "#f59e0b";
             } else {
               markerText = "SCR";
               markerColor = "#64748b";
@@ -2332,6 +2373,10 @@ Expected Profit: +50% Option Gross / +40% Net`;
           sellPrice = (opt && opt.stopPrice > 0) ? opt.stopPrice : Math.round(buyPrice * 0.7 * 10) / 10;
           pnlDiff = Math.round((sellPrice - buyPrice) * 10) / 10;
           optGainPct = `-30%`;
+        } else if (t.outcome === "SKIPPED_CIRCUIT_BREAKER" || t.skipped) {
+          sellPrice = buyPrice;
+          pnlDiff = 0;
+          optGainPct = `0.0%`;
         } else if (t.outcome === "TIMEOUT") {
           sellPrice = Math.round(buyPrice * 0.82 * 10) / 10;
           pnlDiff = Math.round((sellPrice - buyPrice) * 10) / 10;
@@ -2355,6 +2400,8 @@ Expected Profit: +50% Option Gross / +40% Net`;
           outcomeBadge = `<span class="px-1.5 sm:px-2 py-0.5 rounded text-[9px] sm:text-[10px] font-bold bg-teal-500/10 text-teal-300 border border-teal-500/30 whitespace-nowrap"><i class="fa-solid fa-shield-halved mr-0.5"></i>BE WIN (+25%)</span>`;
         } else if (isLoss) {
           outcomeBadge = `<span class="px-1.5 sm:px-2 py-0.5 rounded text-[9px] sm:text-[10px] font-bold bg-rose-500/10 text-rose-400 border border-rose-500/30 whitespace-nowrap">LOSS (-1R)</span>`;
+        } else if (t.outcome === "SKIPPED_CIRCUIT_BREAKER" || t.skipped) {
+          outcomeBadge = `<span class="px-1.5 sm:px-2 py-0.5 rounded text-[9px] sm:text-[10px] font-bold bg-amber-500/10 text-amber-400 border border-amber-500/30 whitespace-nowrap"><i class="fa-solid fa-shield-halved mr-0.5"></i>NOT TAKEN (2 SL Hit)</span>`;
         } else {
           outcomeBadge = `<span class="px-1.5 sm:px-2 py-0.5 rounded text-[9px] sm:text-[10px] font-bold bg-slate-500/10 text-slate-400 border border-slate-500/30 whitespace-nowrap">TIMEOUT</span>`;
         }
@@ -2376,6 +2423,7 @@ Expected Profit: +50% Option Gross / +40% Net`;
               <div class="flex items-center gap-1 font-bold ${isCall ? 'text-winGreen' : 'text-lossRed'} text-xs">
                 <i class="fa-solid ${isCall ? 'fa-arrow-up' : 'fa-arrow-down'} text-[10px]"></i>
                 <span>${isCall ? 'CALL' : 'PUT'}</span>
+                ${(t.outcome === 'SKIPPED_CIRCUIT_BREAKER' || t.skipped) ? '<span class="text-[8px] px-1 py-0.2 rounded bg-amber-500/20 text-amber-300 border border-amber-500/40 font-mono">NOT TAKEN</span>' : ''}
                 ${t.strategyId && t.strategyId.includes('BOS') ? '<span class="text-[8px] px-1 py-0.2 rounded bg-amber-500/20 text-amber-300 border border-amber-500/40 font-mono">BOS</span>' : ''}
               </div>
               <span class="text-[10px] text-slate-400 block truncate" title="${t.name}">${cleanPatternName}</span>
@@ -2390,27 +2438,30 @@ Expected Profit: +50% Option Gross / +40% Net`;
                 <div class="flex items-center gap-1">
                   <span class="text-slate-400">Buy: <strong class="text-white">$${buyPrice.toFixed(1)}</strong></span>
                   <span class="text-slate-500">&rarr;</span>
-                  <span class="text-slate-400">${isActive ? 'Live' : 'Sell'}: <strong class="${(isWin || t.outcome === 'BE_WIN') ? 'text-winGreen' : (isLoss ? 'text-lossRed' : 'text-slate-200')}">$${sellPrice.toFixed(1)}</strong></span>
+                  <span class="text-slate-400">${isActive ? 'Live' : 'Sell'}: <strong class="${(isWin || t.outcome === 'BE_WIN') ? 'text-winGreen' : ((t.outcome === 'SKIPPED_CIRCUIT_BREAKER' || t.skipped) ? 'text-amber-400' : (isLoss ? 'text-lossRed' : 'text-slate-200'))}">$${sellPrice.toFixed(1)}</strong></span>
                 </div>
-                <div class="${pnlDiff >= 0 ? 'text-winGreen' : 'text-lossRed'} font-semibold font-mono">
-                  ${pnlDiff >= 0 ? '+' : ''}${pnlDiff.toFixed(1)} pts (${optGainPct})
+                <div class="${(t.outcome === 'SKIPPED_CIRCUIT_BREAKER' || t.skipped) ? 'text-amber-400' : (pnlDiff >= 0 ? 'text-winGreen' : 'text-lossRed')} font-semibold font-mono">
+                  ${(t.outcome === 'SKIPPED_CIRCUIT_BREAKER' || t.skipped) ? '0.0 pts (Risk Guard)' : `${pnlDiff >= 0 ? '+' : ''}${pnlDiff.toFixed(1)} pts (${optGainPct})`}
                 </div>
               </div>
             </td>
             <td class="py-2.5 px-2 text-[11px] sm:text-xs text-slate-300">
-              <div>$${t.entry.toLocaleString()} &rarr; <strong class="${isWin ? 'text-winGreen' : 'text-slate-200'}">${closedSpot}</strong></div>
+              <div>$${t.entry.toLocaleString()} &rarr; <strong class="${isWin ? 'text-winGreen' : ((t.outcome === 'SKIPPED_CIRCUIT_BREAKER' || t.skipped) ? 'text-amber-400' : 'text-slate-200')}">${closedSpot}</strong></div>
               <div class="text-[9px] text-slate-400">SL: $${t.sl.toLocaleString()}</div>
             </td>
             <td class="py-2.5 px-2 text-[11px] font-mono">
               ${paperTrade ? (isActive ? `
                 <span class="text-cyan-400 font-bold text-[10px]"><span class="h-1.5 w-1.5 rounded-full bg-cyan-400 animate-ping inline-block mr-1"></span>ACTIVE</span>
                 <div class="text-[9px] text-slate-400">₹${paperTrade.allocatedInr.toLocaleString('en-IN')} Margin</div>
+              ` : ((t.outcome === 'SKIPPED_CIRCUIT_BREAKER' || t.skipped) ? `
+                <span class="text-amber-400 font-bold text-[10px]"><i class="fa-solid fa-shield-halved mr-1"></i>₹0 (Risk Guard)</span>
+                <div class="text-[9px] text-slate-400">Bal: ₹${paperTrade.capitalAfterTrade.toLocaleString('en-IN')}</div>
               ` : `
                 <div class="font-bold ${paperTrade.netPnlInr >= 0 ? 'text-winGreen' : 'text-lossRed'}">
                   ${paperTrade.netPnlInr >= 0 ? '+' : ''}₹${paperTrade.netPnlInr.toLocaleString('en-IN')}
                 </div>
                 <div class="text-[9px] text-slate-400">Bal: ₹${paperTrade.capitalAfterTrade.toLocaleString('en-IN')}</div>
-              `) : '--'}
+              `)) : '--'}
             </td>
             <td class="py-2.5 px-2 text-right">
               <button onclick="event.stopPropagation(); DeltaLiveChart.openTradeDetailsModal('${t.id}')" title="View Trade Logic & Playbook" class="px-2 sm:px-2.5 py-1 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-[10px] sm:text-[11px] transition-colors shadow-sm inline-flex items-center gap-1 font-mono">
@@ -2468,6 +2519,10 @@ Expected Profit: +50% Option Gross / +40% Net`;
           sellPrice = (opt && opt.stopPrice > 0) ? opt.stopPrice : Math.round(buyPrice * 0.7 * 10) / 10;
           pnlDiff = Math.round((sellPrice - buyPrice) * 10) / 10;
           optGainPct = `-30%`;
+        } else if (t.outcome === "SKIPPED_CIRCUIT_BREAKER" || t.skipped) {
+          sellPrice = buyPrice;
+          pnlDiff = 0;
+          optGainPct = `0.0%`;
         } else if (t.outcome === "TIMEOUT") {
           sellPrice = Math.round(buyPrice * 0.82 * 10) / 10;
           pnlDiff = Math.round((sellPrice - buyPrice) * 10) / 10;
@@ -2489,6 +2544,8 @@ Expected Profit: +50% Option Gross / +40% Net`;
           outcomeBadge = `<span class="px-2 py-0.5 rounded text-[9px] font-bold bg-teal-500/15 text-teal-300 border border-teal-500/30 whitespace-nowrap"><i class="fa-solid fa-shield-halved mr-0.5"></i>BE WIN (+25%)</span>`;
         } else if (isLoss) {
           outcomeBadge = `<span class="px-2 py-0.5 rounded text-[9px] font-bold bg-rose-500/15 text-rose-400 border border-rose-500/30 whitespace-nowrap">LOSS (-1R)</span>`;
+        } else if (t.outcome === "SKIPPED_CIRCUIT_BREAKER" || t.skipped) {
+          outcomeBadge = `<span class="px-2 py-0.5 rounded text-[9px] font-bold bg-amber-500/15 text-amber-400 border border-amber-500/30 whitespace-nowrap"><i class="fa-solid fa-shield-halved mr-1"></i>NOT TAKEN (2 SL Hit)</span>`;
         } else {
           outcomeBadge = `<span class="px-2 py-0.5 rounded text-[9px] font-bold bg-slate-500/15 text-slate-400 border border-slate-500/30 whitespace-nowrap">TIMEOUT</span>`;
         }
@@ -2506,6 +2563,7 @@ Expected Profit: +50% Option Gross / +40% Net`;
                   <i class="fa-solid ${isCall ? 'fa-arrow-up' : 'fa-arrow-down'} text-[9px]"></i>
                   ${isCall ? 'CALL' : 'PUT'}
                 </span>
+                ${(t.outcome === 'SKIPPED_CIRCUIT_BREAKER' || t.skipped) ? '<span class="text-[9px] px-1.5 py-0.2 rounded bg-amber-500/20 text-amber-300 border border-amber-500/40 shrink-0 font-bold">NOT TAKEN</span>' : ''}
                 ${t.strategyId && t.strategyId.includes('BOS') ? '<span class="text-[9px] px-1.5 py-0.2 rounded bg-amber-500/20 text-amber-300 border border-amber-500/40 shrink-0 font-bold">BOS</span>' : ''}
                 <span class="text-[11px] text-slate-200 font-bold truncate" title="${t.name}">${cleanPatternName}</span>
               </div>
@@ -2529,7 +2587,7 @@ Expected Profit: +50% Option Gross / +40% Net`;
               <div class="bg-brandDark/80 p-2 rounded-lg border border-borderDark/60 space-y-1">
                 <div class="text-[9px] uppercase tracking-wider text-slate-400 font-semibold flex items-center justify-between">
                   <span>Delta Option</span>
-                  <span class="${pnlDiff >= 0 ? 'text-winGreen' : 'text-lossRed'} font-bold">${optGainPct}</span>
+                  <span class="${(t.outcome === 'SKIPPED_CIRCUIT_BREAKER' || t.skipped) ? 'text-amber-400 font-bold' : (pnlDiff >= 0 ? 'text-winGreen' : 'text-lossRed')} font-bold">${(t.outcome === 'SKIPPED_CIRCUIT_BREAKER' || t.skipped) ? 'Not Taken' : optGainPct}</span>
                 </div>
                 <div class="flex items-center justify-between text-[10px]">
                   <span class="text-slate-400">Buy:</span>
@@ -2537,11 +2595,11 @@ Expected Profit: +50% Option Gross / +40% Net`;
                 </div>
                 <div class="flex items-center justify-between text-[10px]">
                   <span class="text-slate-400">${isActive ? 'Live' : 'Sell'}:</span>
-                  <strong class="${isWin ? 'text-winGreen' : (isLoss ? 'text-lossRed' : 'text-slate-200')}">$${sellPrice.toFixed(1)}</strong>
+                  <strong class="${(isWin || t.outcome === 'BE_WIN') ? 'text-winGreen' : ((t.outcome === 'SKIPPED_CIRCUIT_BREAKER' || t.skipped) ? 'text-amber-400' : (isLoss ? 'text-lossRed' : 'text-slate-200'))}">$${sellPrice.toFixed(1)}</strong>
                 </div>
                 <div class="flex items-center justify-between text-[10px] pt-1 border-t border-borderDark/40">
                   <span class="text-slate-400">Points PnL:</span>
-                  <strong class="${pnlDiff >= 0 ? 'text-winGreen' : 'text-lossRed'}">${pnlDiff >= 0 ? '+' : ''}${pnlDiff.toFixed(1)} pts</strong>
+                  <strong class="${(t.outcome === 'SKIPPED_CIRCUIT_BREAKER' || t.skipped) ? 'text-amber-400' : (pnlDiff >= 0 ? 'text-winGreen' : 'text-lossRed')}">${(t.outcome === 'SKIPPED_CIRCUIT_BREAKER' || t.skipped) ? '0.0 pts (Risk Guard)' : `${pnlDiff >= 0 ? '+' : ''}${pnlDiff.toFixed(1)} pts`}</strong>
                 </div>
               </div>
 
@@ -2556,15 +2614,17 @@ Expected Profit: +50% Option Gross / +40% Net`;
                 </div>
                 <div class="flex items-center justify-between text-[10px]">
                   <span class="text-slate-400">Exit:</span>
-                  <strong class="${isWin ? 'text-winGreen' : 'text-slate-200'}">${closedSpot}</strong>
+                  <strong class="${isWin ? 'text-winGreen' : ((t.outcome === 'SKIPPED_CIRCUIT_BREAKER' || t.skipped) ? 'text-amber-400' : 'text-slate-200')}">${closedSpot}</strong>
                 </div>
                 <div class="flex items-center justify-between text-[10px] pt-1 border-t border-borderDark/40">
                   <span class="text-slate-400">₹100k PnL:</span>
                   ${paperTrade ? (isActive ? `
                     <strong class="text-cyan-400 text-[10px]">LIVE</strong>
+                  ` : ((t.outcome === 'SKIPPED_CIRCUIT_BREAKER' || t.skipped) ? `
+                    <strong class="text-amber-400 text-[10px]">₹0 (Risk Guard)</strong>
                   ` : `
                     <strong class="${paperTrade.netPnlInr >= 0 ? 'text-winGreen' : 'text-lossRed'}">${paperTrade.netPnlInr >= 0 ? '+' : ''}₹${paperTrade.netPnlInr.toLocaleString('en-IN')}</strong>
-                  `) : '<span class="text-slate-500">--</span>'}
+                  `)) : '<span class="text-slate-500">--</span>'}
                 </div>
               </div>
             </div>

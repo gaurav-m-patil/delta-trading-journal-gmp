@@ -162,6 +162,10 @@ def sync_trade_to_firestore(trade_data):
             fields["exitPrice"] = {"doubleValue": float(trade_data["exitPrice"])}
         if trade_data.get("optionSellPrice"):
             fields["optionSellPrice"] = {"doubleValue": float(trade_data["optionSellPrice"])}
+        if trade_data.get("skipped"):
+            fields["skipped"] = {"booleanValue": bool(trade_data["skipped"])}
+        if trade_data.get("skippedReason"):
+            fields["skippedReason"] = {"stringValue": str(trade_data["skippedReason"])}
 
         sess = trade_data.get("session", {})
         if sess and sess.get("name"):
@@ -1082,13 +1086,14 @@ def run_sentinel():
     daily_losses = daily_counts.get("losses", 0)
     circuit_breaker_active = (daily_losses >= 2)
 
-    if circuit_breaker_active:
-        print(f"[Sentinel] 🛡️ CIRCUIT BREAKER ACTIVE: {daily_losses}/2 daily losses recorded. Preserving capital, skipping new trade setups until 05:30 IST.")
-    elif state.get("active_trade"):
+    if state.get("active_trade"):
         active_name = state["active_trade"].get("name", "Active Trade")
         active_id = state["active_trade"].get("id", "Unknown")
         print(f"[Sentinel] ⏳ ACTIVE TRADE IN FLIGHT: {active_name} ({active_id}). Skipping new setups until active position resolves.")
     else:
+        if circuit_breaker_active:
+            print(f"[Sentinel] 🛡️ CIRCUIT BREAKER ENGAGED ({daily_losses}/2 daily losses). Capital preserved: evaluating in Shadow Mode (Not Taken) for knowledge & observation.")
+
         # Multi-Timeframe 1H Trend Alignment (Idea 4)
         htf_trend = fetch_htf_trend_1h()
         print(f"[Sentinel] HTF 1H Macro Trend: {htf_trend['label']}")
@@ -1115,7 +1120,58 @@ def run_sentinel():
                 except Exception:
                     blended_target_pct = 75.0
 
-                msg = f"""⚡ <b>DELTA INDIA 24/7 CLOUD SMC SIGNAL</b>
+                if circuit_breaker_active:
+                    # 🛡️ Risk Guard Active: Mark setup as NOT TAKEN (0 capital allocated, educational tracking)
+                    setup["outcome"] = "SKIPPED_CIRCUIT_BREAKER"
+                    setup["skipped"] = True
+                    setup["skippedReason"] = "2 SL Daily Limit Hit - Risk Guard Preserving Capital"
+                    setup["exitPrice"] = setup["entry"]
+                    setup["optionSellPrice"] = opt.get("entry_price", 0)
+
+                    msg = f"""🛡️ <b>DELTA INDIA SHADOW SETUP (NOT TAKEN - 2 SL RISK GUARD)</b>
+━━━━━━━━━━━━━━━━━━━━━━
+🛑 <b>Execution Status:</b> 🛡️ <b>NOT TAKEN (2 SL Daily Limit Hit)</b>
+🎯 <b>Observed Action:</b> {('🟢 BUY CALL OPTION' if is_call else '🔴 BUY PUT OPTION')}
+📌 <b>Setup Pattern:</b> {setup['name']}
+🏷️ <b>Delta Contract:</b> <code>{opt['symbol']}</code>
+🏛️ <b>Trading Session:</b> {session['flag']} <b>{session['name']}</b> ({session['volatility']})
+💎 <b>Option Pricing (IV):</b> {opt.get('iv_badge', '🟡 FAIR')} <i>({opt.get('iv_rating', 'Calibrated')})</i>
+🏛️ <b>1H Trend Alignment:</b> {setup.get('htf_trend', {}).get('label', '⚪ Neutral')}
+
+📊 <b>DYNAMIC OPTION TARGETS (OBSERVATION ONLY):</b>
+• <b>Option Buy Zone:</b> {opt['buy_zone']}
+• <b>Target 1 (Scalp / Derisk):</b> ${opt['tp1_price']:.1f} ({opt['tp1_pct']}) ➔ <i>Lock 50% & Move SL to BE</i>
+• <b>Target 2 (Structural Potential):</b> ${opt['target_price']:.1f} ({opt['target_pct']} Runner)
+• <b>Blended Net Target:</b> +{blended_target_pct:.1f}% <i>(50% @ TP1 + 50% @ TP2)</i>
+• <b>Option Invalidation (SL):</b> ${opt['stop_price']:.1f} (-30.0%)
+
+🎯 <b>BTC SPOT TRIGGER LEVEL:</b>
+• <b>Spot Entry:</b> ${setup['entry']:,}
+• <b>Target Level:</b> ${setup['tp']:,} (R:R {setup['rr']})
+• <b>Invalidation (SL):</b> ${setup['sl']:,}
+
+🧠 <b>INSTITUTIONAL SETUP LOGIC:</b>
+• <b>Level Tested:</b> {setup['rationale']['levelTested']}
+• <b>Pattern:</b> {setup['rationale']['pattern']}
+• <b>Absorption & Delta:</b> {setup['rationale'].get('absorption', 'Order Flow')}
+• <b>Confirmation:</b> {setup['rationale']['confirmation']}
+• <b>Momentum:</b> RSI {setup['rsi']} | {setup['rvol']}x RVOL
+
+🛡️ <i>Strict Risk Discipline: 2 SL hits reached today. Signal marked NOT TAKEN to eliminate drawdown risk. Synced to WebApp Radar & Paper Fund for knowledge & observation.</i>
+📈 <b>DAILY TRACKER:</b> {daily_counts['trades_given']} Alerted ({daily_counts['wins']}W - {daily_counts['losses']}L) · 🛡️ Circuit Breaker: 🔴 Engaged (2/2)
+⏰ <b>Alert Time:</b> {get_now_ist_str()} · (15m Candle: {ist_time} IST)
+🔗 <a href="https://delta-trading-journal-gmp.vercel.app/">Open Live Journal & Chart</a>"""
+
+                    if send_telegram_message(bot_token, chat_id, msg):
+                        state["last_alerted_trade_id"] = trade_id
+                        state["daily_counts"] = daily_counts
+                        save_sentinel_state(state)
+
+                        # Sync immediately to Firestore GP_DTJ_signal_trades
+                        sync_trade_to_firestore(setup)
+                        print(f"[Sentinel] 🛡️ Shadow trade {trade_id} marked NOT TAKEN (2 SL Hit) and synced to Firestore & Telegram.")
+                else:
+                    msg = f"""⚡ <b>DELTA INDIA 24/7 CLOUD SMC SIGNAL</b>
 ━━━━━━━━━━━━━━━━━━━━━━
 🎯 <b>Action:</b> {('🟢 BUY CALL OPTION' if is_call else '🔴 BUY PUT OPTION')}
 📌 <b>Setup Pattern:</b> {setup['name']}
@@ -1143,18 +1199,18 @@ def run_sentinel():
 • <b>Confirmation:</b> {setup['rationale']['confirmation']}
 • <b>Momentum:</b> RSI {setup['rsi']} | {setup['rvol']}x RVOL
 
-📈 <b>DAILY TRACKER:</b> {daily_counts['trades_given']} Trade(s) Alerted Today ({daily_counts['wins']}W - {daily_counts['losses']}L) · 🛡️ Circuit Breaker: 🟢 Normal (0/2)
+📈 <b>DAILY TRACKER:</b> {daily_counts['trades_given']} Trade(s) Alerted Today ({daily_counts['wins']}W - {daily_counts['losses']}L) · 🛡️ Circuit Breaker: 🟢 Normal ({daily_counts['losses']}/2 Limit)
 ⏰ <b>Alert Time:</b> {get_now_ist_str()} · (15m Candle: {ist_time} IST)
 🔗 <a href="https://delta-trading-journal-gmp.vercel.app/">Open Live Journal & Chart</a>"""
 
-                if send_telegram_message(bot_token, chat_id, msg):
-                    state["last_alerted_trade_id"] = trade_id
-                    state["active_trade"] = setup
-                    state["daily_counts"] = daily_counts
-                    save_sentinel_state(state)
+                    if send_telegram_message(bot_token, chat_id, msg):
+                        state["last_alerted_trade_id"] = trade_id
+                        state["active_trade"] = setup
+                        state["daily_counts"] = daily_counts
+                        save_sentinel_state(state)
 
-                    # Sync to Firestore GP_DTJ_signal_trades immediately
-                    sync_trade_to_firestore(setup)
+                        # Sync to Firestore GP_DTJ_signal_trades immediately
+                        sync_trade_to_firestore(setup)
             else:
                 print(f"[Sentinel] Trade setup {trade_id} was already alerted previously.")
         else:
