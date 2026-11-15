@@ -829,61 +829,145 @@ window.DeltaDB = (function() {
     }
   }
 
-  async function fetchSignalTradesFromFirestore(allTime = true) {
-    const config = getFirebaseConfig();
-    if (!firestoreDb) initFirebase(config);
-    if (!firestoreDb) return getSignalTrades(0);
-
-    try {
-      const col = DeltaConfig.FIRESTORE_COLLECTIONS.SIGNALS || "GP_DTJ_signal_trades";
-      let query = firestoreDb.collection(col);
-      if (!allTime) {
-        const cutoff = Math.floor(Date.now() / 1000) - (2 * 86400); // Last 48 hours
-        query = query.where("time", ">=", cutoff);
+  // Helper to decode nested Firestore REST API documents into standard JavaScript objects
+  function parseFirestoreRestFields(fields) {
+    if (!fields) return {};
+    const res = {};
+    for (const k in fields) {
+      const v = fields[k];
+      if (v.stringValue !== undefined) res[k] = v.stringValue;
+      else if (v.doubleValue !== undefined) res[k] = Number(v.doubleValue);
+      else if (v.integerValue !== undefined) res[k] = Number(v.integerValue);
+      else if (v.booleanValue !== undefined) res[k] = Boolean(v.booleanValue);
+      else if (v.mapValue && v.mapValue.fields) res[k] = parseFirestoreRestFields(v.mapValue.fields);
+      else if (v.arrayValue && v.arrayValue.values) {
+        res[k] = v.arrayValue.values.map(av => {
+          if (av.stringValue !== undefined) return av.stringValue;
+          if (av.doubleValue !== undefined) return Number(av.doubleValue);
+          if (av.integerValue !== undefined) return Number(av.integerValue);
+          if (av.booleanValue !== undefined) return Boolean(av.booleanValue);
+          if (av.mapValue && av.mapValue.fields) return parseFirestoreRestFields(av.mapValue.fields);
+          return null;
+        });
       }
-      const snapshot = await query.get();
-      
-      let registry = {};
-      snapshot.forEach(doc => {
-        const data = doc.data();
-        if (data && data.id) {
-          const entryOpt = data.optionEntryMark || 220;
-          const targetPrice = data.optionTargetPrice || Math.round(entryOpt * 1.65 * 10) / 10;
-          const stopPrice = data.optionStopPrice || Math.round(entryOpt * 0.70 * 10) / 10;
-          const tp1Price = data.optionTp1Price || Math.round(entryOpt * 1.50 * 10) / 10;
-
-          data.targetDist = data.targetDist || Math.abs(data.tp - data.entry) || 500;
-          data.slDist = data.slDist || Math.abs(data.entry - data.sl) || 250;
-          data.rrRatio = data.rrRatio || Number((data.targetDist / Math.max(1, data.slDist)).toFixed(2));
-          data.barsHeld = data.barsHeld || 1;
-
-          data.realOption = {
-            symbol: data.optionSymbol || `${data.direction === 'LONG' ? 'C' : 'P'}-BTC-${data.optionStrike || 65000}`,
-            strike: data.optionStrike || Math.round(data.entry / 200) * 200,
-            entryPrice: entryOpt,
-            markPrice: entryOpt,
-            targetPrice: targetPrice,
-            tp1Price: tp1Price,
-            stopPrice: stopPrice,
-            targetGainPct: data.optionPnlPct || "+65.0%",
-            stopLossPct: "-30.0%",
-            buyZone: data.buyZone || `$${(entryOpt * 0.98).toFixed(1)} - $${(entryOpt * 1.02).toFixed(1)}`,
-            ivBadge: data.ivBadge || "🟡 FAIR",
-            ivRating: data.ivRating || "FAIR",
-            isLive: data.outcome === "ACTIVE"
-          };
-
-          registry[data.id] = data;
-        }
-      });
-
-      localStorage.setItem(SIGNAL_STORAGE_KEY, JSON.stringify(registry));
-      console.log(`[DeltaDB] Fetched & synced ${snapshot.size} real signal trades from Firestore (Zero State Drift).`);
-      return Object.values(registry).sort((a, b) => b.time - a.time);
-    } catch (err) {
-      console.warn("Notice fetching remote signals from Firestore:", err);
-      return getSignalTrades(0);
     }
+    return res;
+  }
+
+  // Normalizes any Firestore document (REST or SDK) into a fully populated Signal Trade object
+  function normalizeSignalTradeRecord(data, docId) {
+    if (!data) return null;
+    const id = data.id || docId;
+    if (!id || id === "test_doc_123") return null;
+
+    const entryOpt = Number(data.optionEntryMark) || 220;
+    const targetPrice = Number(data.optionTargetPrice) || Math.round(entryOpt * 1.65 * 10) / 10;
+    const stopPrice = Number(data.optionStopPrice) || Math.round(entryOpt * 0.70 * 10) / 10;
+    const tp1Price = Number(data.optionTp1Price) || Math.round(entryOpt * 1.50 * 10) / 10;
+
+    const entrySpot = Number(data.entry || data.btcEntry) || 64000;
+    const tpSpot = Number(data.tp || data.btcTp) || (entrySpot + 1000);
+    const slSpot = Number(data.sl || data.btcSl) || (entrySpot - 500);
+
+    data.id = id;
+    data.name = data.name || (data.direction === "LONG" ? "Bullish Liquidity Sweep" : "Bearish Order Block Resistance Rejection");
+    data.entry = entrySpot;
+    data.tp = tpSpot;
+    data.sl = slSpot;
+    data.targetDist = data.targetDist || Math.abs(tpSpot - entrySpot) || 500;
+    data.slDist = data.slDist || Math.abs(entrySpot - slSpot) || 250;
+    data.rrRatio = data.rrRatio || Number((data.targetDist / Math.max(1, data.slDist)).toFixed(2));
+    data.barsHeld = data.barsHeld || 1;
+    data.time = Number(data.time) || Math.floor(Date.now() / 1000);
+    data.outcome = data.outcome || "ACTIVE";
+
+    data.realOption = data.realOption || {
+      symbol: data.optionSymbol || `${data.direction === 'LONG' ? 'C' : 'P'}-BTC-${data.optionStrike || 65000}`,
+      strike: Number(data.optionStrike) || Math.round(entrySpot / 200) * 200,
+      entryPrice: entryOpt,
+      markPrice: (data.optionSellPrice && data.outcome !== "ACTIVE") ? data.optionSellPrice : entryOpt,
+      sellPrice: data.optionSellPrice || (data.outcome === "WIN" ? targetPrice : (data.outcome === "LOSS" ? stopPrice : null)),
+      targetPrice: targetPrice,
+      tp1Price: tp1Price,
+      stopPrice: stopPrice,
+      targetGainPct: data.optionPnlPct || (data.outcome === "LOSS" ? "-30.0%" : "+50.0%"),
+      stopLossPct: "-30.0%",
+      buyZone: data.buyZone || `$${(entryOpt * 0.98).toFixed(1)} - $${(entryOpt * 1.02).toFixed(1)}`,
+      ivBadge: data.ivBadge || "🟡 FAIR",
+      ivRating: data.ivRating || "FAIR",
+      isLive: data.outcome === "ACTIVE"
+    };
+
+    return data;
+  }
+
+  async function fetchSignalTradesFromFirestore(allTime = true) {
+    const config = getFirebaseConfig() || DeltaConfig.FIREBASE_CONFIG;
+    const col = (DeltaConfig.FIRESTORE_COLLECTIONS && DeltaConfig.FIRESTORE_COLLECTIONS.SIGNALS) || "GP_DTJ_signal_trades";
+    const apiKey = (config && config.apiKey) || (DeltaConfig.FIREBASE_CONFIG && DeltaConfig.FIREBASE_CONFIG.apiKey);
+    const projectId = (config && config.projectId) || (DeltaConfig.FIREBASE_CONFIG && DeltaConfig.FIREBASE_CONFIG.projectId) || "physio-clinic-730a1";
+
+    let fetchedList = [];
+
+    // STRATEGY 1: Ultra-fast Direct HTTPS REST API (Zero WebSocket block, zero multi-tab lock, 100% resilient across all browsers)
+    if (apiKey && projectId) {
+      try {
+        const restUrl = `https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents/${col}?key=${apiKey}`;
+        const resp = await fetch(restUrl, { cache: "no-store" });
+        if (resp.ok) {
+          const json = await resp.json();
+          if (json.documents && Array.isArray(json.documents)) {
+            let registry = {};
+            json.documents.forEach(doc => {
+              const docId = (doc.name || "").split('/').pop();
+              const parsedFields = parseFirestoreRestFields(doc.fields);
+              const normalized = normalizeSignalTradeRecord(parsedFields, docId);
+              if (normalized && normalized.id) {
+                registry[normalized.id] = normalized;
+              }
+            });
+
+            localStorage.setItem(SIGNAL_STORAGE_KEY, JSON.stringify(registry));
+            fetchedList = Object.values(registry).sort((a, b) => b.time - a.time);
+            console.log(`[DeltaDB] Direct REST Sync Success: ${fetchedList.length} verified trades loaded from Firestore.`);
+            return fetchedList;
+          }
+        }
+      } catch (restErr) {
+        console.warn("[DeltaDB] REST sync notice, falling back to Firebase SDK:", restErr);
+      }
+    }
+
+    // STRATEGY 2: Firebase JS SDK Fallback
+    try {
+      if (!firestoreDb) initFirebase(config);
+      if (firestoreDb) {
+        let query = firestoreDb.collection(col);
+        if (!allTime) {
+          const cutoff = Math.floor(Date.now() / 1000) - (2 * 86400); // Last 48 hours
+          query = query.where("time", ">=", cutoff);
+        }
+        const snapshot = await query.get();
+        let registry = {};
+        snapshot.forEach(doc => {
+          const rawData = doc.data();
+          const normalized = normalizeSignalTradeRecord(rawData, doc.id);
+          if (normalized && normalized.id) {
+            registry[normalized.id] = normalized;
+          }
+        });
+
+        localStorage.setItem(SIGNAL_STORAGE_KEY, JSON.stringify(registry));
+        fetchedList = Object.values(registry).sort((a, b) => b.time - a.time);
+        console.log(`[DeltaDB] Firebase SDK Sync Success: ${fetchedList.length} verified trades loaded.`);
+        return fetchedList;
+      }
+    } catch (sdkErr) {
+      console.warn("[DeltaDB] Firebase SDK sync notice:", sdkErr);
+    }
+
+    // STRATEGY 3: Local Cached Storage Fallback
+    return getSignalTrades(0);
   }
 
   function clearAllSignalTrades() {
@@ -900,20 +984,7 @@ window.DeltaDB = (function() {
       localStorage.removeItem('dtj_paper_portfolio_v2');
       localStorage.removeItem('dtj_paper_custom_capital');
       localStorage.removeItem('dtj_paper_risk_model');
-
-      const config = getFirebaseConfig();
-      if (!firestoreDb) initFirebase(config);
-      if (firestoreDb) {
-        const col = DeltaConfig.FIRESTORE_COLLECTIONS.SIGNALS || "GP_DTJ_signal_trades";
-        firestoreDb.collection(col).get().then(snapshot => {
-          snapshot.forEach(doc => {
-            doc.ref.delete().catch(() => {});
-          });
-          console.log("[DeltaDB] Purged remote Firestore signal documents.");
-        }).catch(err => {
-          console.warn("[DeltaDB] Firestore wipe notice:", err);
-        });
-      }
+      console.log("[DeltaDB] Local signal caches cleared. Ready for fresh re-sync.");
     } catch (e) {
       console.warn("[DeltaDB] clearAllSignalTrades notice:", e);
     }

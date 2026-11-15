@@ -1068,6 +1068,10 @@ def run_sentinel():
 
     if circuit_breaker_active:
         print(f"[Sentinel] 🛡️ CIRCUIT BREAKER ACTIVE: {daily_losses}/2 daily losses recorded. Preserving capital, skipping new trade setups until 05:30 IST.")
+    elif state.get("active_trade"):
+        active_name = state["active_trade"].get("name", "Active Trade")
+        active_id = state["active_trade"].get("id", "Unknown")
+        print(f"[Sentinel] ⏳ ACTIVE TRADE IN FLIGHT: {active_name} ({active_id}). Skipping new setups until active position resolves.")
     else:
         # Multi-Timeframe 1H Trend Alignment (Idea 4)
         htf_trend = fetch_htf_trend_1h()

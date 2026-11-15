@@ -534,7 +534,7 @@ window.DeltaSMCStrategy = (function() {
             const sl = Math.round((c1.high - 30) * 10) / 10;
             const slDist = entry - sl;
 
-            if (slDist >= 90 && slDist <= 380) {
+            if (slDist >= 90 && slDist <= Math.max(1200, curAtr * 4.5)) {
               const targetDist = Math.round(Math.max(220, slDist * 2.0) * 10) / 10;
               const tp = Math.round((entry + targetDist) * 10) / 10;
               const atmStrike = Math.round(entry / 200) * 200;
@@ -542,9 +542,9 @@ window.DeltaSMCStrategy = (function() {
               const dynTarget = calcDynamicOptionTarget(entryOptEst, targetDist);
 
               setup = {
-                id: `TRD_FVG_CALL_${cur.time}_${Math.round(entry)}`,
+                id: `cloud_fvg_bull_${cur.time}`,
                 strategyId: "FVG_MITIGATION_CALL",
-                name: "Bullish FVG Mitigation",
+                name: "Bullish Fair Value Gap (FVG) Mitigation",
                 direction: "LONG",
                 type: "FVG_MITIGATION",
                 index: i,
@@ -582,7 +582,7 @@ window.DeltaSMCStrategy = (function() {
             const sl = Math.round((c1.low + 30) * 10) / 10;
             const slDist = sl - entry;
 
-            if (slDist >= 90 && slDist <= 380) {
+            if (slDist >= 90 && slDist <= Math.max(1200, curAtr * 4.5)) {
               const targetDist = Math.round(Math.max(220, slDist * 2.0) * 10) / 10;
               const tp = Math.round((entry - targetDist) * 10) / 10;
               const atmStrike = Math.round(entry / 200) * 200;
@@ -590,9 +590,9 @@ window.DeltaSMCStrategy = (function() {
               const dynTarget = calcDynamicOptionTarget(entryOptEst, targetDist);
 
               setup = {
-                id: `TRD_FVG_PUT_${cur.time}_${Math.round(entry)}`,
+                id: `cloud_fvg_bear_${cur.time}`,
                 strategyId: "FVG_MITIGATION_PUT",
-                name: "Bearish FVG Mitigation",
+                name: "Bearish Fair Value Gap (FVG) Mitigation",
                 direction: "SHORT",
                 type: "FVG_MITIGATION",
                 index: i,

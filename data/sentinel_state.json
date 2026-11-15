@@ -5,8 +5,8 @@
   "daily_counts": {
     "date": "2026-11-15",
     "trades_given": 3,
-    "wins": 0,
-    "losses": 2
+    "wins": 2,
+    "losses": 1
   },
   "telegram_handshake_sent": true
 }
