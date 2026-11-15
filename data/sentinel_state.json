@@ -1,59 +1,12 @@
 {
   "last_alerted_trade_id": "cloud_fvg_bear_1794722400",
-  "active_trade": {
-    "id": "cloud_fvg_bear_1794722400",
-    "name": "Bearish Fair Value Gap (FVG) Mitigation",
-    "direction": "SHORT",
-    "time": 1794722400,
-    "entry": 64232,
-    "tp": 63119,
-    "sl": 64787,
-    "rr": "1:2.0",
-    "rsi": 36.1,
-    "rvol": 1.26,
-    "rationale": {
-      "pattern": "Imbalance Void Mitigation",
-      "levelTested": "FVG Equilibrium ($64,624)",
-      "confirmation": "Price filled institutional imbalance and rejected with 1.26x RVOL",
-      "htfAlignment": "\ud83d\udd34 BEARISH CONFLUENCE (1H Macro Downtrend)",
-      "absorption": "Institutional Flow (1.26x RVOL)"
-    },
-    "htf_trend": {
-      "trend": "BEARISH",
-      "label": "\ud83d\udd34 BEARISH CONFLUENCE (1H Macro Downtrend)",
-      "cur_price": 64224,
-      "ema20": 65082,
-      "ema50": 66898
-    },
-    "option": {
-      "symbol": "P-BTC-64200-151126",
-      "strike": 64200.0,
-      "strike_tier": "Exact ATM (Delta ~0.50)",
-      "mark_price": 349.6,
-      "buy_zone": "$349.6 - $349.6",
-      "tp1_price": 524.4,
-      "tp1_pct": "+50.0%",
-      "target_price": 1014.5,
-      "target_pct": "+190.2%",
-      "stop_price": 244.7,
-      "eff_delta": 0.6,
-      "iv_rating": "ELEVATED (High IV - Scalp Focus)",
-      "iv_badge": "\ud83d\udd34 ELEVATED"
-    },
-    "session": {
-      "name": "Asia Session (05:30 - 13:30 IST)",
-      "code": "ASIA",
-      "flag": "\ud83c\udf10",
-      "volatility": "Moderate (Mean-Reversion & S/R Sweeps)",
-      "tp_bias": "Scalp Focus (TP1 priority)"
-    }
-  },
+  "active_trade": null,
   "last_alerted_catalyst_guid": null,
   "daily_counts": {
     "date": "2026-11-15",
     "trades_given": 5,
     "wins": 3,
-    "losses": 1
+    "losses": 2
   },
   "telegram_handshake_sent": true
 }
