@@ -536,6 +536,18 @@ window.DeltaApp = (function() {
     applyGlobalFilter();
   }
 
+  function filterBySpecificDay(dayKey) {
+    const sInput = document.getElementById('customStartDate');
+    const eInput = document.getElementById('customEndDate');
+    if (sInput && eInput) {
+      sInput.value = dayKey;
+      eInput.value = dayKey;
+      setPreset('CUSTOM');
+      const table = document.getElementById('tradeTableContainer');
+      if (table) table.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+  }
+
   function resolveFilterBounds() {
     const allTrades = DeltaDB.getTrades();
     let refYear = new Date().getFullYear();
@@ -797,20 +809,40 @@ window.DeltaApp = (function() {
 
         if (dayData && dayData.trades > 0) {
           const isWin = dayData.net_pnl >= 0;
-          const cardBorder = isWin ? 'bg-winGreen/10 border-winGreen/40 text-winGreen' : 'bg-lossRed/10 border-lossRed/40 text-lossRed';
+          let tierClass = 'heatmap-tier-win';
+          if (dayData.net_pnl >= 250) tierClass = 'heatmap-tier-super-win';
+          else if (dayData.net_pnl > 0) tierClass = 'heatmap-tier-win';
+          else if (dayData.net_pnl === 0) tierClass = 'heatmap-tier-neutral';
+          else if (dayData.net_pnl >= -150) tierClass = 'heatmap-tier-loss';
+          else tierClass = 'heatmap-tier-super-loss';
 
           calHTML += `
-            <div class="relative aspect-square rounded-lg border ${cardBorder} flex flex-col justify-center items-center cursor-pointer transition-transform active:scale-95 no-select"
-                 onmouseenter="DeltaApp.showPeek('${fullDateKey}')" onmouseleave="DeltaApp.hidePeek()" ontouchstart="DeltaApp.showPeek('${fullDateKey}')" ontouchend="DeltaApp.hidePeek()">
-              <span class="absolute top-1 left-1.5 text-[9px] font-bold text-white/80 pointer-events-none">${day}</span>
-              <span class="absolute top-1 right-1.5 px-1 rounded bg-brandDark/60 text-[7px] font-mono text-slate-300 hidden sm:block pointer-events-none">${dayData.trades}t</span>
+            <div class="relative aspect-square rounded-xl border ${tierClass} flex flex-col justify-center items-center cursor-pointer transition-all hover:scale-105 active:scale-95 no-select shadow-sm"
+                 onclick="DeltaApp.filterBySpecificDay('${fullDateKey}')"
+                 onmouseenter="DeltaApp.showPeek('${fullDateKey}')" onmouseleave="DeltaApp.hidePeek()" ontouchstart="DeltaApp.showPeek('${fullDateKey}')" ontouchend="DeltaApp.hidePeek()" title="Click to filter journal to ${fullDateKey}">
+              <span class="absolute top-1 left-1.5 text-[9px] font-bold text-white/90 pointer-events-none">${day}</span>
+              <span class="absolute top-1 right-1.5 px-1 py-0.2 rounded bg-black/50 text-[7px] font-mono text-slate-200 hidden sm:block pointer-events-none">${dayData.trades}t</span>
               <div class="text-[9px] sm:text-xs font-bold font-mono mt-2 pointer-events-none">${isWin ? '+' : ''}${compactUSD(dayData.net_pnl)}</div>
             </div>`;
         } else {
-          calHTML += `<div class="relative aspect-square rounded-lg border border-borderDark/40 bg-panelDark/25 flex flex-col justify-center items-center"><span class="absolute top-1 left-1.5 text-[9px] font-bold text-slate-600">${day}</span></div>`;
+          calHTML += `<div class="relative aspect-square rounded-xl border border-borderDark/40 bg-panelDark/20 flex flex-col justify-center items-center"><span class="absolute top-1 left-1.5 text-[9px] font-bold text-slate-600">${day}</span></div>`;
         }
       }
-      container.innerHTML = calHTML + `</div></div>`;
+      // Add Bloomberg Heatmap Intensity Legend
+      const legendHTML = `
+        <div class="flex flex-wrap items-center justify-between gap-2 pt-3 mt-2 border-t border-borderDark/60 text-[10px] font-mono text-slate-400">
+          <div class="flex items-center gap-1.5">
+            <span>Heatmap Scale:</span>
+            <span class="px-1.5 py-0.5 rounded text-[8px] bg-rose-500/30 border border-rose-500/70 text-rose-300">-$$$ Loss</span>
+            <span class="px-1.5 py-0.5 rounded text-[8px] bg-rose-500/15 border border-rose-500/40 text-rose-400">-$$</span>
+            <span class="px-1.5 py-0.5 rounded text-[8px] bg-slate-700/25 border border-slate-600/40 text-slate-400">Flat</span>
+            <span class="px-1.5 py-0.5 rounded text-[8px] bg-emerald-500/15 border border-emerald-500/40 text-emerald-400">+$$ Win</span>
+            <span class="px-1.5 py-0.5 rounded text-[8px] bg-emerald-500/30 border border-emerald-500/70 text-emerald-300">+$$$ Alpha</span>
+          </div>
+          <span class="text-[9px] text-slate-500 hidden sm:inline"><i class="fa-solid fa-hand-pointer text-indigo-400"></i> Click any day to isolate trades</span>
+        </div>
+      `;
+      container.innerHTML = calHTML + `</div>` + legendHTML + `</div>`;
     } else {
       document.getElementById('middleSectionTitle').innerText = `Monthly Performance Overview`;
       document.getElementById('middleSectionSubtitle').innerText = `Aggregated monthly cashflows and net trajectory`;
@@ -2081,6 +2113,7 @@ window.DeltaApp = (function() {
     closeSentinelConfigModal,
     saveSentinelConfig,
     acknowledgeSentinel,
+    filterBySpecificDay,
     switchInsightsSubTab,
     switchCoachSubTab,
     populateSelfImprovingEngineUI,

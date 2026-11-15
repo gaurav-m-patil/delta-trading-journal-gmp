@@ -37,6 +37,8 @@
   </style>
 </head>
 <body class="h-screen w-screen flex flex-col font-sans select-none">
+  <!-- Cybernetic Screen Execution Pulse -->
+  <div id="cyberPulseOverlay"></div>
 
   <!-- Top Header Bar -->
   <header class="h-14 bg-cardDark/95 border-b border-borderDark px-3 sm:px-4 flex items-center justify-between gap-3 shrink-0 z-20">
@@ -60,6 +62,19 @@
 
     <!-- Controls -->
     <div class="flex items-center gap-2">
+      <!-- Institutional SMC Overlay Toggles -->
+      <div class="hidden sm:flex items-center bg-brandDark border border-borderDark rounded-xl p-1 gap-1">
+        <button id="btnToggleFvg" onclick="DeltaLiveChart.toggleOverlay('fvg')" class="text-[11px] px-2 py-0.5 rounded-lg bg-cyan-500/15 text-cyan-300 border border-cyan-500/30 font-mono font-bold hover:bg-cyan-500/25 transition-all flex items-center gap-1" title="Toggle Fair Value Gap Imbalance Zones">
+          <span class="h-1.5 w-1.5 rounded-full bg-cyan-400"></span> FVG
+        </button>
+        <button id="btnToggleOb" onclick="DeltaLiveChart.toggleOverlay('ob')" class="text-[11px] px-2 py-0.5 rounded-lg bg-amber-500/15 text-amber-300 border border-amber-500/30 font-mono font-bold hover:bg-amber-500/25 transition-all flex items-center gap-1" title="Toggle Order Block Liquidity Bands">
+          <span class="h-1.5 w-1.5 rounded-full bg-amber-400"></span> OB
+        </button>
+        <button id="btnToggleAsia" onclick="DeltaLiveChart.toggleOverlay('asia')" class="text-[11px] px-2 py-0.5 rounded-lg bg-sky-500/15 text-sky-300 border border-sky-500/30 font-mono font-bold hover:bg-sky-500/25 transition-all flex items-center gap-1" title="Toggle Asian Session (05:30-13:30 IST) Liquidity High/Low">
+          <span class="h-1.5 w-1.5 rounded-full bg-sky-400"></span> Asia
+        </button>
+      </div>
+
       <!-- Timeframe Buttons -->
       <div class="flex items-center bg-brandDark border border-borderDark rounded-xl p-1 gap-1">
         <button onclick="DeltaLiveChart.loadTimeframe('1m')" id="btnTf_1m" class="px-2 py-0.5 text-xs font-bold rounded-lg text-slate-400 hover:text-white bg-panelDark font-mono">1m</button>
@@ -93,7 +108,7 @@
     <div id="tvLiveChartContainer" class="w-full h-full relative"></div>
 
     <!-- Floating Compact Trade Cockpit Bar (Bottom Overlay) -->
-    <div id="tvPositionToolCockpit" class="absolute bottom-3 left-3 right-3 max-w-4xl mx-auto p-3 rounded-2xl bg-brandDark/90 backdrop-blur border border-borderDark shadow-2xl flex flex-col sm:flex-row items-center justify-between gap-3 z-10 transition-all font-mono">
+    <div id="tvPositionToolCockpit" class="absolute bottom-3 left-3 right-3 max-w-4xl mx-auto p-3.5 rounded-2xl glass-cockpit shadow-2xl flex flex-col sm:flex-row items-center justify-between gap-3 z-10 transition-all font-mono">
       <div class="flex items-center gap-3 w-full sm:w-auto">
         <div id="ptDirectionBadge" class="h-8 w-8 rounded-xl bg-indigo-500/20 text-indigo-400 flex items-center justify-center font-bold text-sm shrink-0">
           <i class="fa-solid fa-radar animate-pulse"></i>
@@ -321,12 +336,12 @@
   </div>
 
   <!-- Scripts -->
-  <script src="vendor/lightweight-charts.js?v=3.6.4"></script>
-  <script src="js/config.js?v=3.6.4"></script>
-  <script src="js/db.js?v=3.6.4"></script>
-  <script src="js/smc-strategy.js?v=3.6.4"></script>
-  <script src="js/paper-fund.js?v=3.6.4"></script>
-  <script src="js/chart-engine.js?v=3.6.4"></script>
+  <script src="vendor/lightweight-charts.js?v=3.7.0"></script>
+  <script src="js/config.js?v=3.7.0"></script>
+  <script src="js/db.js?v=3.7.0"></script>
+  <script src="js/smc-strategy.js?v=3.7.0"></script>
+  <script src="js/paper-fund.js?v=3.7.0"></script>
+  <script src="js/chart-engine.js?v=3.7.0"></script>
 
   <script>
     function toggleHtml5Fullscreen() {

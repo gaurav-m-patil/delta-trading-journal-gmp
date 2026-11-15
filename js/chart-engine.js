@@ -147,6 +147,26 @@ window.DeltaLiveChart = (function() {
           gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.45);
           osc.start(now);
           osc.stop(now + 0.46);
+        } else if (type === 'win') {
+          // Ascending C Major Triad (523Hz -> 659Hz -> 783Hz)
+          osc.type = 'triangle';
+          osc.frequency.setValueAtTime(523.25, now);
+          osc.frequency.setValueAtTime(659.25, now + 0.08);
+          osc.frequency.setValueAtTime(783.99, now + 0.16);
+          gain.gain.setValueAtTime(0.001, now);
+          gain.gain.exponentialRampToValueAtTime(0.12, now + 0.04);
+          gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.5);
+          osc.start(now);
+          osc.stop(now + 0.52);
+        } else if (type === 'loss') {
+          // Low Damped Dissipation (260Hz -> 180Hz)
+          osc.type = 'sine';
+          osc.frequency.setValueAtTime(260, now);
+          osc.frequency.exponentialRampToValueAtTime(180, now + 0.25);
+          gain.gain.setValueAtTime(0.08, now);
+          gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.35);
+          osc.start(now);
+          osc.stop(now + 0.36);
         } else if (type === 'click') {
           osc.type = 'triangle';
           osc.frequency.setValueAtTime(1200, now);
@@ -165,6 +185,63 @@ window.DeltaLiveChart = (function() {
       } catch (e) {}
     }
   };
+
+  /**
+   * Triggers the cybernetic screen edge pulse and sonic alert
+   */
+  function triggerCyberPulse(type = 'signal') {
+    const el = document.getElementById('cyberPulseOverlay');
+    if (!el) return;
+    el.className = '';
+    void el.offsetWidth; // Force CSS reflow
+    const norm = String(type).toUpperCase();
+    if (norm === 'WIN') {
+      el.classList.add('pulse-win');
+      DeltaSound.playChime('win');
+      DeltaSound.vibrate([40, 50, 40]);
+    } else if (norm === 'LOSS') {
+      el.classList.add('pulse-loss');
+      DeltaSound.playChime('loss');
+      DeltaSound.vibrate([80]);
+    } else {
+      el.classList.add('pulse-signal');
+      DeltaSound.playChime('signal');
+      DeltaSound.vibrate([30]);
+    }
+  }
+
+  // Institutional SMC Overlay Preferences
+  const activeOverlays = {
+    fvg: localStorage.getItem('dtj_overlay_fvg') !== 'false',
+    ob: localStorage.getItem('dtj_overlay_ob') !== 'false',
+    asia: localStorage.getItem('dtj_overlay_asia') !== 'false'
+  };
+
+  function updateOverlayButtons() {
+    ['fvg', 'ob', 'asia'].forEach(name => {
+      const btns = document.querySelectorAll(`[id^="btnToggle${name.charAt(0).toUpperCase() + name.slice(1)}"]`);
+      const active = activeOverlays[name];
+      btns.forEach(btn => {
+        if (active) {
+          btn.classList.remove('opacity-40');
+          btn.classList.add('shadow-sm');
+        } else {
+          btn.classList.add('opacity-40');
+          btn.classList.remove('shadow-sm');
+        }
+      });
+    });
+  }
+
+  function toggleOverlay(name) {
+    if (activeOverlays[name] !== undefined) {
+      activeOverlays[name] = !activeOverlays[name];
+      localStorage.setItem(`dtj_overlay_${name}`, activeOverlays[name].toString());
+      updateOverlayButtons();
+      renderPositionBox(selectedTrade);
+      DeltaSound.playChime('click');
+    }
+  }
 
   const TIMEFRAME_MAP = {
     '1m': '1m',
@@ -511,6 +588,7 @@ window.DeltaLiveChart = (function() {
     if (!container) return;
 
     DeltaSound.updateAudioButton();
+    updateOverlayButtons();
 
     if (chart) {
       // Container exists and chart already created: refresh layout & ensure candles are loaded
@@ -909,126 +987,173 @@ window.DeltaLiveChart = (function() {
   }
 
   function clearPositionBox() {
+    selectedTrade = null;
     renderPositionBox(null);
   }
 
   /**
    * Renders the authentic TradingView Long / Short Position Drawing Tool
-   * (Shaded Green Profit Box, Shaded Red Loss Box, Entry line, exact targets)
-   * Strictly bounded from Trade Entry bar to Exit bar (NOT infinite lines!).
+   * and Institutional Volumetric Overlays (FVG, Order Blocks, Asian Range)
    */
   function renderPositionBox(trade) {
     const svg = document.getElementById('tvPositionBoxSvg');
-    if (!svg) return;
-
-    if (!trade || !chart || !candleSeries) {
-      svg.innerHTML = '';
+    if (!svg || !chart || !candleSeries) {
+      if (svg) svg.innerHTML = '';
       return;
     }
 
-    // Horizontal Bar Coordinates
-    const x1 = chart.timeScale().timeToCoordinate(trade.time);
-    
-    // For active trade, extend box forward into current/future bars
-    let exitTime = trade.exitTime;
-    if (trade.outcome === "ACTIVE" && candleData.length > 0) {
-      exitTime = candleData[candleData.length - 1].time + 1800;
-    } else if (!exitTime) {
-      exitTime = trade.time + (trade.barsHeld || 6) * 900;
-    }
-    let x2 = chart.timeScale().timeToCoordinate(exitTime);
+    let fvgSvgHTML = '';
+    let asiaSvgHTML = '';
+    let positionBoxHTML = '';
 
-    if (x1 === null && x2 === null) {
-      svg.innerHTML = '';
-      return;
-    }
+    // 1. Render Fair Value Gaps (Volumetric Translucent Imbalance Zones)
+    if (activeOverlays.fvg && currentAnalysis && currentAnalysis.overlays && currentAnalysis.overlays.fvgZones) {
+      const fvgs = currentAnalysis.overlays.fvgZones;
+      fvgs.forEach(f => {
+        const fx1 = chart.timeScale().timeToCoordinate(f.startTime);
+        let fx2 = chart.timeScale().timeToCoordinate(f.endTime);
+        if (fx1 === null) return;
+        if (fx2 === null) fx2 = fx1 + 160;
+        const fw = Math.max(30, fx2 - fx1);
 
-    if (x1 === null) return;
-    
-    // Ensure comfortable readable box width (at least 150px)
-    if (x2 === null || x2 - x1 < 150) {
-      x2 = x1 + 160;
-    }
+        const fyTop = candleSeries.priceToCoordinate(f.top);
+        const fyBottom = candleSeries.priceToCoordinate(f.bottom);
+        if (fyTop === null || fyBottom === null) return;
 
-    const boxWidth = Math.max(150, x2 - x1);
+        const fy = Math.min(fyTop, fyBottom);
+        const fh = Math.max(3, Math.abs(fyBottom - fyTop));
+        const isBull = f.type === 'BULLISH';
+        const fFill = isBull ? "rgba(6, 182, 212, 0.09)" : "rgba(168, 85, 247, 0.09)";
+        const fStroke = isBull ? "rgba(6, 182, 212, 0.4)" : "rgba(168, 85, 247, 0.4)";
+        const fMidY = candleSeries.priceToCoordinate(f.mid) || (fy + fh / 2);
 
-    // Vertical Price Coordinates (Screen pixels: lower price = higher Y value)
-    const yEntry = candleSeries.priceToCoordinate(trade.entry);
-    const yTp = candleSeries.priceToCoordinate(trade.tp);
-    const ySl = candleSeries.priceToCoordinate(trade.sl);
-
-    if (yEntry === null || yTp === null || ySl === null) {
-      svg.innerHTML = '';
-      return;
-    }
-
-    const isCall = trade.direction === "LONG";
-    const isActive = trade.outcome === "ACTIVE";
-
-    let profitY, profitHeight, lossY, lossHeight;
-
-    if (isCall) {
-      profitY = yTp;
-      profitHeight = Math.max(6, yEntry - yTp);
-      lossY = yEntry;
-      lossHeight = Math.max(6, ySl - yEntry);
-    } else {
-      profitY = yEntry;
-      profitHeight = Math.max(6, yTp - yEntry);
-      lossY = ySl;
-      lossHeight = Math.max(6, yEntry - ySl);
+        fvgSvgHTML += `
+          <g opacity="${f.mitigated ? '0.45' : '0.85'}">
+            <rect x="${fx1}" y="${fy}" width="${fw}" height="${fh}"
+                  fill="${fFill}" stroke="${fStroke}" stroke-width="0.8" stroke-dasharray="2,2" rx="2" />
+            <line x1="${fx1}" y1="${fMidY}" x2="${fx1 + fw}" y2="${fMidY}"
+                  stroke="${fStroke}" stroke-width="0.6" stroke-dasharray="2,3" />
+            <text x="${fx1 + 4}" y="${fy + Math.min(9, fh)}" font-family="monospace" font-size="7.5" font-weight="bold" fill="${isBull ? '#06b6d4' : '#c084fc'}">FVG ${isBull ? '+' : '-'}</text>
+          </g>
+        `;
+      });
     }
 
-    // Ultra-clean translucent fills so candlesticks and wicks are 100% visible beneath
-    const profitFill = "rgba(16, 185, 129, 0.08)";
-    const profitStroke = "rgba(16, 185, 129, 0.55)";
-    const lossFill = "rgba(244, 63, 94, 0.08)";
-    const lossStroke = "rgba(244, 63, 94, 0.55)";
+    // 2. Render Asian Session Range Liquidity Boundaries (05:30 - 13:30 IST)
+    if (activeOverlays.asia && currentAnalysis && currentAnalysis.overlays && currentAnalysis.overlays.asianRanges) {
+      const ranges = currentAnalysis.overlays.asianRanges.slice(-3);
+      ranges.forEach(r => {
+        const ax1 = chart.timeScale().timeToCoordinate(r.startTime);
+        let ax2 = chart.timeScale().timeToCoordinate(r.endTime);
+        if (ax1 === null) return;
+        if (ax2 === null) ax2 = ax1 + 220;
+        const aw = Math.max(60, ax2 - ax1);
 
-    const opt = trade.realOption || {};
-    const targetOptLabel = opt.targetPrice ? ` (Opt: $${opt.targetPrice})` : ` (+50%)`;
-    const stopOptLabel = opt.stopPrice ? ` (Opt: $${opt.stopPrice})` : ` (-30%)`;
+        const ayHigh = candleSeries.priceToCoordinate(r.high);
+        const ayLow = candleSeries.priceToCoordinate(r.low);
+        if (ayHigh === null || ayLow === null) return;
 
-    // Position badges at the FAR RIGHT edge so they NEVER overlap or obscure the entry candlesticks!
-    const containerWidth = svg.clientWidth || 800;
-    const badgeW = 125;
-    let badgeX = x1 + boxWidth + 4;
-    if (badgeX + badgeW > containerWidth) {
-      badgeX = Math.max(x1 + 65, x1 + boxWidth - badgeW - 4);
+        asiaSvgHTML += `
+          <g opacity="0.8">
+            <line x1="${ax1}" y1="${ayHigh}" x2="${ax1 + aw + 90}" y2="${ayHigh}"
+                  stroke="rgba(56, 189, 248, 0.7)" stroke-width="1" stroke-dasharray="4,3" />
+            <text x="${ax1 + aw + 4}" y="${ayHigh - 3}" font-family="monospace" font-size="8" font-weight="bold" fill="#38bdf8">$$$ Asia High ($${r.high.toLocaleString()})</text>
+
+            <line x1="${ax1}" y1="${ayLow}" x2="${ax1 + aw + 90}" y2="${ayLow}"
+                  stroke="rgba(56, 189, 248, 0.7)" stroke-width="1" stroke-dasharray="4,3" />
+            <text x="${ax1 + aw + 4}" y="${ayLow + 9}" font-family="monospace" font-size="8" font-weight="bold" fill="#38bdf8">$$$ Asia Low ($${r.low.toLocaleString()})</text>
+          </g>
+        `;
+      });
     }
 
-    svg.innerHTML = `
-      <!-- Green Take Profit Zone (Translucent) -->
-      <rect x="${x1}" y="${profitY}" width="${boxWidth}" height="${profitHeight}"
-            fill="${profitFill}" stroke="${profitStroke}" stroke-width="1" stroke-dasharray="3,2" rx="3" />
+    // 3. Render Selected Trade Position Box
+    if (trade) {
+      const x1 = chart.timeScale().timeToCoordinate(trade.time);
+      let exitTime = trade.exitTime;
+      if (trade.outcome === "ACTIVE" && candleData.length > 0) {
+        exitTime = candleData[candleData.length - 1].time + 1800;
+      } else if (!exitTime) {
+        exitTime = trade.time + (trade.barsHeld || 6) * 900;
+      }
+      let x2 = chart.timeScale().timeToCoordinate(exitTime);
 
-      <!-- Red Stop Loss Zone (Translucent) -->
-      <rect x="${x1}" y="${lossY}" width="${boxWidth}" height="${lossHeight}"
-            fill="${lossFill}" stroke="${lossStroke}" stroke-width="1" stroke-dasharray="3,2" rx="3" />
+      if (x1 !== null) {
+        if (x2 === null || x2 - x1 < 150) {
+          x2 = x1 + 160;
+        }
+        const boxWidth = Math.max(150, x2 - x1);
 
-      <!-- Dashed Level Guidelines Connecting Entry to Labels -->
-      <line x1="${x1}" y1="${yEntry}" x2="${badgeX}" y2="${yEntry}"
-            stroke="#38bdf8" stroke-width="1.2" stroke-dasharray="4,3" opacity="0.8" />
-      <line x1="${x1}" y1="${yTp}" x2="${badgeX}" y2="${yTp}"
-            stroke="#10b981" stroke-width="1" stroke-dasharray="3,3" opacity="0.6" />
-      <line x1="${x1}" y1="${ySl}" x2="${badgeX}" y2="${ySl}"
-            stroke="#f43f5e" stroke-width="1" stroke-dasharray="3,3" opacity="0.6" />
+        const yEntry = candleSeries.priceToCoordinate(trade.entry);
+        const yTp = candleSeries.priceToCoordinate(trade.tp);
+        const ySl = candleSeries.priceToCoordinate(trade.sl);
 
-      <!-- Compact Price Badges Floating on the Right (Candles completely unobstructed) -->
-      <g font-family="-apple-system, BlinkMacSystemFont, monospace" font-size="9" font-weight="bold">
-        <!-- Target Price Tag -->
-        <rect x="${badgeX}" y="${profitY + 2}" width="${badgeW}" height="16" fill="rgba(8, 11, 17, 0.85)" rx="3" stroke="rgba(16, 185, 129, 0.5)" stroke-width="1" />
-        <text x="${badgeX + 6}" y="${profitY + 13}" fill="#10b981">TP: $${trade.tp.toLocaleString()}${targetOptLabel}</text>
+        if (yEntry !== null && yTp !== null && ySl !== null) {
+          const isCall = trade.direction === "LONG";
+          let profitY, profitHeight, lossY, lossHeight;
 
-        <!-- Entry Price Tag -->
-        <rect x="${badgeX}" y="${yEntry - 18}" width="${badgeW}" height="16" fill="rgba(8, 11, 17, 0.85)" rx="3" stroke="rgba(56, 189, 248, 0.5)" stroke-width="1" />
-        <text x="${badgeX + 6}" y="${yEntry - 7}" fill="#38bdf8">Entry: $${trade.entry.toLocaleString()}</text>
+          if (isCall) {
+            profitY = yTp;
+            profitHeight = Math.max(6, yEntry - yTp);
+            lossY = yEntry;
+            lossHeight = Math.max(6, ySl - yEntry);
+          } else {
+            profitY = yEntry;
+            profitHeight = Math.max(6, yTp - yEntry);
+            lossY = ySl;
+            lossHeight = Math.max(6, yEntry - ySl);
+          }
 
-        <!-- Stop Loss Price Tag -->
-        <rect x="${badgeX}" y="${isCall ? (lossY + lossHeight - 18) : (lossY + 2)}" width="${badgeW}" height="16" fill="rgba(8, 11, 17, 0.85)" rx="3" stroke="rgba(244, 63, 94, 0.5)" stroke-width="1" />
-        <text x="${badgeX + 6}" y="${isCall ? (lossY + lossHeight - 7) : (lossY + 13)}" fill="#f43f5e">SL: $${trade.sl.toLocaleString()}${stopOptLabel}</text>
-      </g>
-    `;
+          const profitFill = "rgba(16, 185, 129, 0.08)";
+          const profitStroke = "rgba(16, 185, 129, 0.55)";
+          const lossFill = "rgba(244, 63, 94, 0.08)";
+          const lossStroke = "rgba(244, 63, 94, 0.55)";
+
+          const opt = trade.realOption || {};
+          const targetOptLabel = opt.targetPrice ? ` (Opt: $${opt.targetPrice})` : ` (+50%)`;
+          const stopOptLabel = opt.stopPrice ? ` (Opt: $${opt.stopPrice})` : ` (-30%)`;
+
+          const containerWidth = svg.clientWidth || 800;
+          const badgeW = 125;
+          let badgeX = x1 + boxWidth + 4;
+          if (badgeX + badgeW > containerWidth) {
+            badgeX = Math.max(x1 + 65, x1 + boxWidth - badgeW - 4);
+          }
+
+          positionBoxHTML = `
+            <!-- Green Take Profit Zone (Translucent) -->
+            <rect x="${x1}" y="${profitY}" width="${boxWidth}" height="${profitHeight}"
+                  fill="${profitFill}" stroke="${profitStroke}" stroke-width="1" stroke-dasharray="3,2" rx="3" />
+
+            <!-- Red Stop Loss Zone (Translucent) -->
+            <rect x="${x1}" y="${lossY}" width="${boxWidth}" height="${lossHeight}"
+                  fill="${lossFill}" stroke="${lossStroke}" stroke-width="1" stroke-dasharray="3,2" rx="3" />
+
+            <!-- Dashed Level Guidelines Connecting Entry to Labels -->
+            <line x1="${x1}" y1="${yEntry}" x2="${badgeX}" y2="${yEntry}"
+                  stroke="#38bdf8" stroke-width="1.2" stroke-dasharray="4,3" opacity="0.8" />
+            <line x1="${x1}" y1="${yTp}" x2="${badgeX}" y2="${yTp}"
+                  stroke="#10b981" stroke-width="1" stroke-dasharray="3,3" opacity="0.6" />
+            <line x1="${x1}" y1="${ySl}" x2="${badgeX}" y2="${ySl}"
+                  stroke="#f43f5e" stroke-width="1" stroke-dasharray="3,3" opacity="0.6" />
+
+            <!-- Compact Price Badges Floating on the Right -->
+            <g font-family="-apple-system, BlinkMacSystemFont, monospace" font-size="9" font-weight="bold">
+              <rect x="${badgeX}" y="${profitY + 2}" width="${badgeW}" height="16" fill="rgba(8, 11, 17, 0.85)" rx="3" stroke="rgba(16, 185, 129, 0.5)" stroke-width="1" />
+              <text x="${badgeX + 6}" y="${profitY + 13}" fill="#10b981">TP: $${trade.tp.toLocaleString()}${targetOptLabel}</text>
+
+              <rect x="${badgeX}" y="${yEntry - 18}" width="${badgeW}" height="16" fill="rgba(8, 11, 17, 0.85)" rx="3" stroke="rgba(56, 189, 248, 0.5)" stroke-width="1" />
+              <text x="${badgeX + 6}" y="${yEntry - 7}" fill="#38bdf8">Entry: $${trade.entry.toLocaleString()}</text>
+
+              <rect x="${badgeX}" y="${isCall ? (lossY + lossHeight - 18) : (lossY + 2)}" width="${badgeW}" height="16" fill="rgba(8, 11, 17, 0.85)" rx="3" stroke="rgba(244, 63, 94, 0.5)" stroke-width="1" />
+              <text x="${badgeX + 6}" y="${isCall ? (lossY + lossHeight - 7) : (lossY + 13)}" fill="#f43f5e">SL: $${trade.sl.toLocaleString()}${stopOptLabel}</text>
+            </g>
+          `;
+        }
+      }
+    }
+
+    svg.innerHTML = fvgSvgHTML + asiaSvgHTML + positionBoxHTML;
   }
 
   /**
@@ -2591,6 +2716,9 @@ Expected Profit: +50% Option Gross / +40% Net`;
     getTradeRegistry,
     refreshPaperUI,
     toggleAudioChime: () => DeltaSound.toggleSound(),
-    playSound: (type) => DeltaSound.playChime(type)
+    playSound: (type) => DeltaSound.playChime(type),
+    triggerCyberPulse,
+    toggleOverlay,
+    updateOverlayButtons
   };
 })();

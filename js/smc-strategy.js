@@ -169,6 +169,95 @@ window.DeltaSMCStrategy = (function() {
     }
   }
 
+  /**
+   * Computes Asian Session (05:30 - 13:30 IST) High, Low, and boundaries for SMC Liquidity mapping
+   */
+  function extractAsianRanges(candles) {
+    if (!candles || candles.length === 0) return [];
+    const ranges = {};
+    candles.forEach(c => {
+      const d = new Date(c.time * 1000);
+      const istHours = (d.getUTCHours() + 5 + Math.floor((d.getUTCMinutes() + 30) / 60)) % 24;
+      const istMinutes = (d.getUTCMinutes() + 30) % 60;
+      const totalMinutes = istHours * 60 + istMinutes;
+      const istDate = new Date(c.time * 1000 + (5.5 * 3600 * 1000)).toISOString().split('T')[0];
+
+      if (totalMinutes >= 330 && totalMinutes < 810) { // 05:30 to 13:30 IST
+        if (!ranges[istDate]) {
+          ranges[istDate] = {
+            date: istDate,
+            startTime: c.time,
+            endTime: c.time,
+            high: c.high,
+            low: c.low
+          };
+        } else {
+          ranges[istDate].high = Math.max(ranges[istDate].high, c.high);
+          ranges[istDate].low = Math.min(ranges[istDate].low, c.low);
+          ranges[istDate].endTime = c.time;
+        }
+      }
+    });
+    return Object.values(ranges).filter(r => r.high > r.low);
+  }
+
+  /**
+   * Extracts Fair Value Gaps (3-candle imbalance voids) across historical price action
+   */
+  function extractFVGZones(candles) {
+    if (!candles || candles.length < 3) return [];
+    const fvgs = [];
+    for (let k = 2; k < candles.length; k++) {
+      const c0 = candles[k - 2];
+      const c1 = candles[k - 1];
+      const c2 = candles[k];
+
+      // Bullish FVG: Gap between c0.high and c2.low
+      if (c2.low > c0.high && (c2.low - c0.high) >= 70) {
+        let mitigated = false;
+        let mitigatedTime = null;
+        for (let m = k + 1; m < Math.min(candles.length, k + 60); m++) {
+          if (candles[m].low <= c2.low) {
+            mitigated = true;
+            mitigatedTime = candles[m].time;
+            break;
+          }
+        }
+        fvgs.push({
+          startTime: c1.time,
+          endTime: mitigatedTime || (candles[candles.length - 1].time + 1800),
+          top: c2.low,
+          bottom: c0.high,
+          mid: (c2.low + c0.high) / 2,
+          type: 'BULLISH',
+          mitigated
+        });
+      }
+      // Bearish FVG: Gap between c0.low and c2.high
+      else if (c0.low > c2.high && (c0.low - c2.high) >= 70) {
+        let mitigated = false;
+        let mitigatedTime = null;
+        for (let m = k + 1; m < Math.min(candles.length, k + 60); m++) {
+          if (candles[m].high >= c2.high) {
+            mitigated = true;
+            mitigatedTime = candles[m].time;
+            break;
+          }
+        }
+        fvgs.push({
+          startTime: c1.time,
+          endTime: mitigatedTime || (candles[candles.length - 1].time + 1800),
+          top: c0.low,
+          bottom: c2.high,
+          mid: (c0.low + c2.high) / 2,
+          type: 'BEARISH',
+          mitigated
+        });
+      }
+    }
+    return fvgs.slice(-15);
+  }
+
   // -------------------------------------------------------------
   // 2. BACKTEST & FORWARD SIMULATION ENGINE
   // -------------------------------------------------------------
@@ -988,11 +1077,19 @@ window.DeltaSMCStrategy = (function() {
       }
     });
 
+    // Compute Volumetric SMC Overlays
+    const fvgZones = extractFVGZones(candles);
+    const asianRanges = extractAsianRanges(candles);
+
     return {
       trades,
       markers,
       activeSignal,
       latestTrade,
+      overlays: {
+        fvgZones,
+        asianRanges
+      },
       stats: {
         totalTrades,
         wins,
@@ -1014,6 +1111,9 @@ window.DeltaSMCStrategy = (function() {
   }
 
   return {
-    runBacktest
+    runBacktest,
+    getTradingSession,
+    extractAsianRanges,
+    extractFVGZones
   };
 })();
