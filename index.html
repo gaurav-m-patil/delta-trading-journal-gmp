@@ -1140,141 +1140,166 @@
         </button>
       </div>
 
-      <!-- Trader Action & Execution Guidance Banner -->
-      <div id="atmModalActionBanner" class="p-3 rounded-xl border border-borderDark/60 bg-panelDark/40 text-xs font-mono"></div>
+      <!-- Segmented 3-Tab Switcher Navigation -->
+      <div class="flex items-center gap-1.5 p-1 bg-brandDark/80 border border-borderDark/80 rounded-xl text-xs font-mono shrink-0">
+        <button id="atmTabBtn_exec" onclick="DeltaLiveChart.switchModalTab('exec')" class="flex-1 py-1.5 px-2 rounded-lg font-bold text-center transition-all bg-indigo-600 text-white shadow-sm flex items-center justify-center gap-1.5">
+          <i class="fa-solid fa-bolt text-amber-400"></i> <span>Order & Execution</span>
+        </button>
+        <button id="atmTabBtn_logic" onclick="DeltaLiveChart.switchModalTab('logic')" class="flex-1 py-1.5 px-2 rounded-lg font-bold text-center transition-all text-slate-400 hover:text-white hover:bg-panelDark flex items-center justify-center gap-1.5">
+          <i class="fa-solid fa-brain text-indigo-400"></i> <span>Setup Logic</span>
+        </button>
+        <button id="atmTabBtn_timeline" onclick="DeltaLiveChart.switchModalTab('timeline')" class="flex-1 py-1.5 px-2 rounded-lg font-bold text-center transition-all text-slate-400 hover:text-white hover:bg-panelDark flex items-center justify-center gap-1.5">
+          <i class="fa-solid fa-chart-line text-emerald-400"></i> <span>Timeline & PnL</span>
+        </button>
+      </div>
 
-      <!-- Underlying BTC Spot Price Targets (2x2 on mobile, 4 across on desktop) -->
-      <div class="grid grid-cols-2 sm:grid-cols-4 gap-2 text-center font-mono">
-        <div class="bg-panelDark/70 p-2 sm:p-2.5 rounded-xl border border-borderDark/60">
-          <span class="text-[9px] uppercase tracking-wider text-slate-400 block font-sans">Entry Price</span>
-          <span id="atmModalEntry" class="text-xs sm:text-sm font-bold text-white">--</span>
+      <!-- TAB PANE 1: Quick Execution & Delta Order (Default) -->
+      <div id="atmTabPane_exec" class="space-y-3">
+        <!-- Trader Action & Execution Guidance Banner -->
+        <div id="atmModalActionBanner" class="p-3 rounded-xl border border-borderDark/60 bg-panelDark/40 text-xs font-mono"></div>
+
+        <!-- Underlying BTC Spot Price Targets (2x2 on mobile, 4 across on desktop) -->
+        <div class="grid grid-cols-2 sm:grid-cols-4 gap-2 text-center font-mono">
+          <div class="bg-panelDark/70 p-2 sm:p-2.5 rounded-xl border border-borderDark/60">
+            <span class="text-[9px] uppercase tracking-wider text-slate-400 block font-sans">Entry Price</span>
+            <span id="atmModalEntry" class="text-xs sm:text-sm font-bold text-white">--</span>
+          </div>
+          <div class="bg-panelDark/70 p-2 sm:p-2.5 rounded-xl border border-borderDark/60">
+            <span class="text-[9px] uppercase tracking-wider text-slate-400 block font-sans">Target (TP)</span>
+            <span id="atmModalTp" class="text-xs sm:text-sm font-bold text-winGreen">--</span>
+          </div>
+          <div class="bg-panelDark/70 p-2 sm:p-2.5 rounded-xl border border-borderDark/60">
+            <span class="text-[9px] uppercase tracking-wider text-slate-400 block font-sans">Stop Loss</span>
+            <span id="atmModalSl" class="text-xs sm:text-sm font-bold text-lossRed">--</span>
+          </div>
+          <div class="bg-panelDark/70 p-2 sm:p-2.5 rounded-xl border border-borderDark/60">
+            <span class="text-[9px] uppercase tracking-wider text-slate-400 block font-sans">Risk : Reward</span>
+            <span id="atmModalRR" class="text-xs sm:text-sm font-bold text-indigo-300">--</span>
+          </div>
         </div>
-        <div class="bg-panelDark/70 p-2 sm:p-2.5 rounded-xl border border-borderDark/60">
-          <span class="text-[9px] uppercase tracking-wider text-slate-400 block font-sans">Target (TP)</span>
-          <span id="atmModalTp" class="text-xs sm:text-sm font-bold text-winGreen">--</span>
-        </div>
-        <div class="bg-panelDark/70 p-2 sm:p-2.5 rounded-xl border border-borderDark/60">
-          <span class="text-[9px] uppercase tracking-wider text-slate-400 block font-sans">Stop Loss</span>
-          <span id="atmModalSl" class="text-xs sm:text-sm font-bold text-lossRed">--</span>
-        </div>
-        <div class="bg-panelDark/70 p-2 sm:p-2.5 rounded-xl border border-borderDark/60">
-          <span class="text-[9px] uppercase tracking-wider text-slate-400 block font-sans">Risk : Reward</span>
-          <span id="atmModalRR" class="text-xs sm:text-sm font-bold text-indigo-300">--</span>
+
+        <!-- Delta Options Execution Playbook Checklist -->
+        <div class="bg-indigo-950/30 border border-indigo-500/30 rounded-xl p-3 sm:p-3.5 space-y-2">
+          <div class="flex justify-between items-center">
+            <h4 class="text-xs font-bold text-indigo-300 flex items-center gap-2 font-sans">
+              <i class="fa-solid fa-bolt text-indigo-400"></i> Delta Exchange Order Playbook
+            </h4>
+            <button onclick="DeltaLiveChart.copyDeltaOrderDetails()" class="text-[10px] px-2.5 py-1 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white font-mono font-bold transition-colors shadow-sm flex items-center gap-1">
+              <i class="fa-solid fa-copy"></i> Copy Order
+            </button>
+          </div>
+          <ul id="atmModalPlaybook" class="space-y-1 list-none font-mono text-xs">
+            <!-- Populated dynamically -->
+          </ul>
         </div>
       </div>
 
-      <!-- DELTA OPTIONS EXECUTION & RESOLUTION TIMELINE -->
-      <div class="bg-indigo-950/20 border border-indigo-500/30 rounded-xl p-3 sm:p-3.5 space-y-2.5 font-mono">
-        <div class="flex flex-wrap justify-between items-center pb-2 border-b border-borderDark/60 gap-1.5">
-          <span class="text-xs font-bold text-white font-sans flex items-center gap-1.5">
-            <i class="fa-solid fa-timeline text-indigo-400"></i> Option Execution & Resolution Timeline
-          </span>
-          <span id="atmModalContractBadge" class="text-[10px] font-bold px-2 py-0.5 rounded bg-indigo-600/30 text-indigo-300 border border-indigo-500/40 truncate max-w-[200px] sm:max-w-none">
-            --
-          </span>
-        </div>
-
-        <!-- 2-Stage Timeline: Entry vs Resolution -->
-        <div class="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-          <!-- Stage 1: Entry Snapshot -->
-          <div class="bg-panelDark/80 p-2.5 sm:p-3 rounded-xl border border-borderDark/70 space-y-1.5">
-            <div class="flex justify-between items-center text-[10px] text-slate-400 font-sans">
-              <span class="font-bold flex items-center gap-1 text-sky-300"><i class="fa-solid fa-play text-sky-400"></i> 1. Entry Execution</span>
-              <span id="atmModalEntryTime" class="text-slate-300">--</span>
-            </div>
-            <div class="flex justify-between items-baseline text-xs">
-              <span class="text-slate-400 font-sans">BTC Spot:</span>
-              <span id="atmModalEntrySpot" class="font-bold text-white">--</span>
-            </div>
-            <div class="flex justify-between items-baseline pt-1 border-t border-borderDark/40">
-              <span class="text-xs text-indigo-300 font-sans font-bold">Option Premium:</span>
-              <span id="atmModalOptionEntry" class="text-sm font-bold text-sky-400">--</span>
-            </div>
-          </div>
-
-          <!-- Stage 2: Resolution / Exit Snapshot -->
-          <div id="atmModalExitCard" class="bg-panelDark/80 p-2.5 sm:p-3 rounded-xl border border-emerald-500/40 space-y-1.5">
-            <div class="flex justify-between items-center text-[10px] text-slate-400 font-sans">
-              <span class="font-bold flex items-center gap-1" id="atmModalExitTitle"><i class="fa-solid fa-flag-checkered text-emerald-400"></i> 2. Resolution</span>
-              <span id="atmModalExitTime" class="text-slate-300">--</span>
-            </div>
-            <div class="flex justify-between items-baseline text-xs">
-              <span class="text-slate-400 font-sans">BTC Spot Exit:</span>
-              <span id="atmModalExitSpot" class="font-bold text-winGreen">--</span>
-            </div>
-            <div class="flex justify-between items-baseline pt-1 border-t border-borderDark/40">
-              <span class="text-xs text-emerald-300 font-sans font-bold">Option Exit Premium:</span>
-              <span id="atmModalOptionExit" class="text-sm font-bold text-winGreen">--</span>
-            </div>
-          </div>
-        </div>
-
-        <!-- Net Take-Home Calculation Strip -->
-        <div id="atmModalNetReturnStrip" class="p-2 sm:p-2.5 rounded-lg bg-panelDark/90 border border-borderDark/70 flex justify-between items-center text-xs">
-          <span class="text-slate-300 font-sans text-[11px]">Net PnL (excl. brokerage & GST):</span>
-          <span id="atmModalNetPoints" class="font-bold text-winGreen">--</span>
-        </div>
-      </div>
-
-      <!-- Institutional Rationale Breakdown (Clean 2x2 Grid) -->
-      <div class="bg-brandDark/70 border border-borderDark rounded-xl p-3 sm:p-3.5 space-y-2">
-        <h4 class="text-xs font-bold text-white flex items-center gap-2 font-sans">
-          <i class="fa-solid fa-brain text-indigo-400"></i> Why Was This Trade Marked? (Institutional Confluence)
-        </h4>
-        <div class="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs font-mono">
-          <div class="bg-panelDark/60 p-2 sm:p-2.5 rounded-lg border border-borderDark/50">
-            <span class="text-[9px] uppercase tracking-wider text-slate-400 block font-sans mb-0.5">Level Tested</span>
-            <span id="atmModalLevel" class="font-bold text-white text-xs">--</span>
-          </div>
-          <div class="bg-panelDark/60 p-2 sm:p-2.5 rounded-lg border border-borderDark/50">
-            <span class="text-[9px] uppercase tracking-wider text-slate-400 block font-sans mb-0.5">Rejection Pattern</span>
-            <span id="atmModalPattern" class="font-bold text-indigo-300 text-xs">--</span>
-          </div>
-          <div class="bg-panelDark/60 p-2 sm:p-2.5 rounded-lg border border-borderDark/50">
-            <span class="text-[9px] uppercase tracking-wider text-slate-400 block font-sans mb-0.5">Confirmation Candle</span>
-            <span id="atmModalConfirmation" class="font-bold text-slate-200 text-xs">--</span>
-          </div>
-          <div class="bg-panelDark/60 p-2 sm:p-2.5 rounded-lg border border-borderDark/50">
-            <span class="text-[9px] uppercase tracking-wider text-slate-400 block font-sans mb-0.5">Momentum & Flow</span>
-            <span id="atmModalRsiRvol" class="font-bold text-slate-200 text-xs">--</span>
-          </div>
-          <div class="bg-panelDark/60 p-2 sm:p-2.5 rounded-lg border border-borderDark/50">
-            <span class="text-[9px] uppercase tracking-wider text-slate-400 block font-sans mb-0.5">1H Macro Alignment</span>
-            <span id="atmModalHtf" class="font-bold text-emerald-400 text-xs">--</span>
-          </div>
-          <div class="bg-panelDark/60 p-2 sm:p-2.5 rounded-lg border border-borderDark/50">
-            <span class="text-[9px] uppercase tracking-wider text-slate-400 block font-sans mb-0.5">Absorption & Delta</span>
-            <span id="atmModalAbsorption" class="font-bold text-amber-400 text-xs">--</span>
-          </div>
-        </div>
-      </div>
-
-      <!-- What Happened Next Narrative -->
-      <div class="bg-brandDark/80 border-l-4 border-l-indigo-500 rounded-r-xl p-3 border border-borderDark/50 space-y-1">
-        <h4 class="text-xs font-bold text-slate-200 flex items-center gap-2 font-sans">
-          <i class="fa-solid fa-route text-emerald-400"></i> What Happened Next? (Trade Narrative)
-        </h4>
-        <p id="atmModalNarrative" class="text-xs text-slate-300 font-mono leading-relaxed">--</p>
-      </div>
-
-      <!-- Delta Options Execution Playbook -->
-      <div class="bg-indigo-950/30 border border-indigo-500/30 rounded-xl p-3 sm:p-3.5 space-y-2">
-        <div class="flex justify-between items-center">
-          <h4 class="text-xs font-bold text-indigo-300 flex items-center gap-2 font-sans">
-            <i class="fa-solid fa-bolt text-indigo-400"></i> Delta Exchange Options Execution Playbook
+      <!-- TAB PANE 2: Institutional Setup Logic & Confluence -->
+      <div id="atmTabPane_logic" class="space-y-3 hidden">
+        <!-- Institutional Rationale Breakdown (Clean 2x2 Grid) -->
+        <div class="bg-brandDark/70 border border-borderDark rounded-xl p-3 sm:p-3.5 space-y-2">
+          <h4 class="text-xs font-bold text-white flex items-center gap-2 font-sans">
+            <i class="fa-solid fa-brain text-indigo-400"></i> Why Was This Trade Marked? (Institutional Confluence)
           </h4>
-          <button onclick="DeltaLiveChart.copyDeltaOrderDetails()" class="text-[10px] px-2.5 py-1 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white font-mono font-bold transition-colors shadow-sm flex items-center gap-1">
-            <i class="fa-solid fa-copy"></i> Copy Order
-          </button>
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs font-mono">
+            <div class="bg-panelDark/60 p-2 sm:p-2.5 rounded-lg border border-borderDark/50">
+              <span class="text-[9px] uppercase tracking-wider text-slate-400 block font-sans mb-0.5">Level Tested</span>
+              <span id="atmModalLevel" class="font-bold text-white text-xs">--</span>
+            </div>
+            <div class="bg-panelDark/60 p-2 sm:p-2.5 rounded-lg border border-borderDark/50">
+              <span class="text-[9px] uppercase tracking-wider text-slate-400 block font-sans mb-0.5">Rejection Pattern</span>
+              <span id="atmModalPattern" class="font-bold text-indigo-300 text-xs">--</span>
+            </div>
+            <div class="bg-panelDark/60 p-2 sm:p-2.5 rounded-lg border border-borderDark/50">
+              <span class="text-[9px] uppercase tracking-wider text-slate-400 block font-sans mb-0.5">Confirmation Candle</span>
+              <span id="atmModalConfirmation" class="font-bold text-slate-200 text-xs">--</span>
+            </div>
+            <div class="bg-panelDark/60 p-2 sm:p-2.5 rounded-lg border border-borderDark/50">
+              <span class="text-[9px] uppercase tracking-wider text-slate-400 block font-sans mb-0.5">Momentum & Flow</span>
+              <span id="atmModalRsiRvol" class="font-bold text-slate-200 text-xs">--</span>
+            </div>
+            <div class="bg-panelDark/60 p-2 sm:p-2.5 rounded-lg border border-borderDark/50">
+              <span class="text-[9px] uppercase tracking-wider text-slate-400 block font-sans mb-0.5">1H Macro Alignment</span>
+              <span id="atmModalHtf" class="font-bold text-emerald-400 text-xs">--</span>
+            </div>
+            <div class="bg-panelDark/60 p-2 sm:p-2.5 rounded-lg border border-borderDark/50">
+              <span class="text-[9px] uppercase tracking-wider text-slate-400 block font-sans mb-0.5">Absorption & Delta</span>
+              <span id="atmModalAbsorption" class="font-bold text-amber-400 text-xs">--</span>
+            </div>
+          </div>
         </div>
-        <ul id="atmModalPlaybook" class="space-y-1 list-none font-mono text-xs">
-          <!-- Populated dynamically -->
-        </ul>
+
+        <!-- What Happened Next Narrative -->
+        <div class="bg-brandDark/80 border-l-4 border-l-indigo-500 rounded-r-xl p-3 border border-borderDark/50 space-y-1">
+          <h4 class="text-xs font-bold text-slate-200 flex items-center gap-2 font-sans">
+            <i class="fa-solid fa-route text-emerald-400"></i> What Happened Next? (Trade Narrative)
+          </h4>
+          <p id="atmModalNarrative" class="text-xs text-slate-300 font-mono leading-relaxed">--</p>
+        </div>
       </div>
 
-      <div class="flex justify-end gap-2 pt-2 border-t border-borderDark">
+      <!-- TAB PANE 3: DELTA OPTIONS EXECUTION & RESOLUTION TIMELINE -->
+      <div id="atmTabPane_timeline" class="space-y-3 hidden">
+        <div class="bg-indigo-950/20 border border-indigo-500/30 rounded-xl p-3 sm:p-3.5 space-y-2.5 font-mono">
+          <div class="flex flex-wrap justify-between items-center pb-2 border-b border-borderDark/60 gap-1.5">
+            <span class="text-xs font-bold text-white font-sans flex items-center gap-1.5">
+              <i class="fa-solid fa-timeline text-indigo-400"></i> Option Execution & Resolution Timeline
+            </span>
+            <span id="atmModalContractBadge" class="text-[10px] font-bold px-2 py-0.5 rounded bg-indigo-600/30 text-indigo-300 border border-indigo-500/40 truncate max-w-[200px] sm:max-w-none">
+              --
+            </span>
+          </div>
+
+          <!-- 2-Stage Timeline: Entry vs Resolution -->
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+            <!-- Stage 1: Entry Snapshot -->
+            <div class="bg-panelDark/80 p-2.5 sm:p-3 rounded-xl border border-borderDark/70 space-y-1.5">
+              <div class="flex justify-between items-center text-[10px] text-slate-400 font-sans">
+                <span class="font-bold flex items-center gap-1 text-sky-300"><i class="fa-solid fa-play text-sky-400"></i> 1. Entry Execution</span>
+                <span id="atmModalEntryTime" class="text-slate-300">--</span>
+              </div>
+              <div class="flex justify-between items-baseline text-xs">
+                <span class="text-slate-400 font-sans">BTC Spot:</span>
+                <span id="atmModalEntrySpot" class="font-bold text-white">--</span>
+              </div>
+              <div class="flex justify-between items-baseline pt-1 border-t border-borderDark/40">
+                <span class="text-xs text-indigo-300 font-sans font-bold">Option Premium:</span>
+                <span id="atmModalOptionEntry" class="text-sm font-bold text-sky-400">--</span>
+              </div>
+            </div>
+
+            <!-- Stage 2: Resolution / Exit Snapshot -->
+            <div id="atmModalExitCard" class="bg-panelDark/80 p-2.5 sm:p-3 rounded-xl border border-emerald-500/40 space-y-1.5">
+              <div class="flex justify-between items-center text-[10px] text-slate-400 font-sans">
+                <span class="font-bold flex items-center gap-1" id="atmModalExitTitle"><i class="fa-solid fa-flag-checkered text-emerald-400"></i> 2. Resolution</span>
+                <span id="atmModalExitTime" class="text-slate-300">--</span>
+              </div>
+              <div class="flex justify-between items-baseline text-xs">
+                <span class="text-slate-400 font-sans">BTC Spot Exit:</span>
+                <span id="atmModalExitSpot" class="font-bold text-winGreen">--</span>
+              </div>
+              <div class="flex justify-between items-baseline pt-1 border-t border-borderDark/40">
+                <span class="text-xs text-emerald-300 font-sans font-bold">Option Exit Premium:</span>
+                <span id="atmModalOptionExit" class="text-sm font-bold text-winGreen">--</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Net Take-Home Calculation Strip -->
+          <div id="atmModalNetReturnStrip" class="p-2 sm:p-2.5 rounded-lg bg-panelDark/90 border border-borderDark/70 flex justify-between items-center text-xs">
+            <span class="text-slate-300 font-sans text-[11px]">Net PnL (excl. brokerage & GST):</span>
+            <span id="atmModalNetPoints" class="font-bold text-winGreen">--</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Modal Footer -->
+      <div class="flex justify-between items-center pt-2.5 border-t border-borderDark gap-2">
+        <button onclick="DeltaLiveChart.copyDeltaOrderDetails()" class="px-3 py-2 rounded-xl bg-indigo-600/20 hover:bg-indigo-600 text-indigo-300 hover:text-white border border-indigo-500/30 text-xs font-mono font-bold transition-all flex items-center gap-1.5">
+          <i class="fa-solid fa-copy"></i> Copy Order
+        </button>
         <button onclick="DeltaLiveChart.closeTradeDetailsModal()" class="px-4 py-2 rounded-xl bg-panelDark text-slate-300 hover:text-white border border-borderDark font-bold text-xs transition-colors">
-          Close Playbook
+          Close
         </button>
       </div>
     </div>
@@ -1421,20 +1446,20 @@
   </nav>
 
   <!-- Application Script Pipeline -->
-  <script src="vendor/lightweight-charts.js?v=3.6.3"></script>
-  <script src="js/config.js?v=3.6.3"></script>
-  <script src="js/smc-strategy.js?v=3.6.3"></script>
-  <script src="js/macro-sentinel.js?v=3.6.3"></script>
-  <script src="js/paper-fund.js?v=3.6.3"></script>
-  <script src="js/chart-engine.js?v=3.6.3"></script>
-  <script src="js/db.js?v=3.6.3"></script>
-  <script src="js/quant.js?v=3.6.3"></script>
-  <script src="js/coach.js?v=3.6.3"></script>
-  <script src="js/planner.js?v=3.6.3"></script>
-  <script src="js/app.js?v=3.6.3"></script>
+  <script src="vendor/lightweight-charts.js?v=3.6.4"></script>
+  <script src="js/config.js?v=3.6.4"></script>
+  <script src="js/smc-strategy.js?v=3.6.4"></script>
+  <script src="js/macro-sentinel.js?v=3.6.4"></script>
+  <script src="js/paper-fund.js?v=3.6.4"></script>
+  <script src="js/chart-engine.js?v=3.6.4"></script>
+  <script src="js/db.js?v=3.6.4"></script>
+  <script src="js/quant.js?v=3.6.4"></script>
+  <script src="js/coach.js?v=3.6.4"></script>
+  <script src="js/planner.js?v=3.6.4"></script>
+  <script src="js/app.js?v=3.6.4"></script>
   <script>
     if ('serviceWorker' in navigator) {
-      navigator.serviceWorker.register('sw.js?v=3.6.3').then(function(reg) {
+      navigator.serviceWorker.register('sw.js?v=3.6.4').then(function(reg) {
         reg.update();
       });
     }

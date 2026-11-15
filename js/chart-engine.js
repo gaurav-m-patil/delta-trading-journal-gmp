@@ -1362,6 +1362,7 @@ window.DeltaLiveChart = (function() {
       narrativeEl.innerText = "Cloud Sentinel is currently scanning the market. When a candle closes meeting all confluence criteria, this playbook locks the trade with live execution details, entry strike, target, stop, and real Delta option pricing.";
     }
 
+    switchModalTab('exec');
     modal.classList.remove('hidden');
     modal.classList.add('flex');
     try { DeltaSound.playChime('modal'); } catch (e) {}
@@ -1761,6 +1762,7 @@ window.DeltaLiveChart = (function() {
         }
       }
 
+      switchModalTab('exec');
       modal.classList.remove('hidden');
       modal.classList.add('flex');
       try { DeltaSound.playChime('modal'); } catch (e) {}
@@ -1780,6 +1782,24 @@ window.DeltaLiveChart = (function() {
       modal.classList.add('hidden');
       modal.classList.remove('flex');
     }
+  }
+
+  /**
+   * Switches tabs inside the Trade Details / Playbook modal (exec, logic, timeline)
+   */
+  function switchModalTab(tabId) {
+    const tabs = ['exec', 'logic', 'timeline'];
+    tabs.forEach(t => {
+      const btn = document.getElementById(`atmTabBtn_${t}`);
+      const pane = document.getElementById(`atmTabPane_${t}`);
+      if (t === tabId) {
+        if (btn) btn.className = "flex-1 py-1.5 px-2 rounded-lg font-bold text-center transition-all bg-indigo-600 text-white shadow-sm flex items-center justify-center gap-1.5";
+        if (pane) pane.classList.remove('hidden');
+      } else {
+        if (btn) btn.className = "flex-1 py-1.5 px-2 rounded-lg font-bold text-center transition-all text-slate-400 hover:text-white hover:bg-panelDark flex items-center justify-center gap-1.5";
+        if (pane) pane.classList.add('hidden');
+      }
+    });
   }
 
   /**
@@ -2564,6 +2584,7 @@ Expected Profit: +50% Option Gross / +40% Net`;
     openChartInNewTab,
     openTradeDetailsModal,
     closeTradeDetailsModal,
+    switchModalTab,
     copyDeltaOrderDetails,
     toggleShowAllRadarTrades,
     getCurrentAnalysis: () => currentAnalysis,
