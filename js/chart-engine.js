@@ -667,7 +667,7 @@ window.DeltaLiveChart = (function() {
 
     if (chart) {
       // Container exists and chart already created: refresh layout & ensure candles are loaded
-      const width = container.clientWidth || 360;
+      const width = Math.max(300, container.clientWidth || 360);
       chart.applyOptions({ width });
       if (!candleData || candleData.length === 0) {
         loadTimeframe(activeTimeframe);
@@ -685,8 +685,8 @@ window.DeltaLiveChart = (function() {
 
     const isStandalone = !!document.getElementById('btnFullscreenApi') || window.location.pathname.includes('chart.html');
     const containerH = container.clientHeight;
-    const chartHeight = (isStandalone && containerH > 200) ? containerH : (containerH > 480 ? containerH : (window.innerWidth < 640 ? 350 : 430));
-    const initialWidth = container.clientWidth || (window.innerWidth < 640 ? (window.innerWidth - 32) : 800);
+    const chartHeight = Math.max(250, (isStandalone && containerH > 200) ? containerH : (containerH > 480 ? containerH : (window.innerWidth < 640 ? 350 : 430)));
+    const initialWidth = Math.max(300, container.clientWidth || (window.innerWidth > 32 ? (window.innerWidth - 32) : 800));
 
     // Create TradingView Chart
     chart = LightweightCharts.createChart(container, {
@@ -829,9 +829,10 @@ window.DeltaLiveChart = (function() {
       if (chart && container) {
         const isStandalonePage = !!document.getElementById('btnFullscreenApi') || window.location.pathname.includes('chart.html');
         const cH = container.clientHeight;
-        const targetHeight = (isStandalonePage && cH > 200) ? cH : (cH > 480 ? cH : (window.innerWidth < 640 ? 350 : 430));
+        const targetHeight = Math.max(250, (isStandalonePage && cH > 200) ? cH : (cH > 480 ? cH : (window.innerWidth < 640 ? 350 : 430)));
+        const targetWidth = Math.max(300, container.clientWidth || (window.innerWidth > 32 ? (window.innerWidth - 32) : 800));
         chart.applyOptions({
-          width: container.clientWidth,
+          width: targetWidth,
           height: targetHeight
         });
         renderPositionBox(selectedTrade);
@@ -847,10 +848,10 @@ window.DeltaLiveChart = (function() {
           const entry = entries[0];
           const w = Math.floor(entry.contentRect.width);
           const h = Math.floor(entry.contentRect.height);
-          if (w > 0 && h > 0 && chart) {
+          if (w > 50 && h > 50 && chart) {
             const isStandalonePage = !!document.getElementById('btnFullscreenApi') || window.location.pathname.includes('chart.html');
-            const targetHeight = (isStandalonePage && h > 200) ? h : (h > 480 ? h : (window.innerWidth < 640 ? 350 : 430));
-            chart.applyOptions({ width: w, height: targetHeight });
+            const targetHeight = Math.max(250, (isStandalonePage && h > 200) ? h : (h > 480 ? h : (window.innerWidth < 640 ? 350 : 430)));
+            chart.applyOptions({ width: Math.max(300, w), height: targetHeight });
             renderPositionBox(selectedTrade);
           }
         });
