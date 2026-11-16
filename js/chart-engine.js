@@ -167,20 +167,92 @@ window.DeltaLiveChart = (function() {
 
     // 2. Sort strictly by time ascending (mandatory for Lightweight Charts)
     const sorted = snapped.sort((a, b) => a.time - b.time);
+    return sorted;
+  }
 
-    // 3. Stagger markers on adjacent candles (within 6 bars / 5400s) vertically so they NEVER collide horizontally
-    for (let i = 0; i < sorted.length - 1; i++) {
-      const m1 = sorted[i];
-      const m2 = sorted[i + 1];
-      if (Math.abs(m2.time - m1.time) <= 5400) {
-        if (m1.position === m2.position) {
-          m2.position = m1.position === "aboveBar" ? "belowBar" : "aboveBar";
-          m2.shape = m2.position === "aboveBar" ? "arrowDown" : "arrowUp";
-        }
-      }
+  /**
+   * Institutional Chart Marker Engine
+   * Strictly filters out repeated / clustered setups (cooldown < 3600s in same direction)
+   * Ensures 100% direction-matched arrows without shape or position inversion
+   */
+  function applyVerifiedChartMarkers(trades) {
+    if (!trades || trades.length === 0) {
+      if (candleSeries) candleSeries.setMarkers([]);
+      return;
     }
 
-    return sorted;
+    // 1. Sort ascending chronologically
+    const chronTrades = [...trades].sort((a, b) => a.time - b.time);
+
+    // 2. Anti-Clustering Deduplication:
+    // In institutional SMC trading, clustered signals within 4 candles (3600s / 1 hour) in the same
+    // direction are redundant retests of the same level. Keep only the primary anchor setup.
+    const distinctTrades = [];
+    chronTrades.forEach(st => {
+      const last = distinctTrades[distinctTrades.length - 1];
+      if (last) {
+        const dt = Math.abs(st.time - last.time);
+        const sameDir = st.direction === last.direction;
+        if (sameDir && dt < 3600) {
+          return; // Suppress redundant duplicate marker from cluttering the chart
+        }
+      }
+      distinctTrades.push(st);
+    });
+
+    const verifiedMarkers = [];
+    distinctTrades.forEach(st => {
+      const isCall = st.direction === "LONG";
+      const dirSymbol = isCall ? "▲" : "▼";
+      const isWin = st.outcome === "WIN";
+      const isBeWin = st.outcome === "BE_WIN";
+      const isLoss = st.outcome === "LOSS";
+      const isActive = st.outcome === "ACTIVE";
+      const isEstimation = st.outcome === "SKIPPED_CIRCUIT_BREAKER" || st.skipped || st.isEstimation;
+
+      let markerText = `${dirSymbol} ${isCall ? 'CALL' : 'PUT'}`;
+      let markerColor = isCall ? "#38bdf8" : "#818cf8";
+      let markerPos = isCall ? "belowBar" : "aboveBar";
+      let markerShape = isCall ? "arrowUp" : "arrowDown";
+
+      if (isActive) {
+        markerText = `${dirSymbol} LIVE`;
+        markerColor = "#38bdf8";
+      } else if (isWin) {
+        const runnerPct = st.optionPnlPct || (st.realOption && st.realOption.targetGainPct) || "+72%";
+        const cleanPct = runnerPct.startsWith('+') ? runnerPct : `+${runnerPct}`;
+        markerText = `${dirSymbol} ${cleanPct}`;
+        markerColor = "#10b981";
+      } else if (isBeWin) {
+        markerText = `${dirSymbol} +25%`;
+        markerColor = "#10b981";
+      } else if (isLoss) {
+        markerText = `${dirSymbol} -30%`;
+        markerColor = "#f43f5e";
+      } else if (isEstimation) {
+        const estPct = st.optionPnlPct || (st.realOption && st.realOption.targetGainPct) || "+50%";
+        const cleanEst = estPct.startsWith('+') ? estPct : `+${estPct}`;
+        markerText = `${dirSymbol} EST (${cleanEst})`;
+        markerColor = "#f59e0b";
+      } else {
+        markerText = `${dirSymbol} SCR`;
+        markerColor = "#64748b";
+      }
+
+      verifiedMarkers.push({
+        time: st.time,
+        position: markerPos,
+        color: markerColor,
+        shape: markerShape,
+        text: markerText,
+        size: 1,
+        tradeRef: st
+      });
+    });
+
+    if (candleSeries) {
+      candleSeries.setMarkers(sanitizeMarkersNoOverlap(verifiedMarkers));
+    }
   }
 
   // Institutional Sound Chimes & Haptic Feedback System (Idea 9)
@@ -2395,66 +2467,30 @@ Expected Profit: +50% Option Gross / +40% Net`;
 
         currentMasterTrades = realTrades;
 
-        // Build chart markers: Verified Sentinel trades have absolute priority over synthetic backtests
-        let verifiedMarkers = [];
-        let verifiedTimes = new Set();
+        // Apply institutional anti-clustering deduplication and plot distinct verified markers
+        applyVerifiedChartMarkers(realTrades);
 
-        if (realTrades.length > 0) {
-          realTrades.forEach(st => {
-            const isCall = st.direction === "LONG";
-            const dirSymbol = isCall ? "▲" : "▼";
-            const isWin = st.outcome === "WIN";
-            const isBeWin = st.outcome === "BE_WIN";
-            const isLoss = st.outcome === "LOSS";
-            const isActive = st.outcome === "ACTIVE";
-            const isEstimation = st.outcome === "SKIPPED_CIRCUIT_BREAKER" || st.skipped || st.isEstimation;
-
-            let markerText = `${dirSymbol} ${isCall ? 'CALL' : 'PUT'}`;
-            let markerColor = isCall ? "#38bdf8" : "#818cf8";
-            let markerPos = isCall ? "belowBar" : "aboveBar";
-            let markerShape = isCall ? "arrowUp" : "arrowDown";
-
-            if (isActive) {
-              markerText = `${dirSymbol} LIVE`;
-              markerColor = "#38bdf8";
-            } else if (isWin) {
-              const runnerPct = st.optionPnlPct || (st.realOption && st.realOption.targetGainPct) || "+72%";
-              const cleanPct = runnerPct.startsWith('+') ? runnerPct : `+${runnerPct}`;
-              markerText = `${dirSymbol} ${cleanPct}`;
-              markerColor = "#10b981";
-            } else if (isBeWin) {
-              markerText = `${dirSymbol} +25%`;
-              markerColor = "#10b981";
-            } else if (isLoss) {
-              markerText = `${dirSymbol} -30%`;
-              markerColor = "#f43f5e";
-            } else if (isEstimation) {
-              const estPct = st.optionPnlPct || (st.realOption && st.realOption.targetGainPct) || "+50%";
-              const cleanEst = estPct.startsWith('+') ? estPct : `+${estPct}`;
-              markerText = `${dirSymbol} EST (${cleanEst})`;
-              markerColor = "#f59e0b";
-            } else {
-              markerText = `${dirSymbol} SCR`;
-              markerColor = "#64748b";
-            }
-
-            verifiedMarkers.push({
-              time: st.time,
-              position: markerPos,
-              color: markerColor,
-              shape: markerShape,
-              text: markerText,
-              size: 1,
-              tradeRef: st
-            });
-            verifiedTimes.add(st.time);
-          });
-        }
-
-        // Strict 100% state sync: chart markers mirror verified real trades without phantom backtest markers
-        let chartMarkers = [...verifiedMarkers];
-        if (candleSeries) {
-          candleSeries.setMarkers(sanitizeMarkersNoOverlap(chartMarkers));
+        // Start automated background polling (every 25s) so trades alerted on Telegram map to the chart in real time
+        if (!window._sentinelFirestorePollInterval) {
+          window._sentinelFirestorePollInterval = setInterval(async () => {
+            try {
+              if (window.DeltaDB && typeof DeltaDB.fetchSignalTradesFromFirestore === 'function') {
+                const fresh = await DeltaDB.fetchSignalTradesFromFirestore();
+                if (fresh && fresh.length > 0) {
+                  const currLen = currentMasterTrades ? currentMasterTrades.length : 0;
+                  const freshLen = fresh.length;
+                  const latestFreshTime = fresh[0] ? fresh[0].time : 0;
+                  const latestCurrTime = (currentMasterTrades && currentMasterTrades[0]) ? currentMasterTrades[0].time : 0;
+                  if (freshLen !== currLen || latestFreshTime !== latestCurrTime) {
+                    console.log("[ChartEngine] Live Sentinel trade update synchronized from Firestore:", freshLen);
+                    currentMasterTrades = fresh;
+                    renderTradesTable(fresh);
+                    applyVerifiedChartMarkers(fresh);
+                  }
+                }
+              }
+            } catch (e) {}
+          }, 25000);
         }
 
         // Update Live Signal Radar Banner

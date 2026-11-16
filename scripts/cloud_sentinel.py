@@ -910,6 +910,8 @@ def run_sentinel():
 
     # 4. Check Active Trade Outcomes
     active_trade = state.get("active_trade")
+    just_exited = False
+
     if active_trade:
         trade_id = active_trade.get("id")
         entry = active_trade.get("entry")
@@ -921,6 +923,7 @@ def run_sentinel():
         target_p = active_trade.get("option", {}).get("target_price", round(buy_p * 1.5, 1))
         target_pct = active_trade.get("option", {}).get("target_pct", "+50.0%")
         tp1_p = active_trade.get("option", {}).get("tp1_price", round(buy_p * 1.5, 1))
+        is_est = bool(active_trade.get("skipped") or active_trade.get("isEstimation"))
 
         reached_tp1 = active_trade.get("reached_tp1", False)
         spot_dist = abs(tp - entry)
@@ -981,7 +984,8 @@ def run_sentinel():
             save_sentinel_state(state)
 
         elif is_win:
-            daily_counts["wins"] += 1
+            if not is_est:
+                daily_counts["wins"] += 1
             # Scaled Exit: 50% closed at TP1 (+50%) and 50% closed at TP2 (target_p)
             tp1_exit = tp1_p  # buy_p * 1.50
             tp2_exit = target_p  # full runner target
@@ -989,7 +993,18 @@ def run_sentinel():
             pts_gain = round(sell_p - buy_p, 1)
             blended_pct = round(((sell_p - buy_p) / buy_p) * 100, 1)
 
-            msg = f"""🏆 <b>DELTA INDIA TRADE TARGET HIT (+{blended_pct:.1f}%)</b>
+            if is_est:
+                msg = f"""🛡️ <b>DELTA INDIA SHADOW TARGET HIT (+{blended_pct:.1f}%) [ESTIMATION MODE]</b>
+━━━━━━━━━━━━━━━━━━━━━━
+🎯 <b>Observed Outcome:</b> 🟢 <b>ESTIMATION WIN (+{blended_pct:.1f}% Blended Gain)</b>
+🏷️ <b>Contract:</b> <code>{contract}</code>
+💰 <b>Theoretical Fill:</b> Buy: ${buy_p:.1f} ➔ <b>Blended Exit: ${sell_p:.1f} (+{blended_pct:.1f}%)</b>
+🎯 <b>BTC Spot:</b> ${entry:,.0f} ➔ <b>${current_price:,.0f} (Target Achieved)</b>
+⏰ <b>Alert Time:</b> {get_now_ist_str()}
+🛡️ <i>Risk Status: 2-SL Circuit Breaker protected capital (₹0 allocated). Outcome isolated from real mathematical totals.</i>
+🔗 <a href="https://delta-trading-journal-gmp.vercel.app/">Open Live Journal & Chart</a>"""
+            else:
+                msg = f"""🏆 <b>DELTA INDIA TRADE TARGET HIT (+{blended_pct:.1f}%)</b>
 ━━━━━━━━━━━━━━━━━━━━━━
 🎯 <b>Result:</b> 🟢 <b>WIN (+{blended_pct:.1f}% Blended Gain)</b>
 🏷️ <b>Contract:</b> <code>{contract}</code>
@@ -1012,15 +1027,30 @@ def run_sentinel():
             sync_trade_to_firestore(active_trade)
 
             state["active_trade"] = None
+            state["last_trade_time"] = int(time.time())
+            state["last_trade_direction"] = direction
             state["daily_counts"] = daily_counts
             save_sentinel_state(state)
+            just_exited = True
 
         elif is_be_win:
-            daily_counts["wins"] += 1
+            if not is_est:
+                daily_counts["wins"] += 1
             sell_p = round(buy_p * 1.25, 1) # 50% at +50%, 50% at Breakeven -> Net +25%
             pts_gain = round(sell_p - buy_p, 1)
 
-            msg = f"""🛡️ <b>DELTA INDIA TRAILED STOP BREAKEVEN HIT (+25% NET GAIN)</b>
+            if is_est:
+                msg = f"""🛡️ <b>DELTA INDIA SHADOW BREAKEVEN HIT (+25% NET GAIN) [ESTIMATION MODE]</b>
+━━━━━━━━━━━━━━━━━━━━━━
+🎯 <b>Observed Outcome:</b> 🟢 <b>BE WIN (+25.0% Net Trailed Profit)</b>
+🏷️ <b>Contract:</b> <code>{contract}</code>
+💰 <b>Theoretical Fill:</b> 50% at ${tp1_p:.1f} (+50%) + 50% at ${buy_p:.1f} (BE) ➔ <b>Net: ${sell_p:.1f} (+25.0%)</b>
+🎯 <b>BTC Spot:</b> Returned to entry ${entry:,.0f} after booking TP1
+⏰ <b>Alert Time:</b> {get_now_ist_str()}
+🛡️ <i>Risk Status: 2-SL Circuit Breaker protected capital (₹0 allocated). Outcome isolated from real mathematical totals.</i>
+🔗 <a href="https://delta-trading-journal-gmp.vercel.app/">Open Live Journal & Chart</a>"""
+            else:
+                msg = f"""🛡️ <b>DELTA INDIA TRAILED STOP BREAKEVEN HIT (+25% NET GAIN)</b>
 ━━━━━━━━━━━━━━━━━━━━━━
 🎯 <b>Result:</b> 🟢 <b>BE WIN (+25.0% Net Trailed Profit)</b>
 🏷️ <b>Contract:</b> <code>{contract}</code>
@@ -1043,15 +1073,30 @@ def run_sentinel():
             sync_trade_to_firestore(active_trade)
 
             state["active_trade"] = None
+            state["last_trade_time"] = int(time.time())
+            state["last_trade_direction"] = direction
             state["daily_counts"] = daily_counts
             save_sentinel_state(state)
+            just_exited = True
 
         elif is_loss:
-            daily_counts["losses"] += 1
+            if not is_est:
+                daily_counts["losses"] += 1
             sell_p = active_trade.get("option", {}).get("stop_price", round(buy_p * 0.7, 1))
             pts_loss = round(buy_p - sell_p, 1)
 
-            msg = f"""🛑 <b>DELTA INDIA STOP LOSS TRIGGERED</b>
+            if is_est:
+                msg = f"""🛡️ <b>DELTA INDIA SHADOW STOP LOSS HIT (-30.0%) [ESTIMATION MODE]</b>
+━━━━━━━━━━━━━━━━━━━━━━
+🎯 <b>Observed Outcome:</b> 🔴 <b>ESTIMATION LOSS (-30.0%)</b>
+🏷️ <b>Contract:</b> <code>{contract}</code>
+💰 <b>Theoretical Fill:</b> Buy: ${buy_p:.1f} ➔ <b>Exit: ${sell_p:.1f}</b> (-{pts_loss} pts)
+🎯 <b>BTC Spot:</b> ${entry:,.0f} ➔ <b>${current_price:,.0f} (Stop Hit)</b>
+⏰ <b>Alert Time:</b> {get_now_ist_str()}
+🛡️ <i>Risk Status: 2-SL Circuit Breaker protected capital (₹0 allocated). Zero capital drawdown.</i>
+🔗 <a href="https://delta-trading-journal-gmp.vercel.app/">Open Live Journal & Chart</a>"""
+            else:
+                msg = f"""🛑 <b>DELTA INDIA STOP LOSS TRIGGERED</b>
 ━━━━━━━━━━━━━━━━━━━━━━
 🎯 <b>Result:</b> 🔴 <b>LOSS (-30.0%)</b>
 🏷️ <b>Contract:</b> <code>{contract}</code>
@@ -1073,18 +1118,21 @@ def run_sentinel():
             sync_trade_to_firestore(active_trade)
 
             state["active_trade"] = None
+            state["last_trade_time"] = int(time.time())
+            state["last_trade_direction"] = direction
             state["daily_counts"] = daily_counts
             save_sentinel_state(state)
+            just_exited = True
 
             # Idea 12: Daily Loss Circuit Breaker Trigger
-            if daily_counts["losses"] >= 2:
+            if not is_est and daily_counts["losses"] >= 2:
                 cb_msg = f"""🛡️ <b>DELTA INDIA RISK CIRCUIT BREAKER ENGAGED</b>
 ━━━━━━━━━━━━━━━━━━━━━━
 ⚠️ <b>Daily Loss Threshold Hit:</b> 2/2 Losses Today
 🛑 <b>Action:</b> Signal generation halted for the remainder of today's session.
 ⏰ <b>Trigger Time:</b> {get_now_ist_str()}
 🔄 <b>Automatic Reset:</b> Tomorrow morning at 05:30 AM IST.
-💎 <i>Strict institutional risk discipline: Limiting daily drawdown to preserve capital.</i>
+💎 <i>Strict institutional risk discipline: Limiting daily drawdown to preserve capital. Subsequent setups evaluated in Estimation Mode only.</i>
 🔗 <a href="https://delta-trading-journal-gmp.vercel.app/">View Risk Dashboard</a>"""
                 send_telegram_message(bot_token, chat_id, cb_msg)
 
@@ -1095,16 +1143,32 @@ def run_sentinel():
     if state.get("active_trade"):
         active_name = state["active_trade"].get("name", "Active Trade")
         active_id = state["active_trade"].get("id", "Unknown")
-        print(f"[Sentinel] ⏳ ACTIVE TRADE IN FLIGHT: {active_name} ({active_id}). Skipping new setups until active position resolves.")
+        is_active_est = state["active_trade"].get("isEstimation", False)
+        print(f"[Sentinel] ⏳ ACTIVE {'ESTIMATION ' if is_active_est else ''}TRADE IN FLIGHT: {active_name} ({active_id}). Skipping new setups until active position resolves.")
+    elif just_exited:
+        print("[Sentinel] ⏳ Position just resolved on this candle. Allowing market structure to settle before scanning new setups.")
     else:
+        # Check cooldown to prevent duplicate / repeated trades on consecutive candles
+        last_trade_time = state.get("last_trade_time", 0)
+        last_trade_dir = state.get("last_trade_direction", "")
+        now_ts = int(time.time())
+        time_since_trade = now_ts - last_trade_time
+        MIN_COOLDOWN_SECONDS = 3600  # 4 candles (60 minutes)
+
         if circuit_breaker_active:
-            print(f"[Sentinel] 🛡️ CIRCUIT BREAKER ENGAGED ({daily_losses}/2 daily losses). Capital preserved: evaluating in Shadow Mode (Not Taken) for knowledge & observation.")
+            print(f"[Sentinel] 🛡️ CIRCUIT BREAKER ENGAGED ({daily_losses}/2 daily losses). Capital preserved: evaluating in Estimation Mode (Not Taken) for knowledge & observation.")
 
         # Multi-Timeframe 1H Trend Alignment (Idea 4)
         htf_trend = fetch_htf_trend_1h()
         print(f"[Sentinel] HTF 1H Macro Trend: {htf_trend['label']}")
 
         setup = evaluate_smc_setup(candles, htf_trend)
+        if setup:
+            # Check cooldown against repeated setups in same direction
+            if time_since_trade < MIN_COOLDOWN_SECONDS and setup["direction"] == last_trade_dir:
+                print(f"[Sentinel] ⏳ Cooldown active ({time_since_trade}s < {MIN_COOLDOWN_SECONDS}s). Skipping repeated {setup['direction']} signal.")
+                setup = None
+
         if setup:
             trade_id = setup["id"]
             last_alerted = state.get("last_alerted_trade_id")
@@ -1116,7 +1180,6 @@ def run_sentinel():
                 setup["option"] = opt
                 setup["session"] = session
 
-                daily_counts["trades_given"] += 1
                 is_call = (setup["direction"] == "LONG")
                 ist_time = datetime.fromtimestamp(setup["time"], tz=timezone(timedelta(hours=5, minutes=30))).strftime("%I:%M %p · %d %b")
 
@@ -1127,16 +1190,16 @@ def run_sentinel():
                     blended_target_pct = 75.0
 
                 if circuit_breaker_active:
-                    # 🛡️ Risk Guard Active: Mark setup as NOT TAKEN (0 capital allocated, educational tracking)
-                    setup["outcome"] = "SKIPPED_CIRCUIT_BREAKER"
+                    # 🛡️ Risk Guard Active: Log as Estimation Mode
+                    setup["outcome"] = "ACTIVE"
                     setup["skipped"] = True
+                    setup["isEstimation"] = True
                     setup["skippedReason"] = "2 SL Daily Limit Hit - Risk Guard Preserving Capital"
-                    setup["exitPrice"] = setup["entry"]
-                    setup["optionSellPrice"] = opt.get("entry_price", 0)
+                    setup["optionEntryLockedMark"] = opt.get("mark_price", 220)
 
-                    msg = f"""🛡️ <b>DELTA INDIA SHADOW SETUP (NOT TAKEN - 2 SL RISK GUARD)</b>
+                    msg = f"""🛡️ <b>DELTA INDIA ESTIMATION SETUP (2 SL RISK GUARD)</b>
 ━━━━━━━━━━━━━━━━━━━━━━
-🛑 <b>Execution Status:</b> 🛡️ <b>NOT TAKEN (2 SL Daily Limit Hit)</b>
+🛑 <b>Execution Status:</b> 🛡️ <b>ESTIMATION MODE (2 SL Daily Limit Hit)</b>
 🎯 <b>Observed Action:</b> {('🟢 BUY CALL OPTION' if is_call else '🔴 BUY PUT OPTION')}
 📌 <b>Setup Pattern:</b> {setup['name']}
 🏷️ <b>Delta Contract:</b> <code>{opt['symbol']}</code>
@@ -1163,20 +1226,24 @@ def run_sentinel():
 • <b>Confirmation:</b> {setup['rationale']['confirmation']}
 • <b>Momentum:</b> RSI {setup['rsi']} | {setup['rvol']}x RVOL
 
-🛡️ <i>Strict Risk Discipline: 2 SL hits reached today. Signal marked NOT TAKEN to eliminate drawdown risk. Synced to WebApp Radar & Paper Fund for knowledge & observation.</i>
+🛡️ <i>Strict Risk Discipline: 2 SL hits reached today. Signal logged as ESTIMATION to eliminate drawdown risk. Synced to WebApp Radar & Paper Fund for knowledge & observation (₹0 allocated).</i>
 📈 <b>DAILY TRACKER:</b> {daily_counts['trades_given']} Alerted ({daily_counts['wins']}W - {daily_counts['losses']}L) · 🛡️ Circuit Breaker: 🔴 Engaged (2/2)
 ⏰ <b>Alert Time:</b> {get_now_ist_str()} · (15m Candle: {ist_time} IST)
 🔗 <a href="https://delta-trading-journal-gmp.vercel.app/">Open Live Journal & Chart</a>"""
 
                     if send_telegram_message(bot_token, chat_id, msg):
                         state["last_alerted_trade_id"] = trade_id
-                        state["daily_counts"] = daily_counts
+                        state["active_trade"] = setup
+                        state["last_trade_time"] = int(time.time())
+                        state["last_trade_direction"] = setup["direction"]
                         save_sentinel_state(state)
-
-                        # Sync immediately to Firestore GP_DTJ_signal_trades
                         sync_trade_to_firestore(setup)
-                        print(f"[Sentinel] 🛡️ Shadow trade {trade_id} marked NOT TAKEN (2 SL Hit) and synced to Firestore & Telegram.")
+                        print(f"[Sentinel] 🛡️ Estimation trade {trade_id} logged as active estimation and synced to Firestore & Telegram.")
                 else:
+                    daily_counts["trades_given"] += 1
+                    setup["outcome"] = "ACTIVE"
+                    setup["optionEntryLockedMark"] = opt.get("mark_price", 220)
+
                     msg = f"""⚡ <b>DELTA INDIA 24/7 CLOUD SMC SIGNAL</b>
 ━━━━━━━━━━━━━━━━━━━━━━
 🎯 <b>Action:</b> {('🟢 BUY CALL OPTION' if is_call else '🔴 BUY PUT OPTION')}
@@ -1212,10 +1279,10 @@ def run_sentinel():
                     if send_telegram_message(bot_token, chat_id, msg):
                         state["last_alerted_trade_id"] = trade_id
                         state["active_trade"] = setup
+                        state["last_trade_time"] = int(time.time())
+                        state["last_trade_direction"] = setup["direction"]
                         state["daily_counts"] = daily_counts
                         save_sentinel_state(state)
-
-                        # Sync to Firestore GP_DTJ_signal_trades immediately
                         sync_trade_to_firestore(setup)
             else:
                 print(f"[Sentinel] Trade setup {trade_id} was already alerted previously.")
