@@ -1,58 +1,6 @@
 {
   "last_alerted_trade_id": "cloud_fvg_bear_1794833100",
-  "active_trade": {
-    "id": "cloud_fvg_bear_1794833100",
-    "name": "Bearish Fair Value Gap (FVG) Mitigation",
-    "direction": "SHORT",
-    "time": 1794833100,
-    "entry": 64138,
-    "tp": 63540,
-    "sl": 64459,
-    "rr": "1:1.9",
-    "rsi": 45.6,
-    "rvol": 1.02,
-    "rationale": {
-      "pattern": "Imbalance Void Mitigation",
-      "levelTested": "FVG Equilibrium ($64,236)",
-      "confirmation": "Price filled institutional imbalance and rejected with 1.02x RVOL",
-      "htfAlignment": "\ud83d\udd34 BEARISH CONFLUENCE (1H Macro Downtrend)",
-      "absorption": "Institutional Flow (1.02x RVOL)"
-    },
-    "htf_trend": {
-      "trend": "BEARISH",
-      "label": "\ud83d\udd34 BEARISH CONFLUENCE (1H Macro Downtrend)",
-      "cur_price": 64188,
-      "ema20": 64642,
-      "ema50": 65411
-    },
-    "option": {
-      "symbol": "P-BTC-64200-171126",
-      "strike": 64200.0,
-      "strike_tier": "Exact ATM (Delta ~0.50)",
-      "mark_price": 693.3,
-      "buy_zone": "$693.3 - $693.3",
-      "tp1_price": 1039.9,
-      "tp1_pct": "+50.0%",
-      "target_price": 1143.9,
-      "target_pct": "+65.0%",
-      "stop_price": 485.3,
-      "eff_delta": 0.55,
-      "iv_rating": "ELEVATED (High IV - Scalp Focus)",
-      "iv_badge": "\ud83d\udd34 ELEVATED"
-    },
-    "session": {
-      "name": "London Session (13:30 - 19:00 IST)",
-      "code": "LONDON",
-      "flag": "\u26a1",
-      "volatility": "High (Breakout & Liquidity Expansion)",
-      "tp_bias": "Structural Runner Expansion"
-    },
-    "outcome": "ACTIVE",
-    "skipped": true,
-    "isEstimation": true,
-    "skippedReason": "2 SL Daily Limit Hit - Risk Guard Preserving Capital",
-    "optionEntryLockedMark": 693.3
-  },
+  "active_trade": null,
   "last_alerted_catalyst_guid": null,
   "daily_counts": {
     "date": "2026-11-16",
@@ -61,6 +9,6 @@
     "losses": 2
   },
   "telegram_handshake_sent": true,
-  "last_trade_time": 1794834051,
+  "last_trade_time": 1794839730,
   "last_trade_direction": "SHORT"
 }
