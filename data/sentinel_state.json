@@ -7,7 +7,7 @@
     "time": 1794796200,
     "entry": 65123,
     "tp": 64374,
-    "sl": 65367,
+    "sl": 65123,
     "rr": "1:3.1",
     "rsi": 52.5,
     "rvol": 1.59,
@@ -46,7 +46,8 @@
       "flag": "\ud83c\udf10",
       "volatility": "Moderate (Mean-Reversion & S/R Sweeps)",
       "tp_bias": "Scalp Focus (TP1 priority)"
-    }
+    },
+    "reached_tp1": true
   },
   "last_alerted_catalyst_guid": null,
   "daily_counts": {
