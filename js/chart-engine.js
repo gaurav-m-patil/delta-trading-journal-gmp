@@ -25,6 +25,25 @@ window.DeltaLiveChart = (function() {
   let currentAnalysis = null;
   let selectedTrade = null;
   let currentMasterTrades = [];
+  let candleVolumeMap = new Map();
+  let volumeCapThreshold = 100000;
+
+  function calculateVolumeCapThreshold(candles) {
+    if (!candles || candles.length === 0) return 100000;
+    const volValues = candles.map(c => Number(c.volume) || 0).filter(v => v > 0).sort((a, b) => a - b);
+    if (volValues.length === 0) return 100000;
+    const idx95 = Math.floor(volValues.length * 0.95);
+    const p95Vol = volValues[idx95] || volValues[volValues.length - 1];
+    return Math.max(1000, p95Vol * 1.5);
+  }
+
+  function getSoftCappedVolume(v) {
+    if (!v || v <= 0) return 0;
+    if (v <= volumeCapThreshold) return v;
+    const excess = v - volumeCapThreshold;
+    // Smooth square-root dampening for outlier spikes so baseline volume bars maintain visual texture
+    return volumeCapThreshold + Math.sqrt(excess) * Math.sqrt(volumeCapThreshold) * 0.45;
+  }
 
   function getMasterTradesList() {
     const map = new Map();
@@ -79,7 +98,7 @@ window.DeltaLiveChart = (function() {
       }
     }
     if (volEl) {
-      const volVal = (v !== undefined && v !== null) ? (typeof v === 'object' ? v.value : v) : (c ? c.volume : 0);
+      const volVal = (v !== undefined && v !== null) ? (typeof v === 'object' ? v.value : v) : (c ? (candleVolumeMap.get(c.time) || c.volume) : 0);
       volEl.innerText = volVal ? Math.round(volVal).toLocaleString() : '--';
     }
   }
@@ -727,8 +746,8 @@ window.DeltaLiveChart = (function() {
       rightPriceScale: {
         borderColor: '#1e293b',
         scaleMargins: {
-          top: 0.12,
-          bottom: 0.25 // Leaves room for volume sub-pane
+          top: 0.08,
+          bottom: 0.20 // Dedicated bottom 20% breathing room for volume overlay & trade box safety
         }
       }
     });
@@ -742,13 +761,26 @@ window.DeltaLiveChart = (function() {
       wickDownColor: '#f43f5e'
     });
 
-    // Add Synchronized Volume Histogram Series (Confined strictly to bottom 12% so it never overpowers candles)
-    volumeSeries = chart.addHistogramSeries({
-      color: 'rgba(56, 189, 248, 0.4)',
-      priceFormat: { type: 'volume' },
-      priceScaleId: '', // Overlay over price scale with bottom margin
+    // Ensure candle price scale leaves bottom 20% unobstructed
+    candleSeries.priceScale().applyOptions({
       scaleMargins: {
-        top: 0.88,
+        top: 0.08,
+        bottom: 0.20
+      }
+    });
+
+    // Add Synchronized Volume Histogram Series (Idea 1+2 Hybrid: Strictly pinned to bottom 18% floor with clean axis)
+    volumeSeries = chart.addHistogramSeries({
+      priceFormat: { type: 'volume' },
+      priceScaleId: '', // Separate price scale overlay
+      lastValueVisible: false, // Prevents green volume badge colliding on right price scale
+      priceLineVisible: false
+    });
+
+    // Pin volume histogram strictly to bottom 18% (0.82 to 1.0)
+    volumeSeries.priceScale().applyOptions({
+      scaleMargins: {
+        top: 0.82,
         bottom: 0
       }
     });
@@ -799,9 +831,10 @@ window.DeltaLiveChart = (function() {
         return;
       }
       const cData = param.seriesData.get(candleSeries);
-      const vData = param.seriesData.get(volumeSeries);
       if (cData) {
-        updateChartLegend(cData, vData ? vData.value : null);
+        // Fast Map lookup for 100% accurate raw uncompressed volume in legend
+        const rawVol = candleVolumeMap.has(cData.time) ? candleVolumeMap.get(cData.time) : (cData.volume || null);
+        updateChartLegend(cData, rawVol);
       } else {
         updateChartLegend(null);
       }
@@ -979,13 +1012,20 @@ window.DeltaLiveChart = (function() {
 
     candleData = loadedBars;
 
+    // Fast Map for 100% accurate raw volume figures in legend
+    candleVolumeMap.clear();
+    candleData.forEach(c => candleVolumeMap.set(c.time, c.volume));
+
+    // Dynamic outlier soft-capping threshold
+    volumeCapThreshold = calculateVolumeCapThreshold(candleData);
+
     // Update Chart Series
     if (candleSeries) candleSeries.setData(candleData);
 
     const volumeData = candleData.map(c => ({
       time: c.time,
-      value: c.volume,
-      color: c.close >= c.open ? 'rgba(16, 185, 129, 0.35)' : 'rgba(244, 63, 94, 0.35)'
+      value: getSoftCappedVolume(c.volume),
+      color: c.close >= c.open ? 'rgba(16, 185, 129, 0.45)' : 'rgba(244, 63, 94, 0.45)'
     }));
     if (volumeSeries) volumeSeries.setData(volumeData);
 
@@ -1059,13 +1099,18 @@ window.DeltaLiveChart = (function() {
             volume: parseFloat(k.v)
           };
 
+          // Update raw volume map for exact crosshair hover legend
+          candleVolumeMap.set(updatedCandle.time, updatedCandle.volume);
+
           // Update TradingView Live Series instantly (0ms latency)
           candleSeries.update(updatedCandle);
-          volumeSeries.update({
-            time: updatedCandle.time,
-            value: updatedCandle.volume,
-            color: updatedCandle.close >= updatedCandle.open ? 'rgba(16, 185, 129, 0.4)' : 'rgba(244, 63, 94, 0.4)'
-          });
+          if (volumeSeries) {
+            volumeSeries.update({
+              time: updatedCandle.time,
+              value: getSoftCappedVolume(updatedCandle.volume),
+              color: updatedCandle.close >= updatedCandle.open ? 'rgba(16, 185, 129, 0.45)' : 'rgba(244, 63, 94, 0.45)'
+            });
+          }
 
           // Update current price in header
           const priceHeader = document.getElementById('chartLivePriceHeader');
