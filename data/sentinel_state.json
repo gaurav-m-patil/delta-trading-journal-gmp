@@ -1,10 +1,57 @@
 {
-  "last_alerted_trade_id": "cloud_bos_down_1794789000",
-  "active_trade": null,
+  "last_alerted_trade_id": "cloud_bear_1794796200",
+  "active_trade": {
+    "id": "cloud_bear_1794796200",
+    "name": "Bearish Order Block Resistance Rejection",
+    "direction": "SHORT",
+    "time": 1794796200,
+    "entry": 65123,
+    "tp": 64374,
+    "sl": 65367,
+    "rr": "1:3.1",
+    "rsi": 52.5,
+    "rvol": 1.59,
+    "rationale": {
+      "pattern": "Bearish Upper Wick Rejection",
+      "levelTested": "Resistance Liquidity Sweep ($65,294)",
+      "confirmation": "Sellers rejecting highs with 1.59x RVOL absorption",
+      "absorption": "Bearish Delta Absorption (53% wick + 1.59x RVOL)",
+      "htfAlignment": "\ud83d\udd34 BEARISH CONFLUENCE (1H Macro Downtrend)"
+    },
+    "htf_trend": {
+      "trend": "BEARISH",
+      "label": "\ud83d\udd34 BEARISH CONFLUENCE (1H Macro Downtrend)",
+      "cur_price": 65141,
+      "ema20": 64988,
+      "ema50": 65875
+    },
+    "option": {
+      "symbol": "P-BTC-65200-161126",
+      "strike": 65200.0,
+      "strike_tier": "Exact ATM (Delta ~0.50)",
+      "mark_price": 420.7,
+      "buy_zone": "$420.7 - $420.7",
+      "tp1_price": 631.0,
+      "tp1_pct": "+50.0%",
+      "target_price": 844.3,
+      "target_pct": "+100.7%",
+      "stop_price": 294.5,
+      "eff_delta": 0.57,
+      "iv_rating": "ELEVATED (High IV - Scalp Focus)",
+      "iv_badge": "\ud83d\udd34 ELEVATED"
+    },
+    "session": {
+      "name": "Asia Session (05:30 - 13:30 IST)",
+      "code": "ASIA",
+      "flag": "\ud83c\udf10",
+      "volatility": "Moderate (Mean-Reversion & S/R Sweeps)",
+      "tp_bias": "Scalp Focus (TP1 priority)"
+    }
+  },
   "last_alerted_catalyst_guid": null,
   "daily_counts": {
     "date": "2026-11-16",
-    "trades_given": 1,
+    "trades_given": 2,
     "wins": 0,
     "losses": 1
   },
