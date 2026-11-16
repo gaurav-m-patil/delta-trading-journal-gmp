@@ -1,10 +1,10 @@
 {
-  "last_alerted_trade_id": "cloud_fvg_bear_1794830400",
+  "last_alerted_trade_id": "cloud_fvg_bear_1794831300",
   "active_trade": null,
   "last_alerted_catalyst_guid": null,
   "daily_counts": {
     "date": "2026-11-16",
-    "trades_given": 6,
+    "trades_given": 7,
     "wins": 1,
     "losses": 2
   },
