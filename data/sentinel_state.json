@@ -1,6 +1,58 @@
 {
-  "last_alerted_trade_id": "cloud_bear_1794857400",
-  "active_trade": null,
+  "last_alerted_trade_id": "cloud_bear_1794870900",
+  "active_trade": {
+    "id": "cloud_bear_1794870900",
+    "name": "Bearish Order Block Resistance Rejection",
+    "direction": "SHORT",
+    "time": 1794870900,
+    "entry": 65165,
+    "tp": 64581,
+    "sl": 65327,
+    "rr": "1:3.6",
+    "rsi": 54.3,
+    "rvol": 0.43,
+    "rationale": {
+      "pattern": "Bearish Upper Wick Rejection",
+      "levelTested": "Resistance Liquidity Sweep ($65,198)",
+      "confirmation": "Sellers rejecting highs with 0.43x RVOL absorption",
+      "absorption": "Bearish Delta Absorption (33% wick + 0.43x RVOL)",
+      "htfAlignment": "\ud83d\udd34 BEARISH CONFLUENCE (1H Macro Downtrend)"
+    },
+    "htf_trend": {
+      "trend": "BEARISH",
+      "label": "\ud83d\udd34 BEARISH CONFLUENCE (1H Macro Downtrend)",
+      "cur_price": 65192,
+      "ema20": 64909,
+      "ema50": 65286
+    },
+    "option": {
+      "symbol": "P-BTC-65200-171126",
+      "strike": 65200.0,
+      "strike_tier": "Exact ATM (Delta ~0.50)",
+      "mark_price": 396.3,
+      "buy_zone": "$396.3 - $396.3",
+      "tp1_price": 594.5,
+      "tp1_pct": "+50.0%",
+      "target_price": 718.1,
+      "target_pct": "+81.2%",
+      "stop_price": 277.4,
+      "eff_delta": 0.55,
+      "iv_rating": "ELEVATED (High IV - Scalp Focus)",
+      "iv_badge": "\ud83d\udd34 ELEVATED"
+    },
+    "session": {
+      "name": "Off-Hours Drift (02:30 - 05:30 IST)",
+      "code": "DRIFT",
+      "flag": "\ud83c\udf19",
+      "volatility": "Low (Consolidation Range)",
+      "tp_bias": "Strict Scalp Derisk"
+    },
+    "outcome": "ACTIVE",
+    "skipped": true,
+    "isEstimation": true,
+    "skippedReason": "2 SL Daily Limit Hit - Risk Guard Preserving Capital",
+    "optionEntryLockedMark": 396.3
+  },
   "last_alerted_catalyst_guid": null,
   "daily_counts": {
     "date": "2026-11-16",
@@ -9,6 +61,6 @@
     "losses": 2
   },
   "telegram_handshake_sent": true,
-  "last_trade_time": 1794859245,
+  "last_trade_time": 1794871845,
   "last_trade_direction": "SHORT"
 }
