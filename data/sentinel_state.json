@@ -1,59 +1,12 @@
 {
   "last_alerted_trade_id": "cloud_bos_down_1794807900",
-  "active_trade": {
-    "id": "cloud_bos_down_1794807900",
-    "name": "Bearish Break of Structure (BOS)",
-    "direction": "SHORT",
-    "time": 1794807900,
-    "entry": 64445,
-    "tp": 63868,
-    "sl": 64734,
-    "rr": "1:2.0",
-    "rsi": 27.7,
-    "rvol": 2.6,
-    "rationale": {
-      "pattern": "Trend Continuation Breakdown",
-      "levelTested": "Key Structure Floor ($64,594)",
-      "confirmation": "Aggressive institutional selling breaking prior structure with 2.6x RVOL",
-      "htfAlignment": "\ud83d\udd34 BEARISH CONFLUENCE (1H Macro Downtrend)",
-      "absorption": "Institutional Flow (2.6x RVOL)"
-    },
-    "htf_trend": {
-      "trend": "BEARISH",
-      "label": "\ud83d\udd34 BEARISH CONFLUENCE (1H Macro Downtrend)",
-      "cur_price": 64343,
-      "ema20": 64871,
-      "ema50": 65709
-    },
-    "option": {
-      "symbol": "P-BTC-64400-161126",
-      "strike": 64400.0,
-      "strike_tier": "Exact ATM (Delta ~0.50)",
-      "mark_price": 324.0,
-      "buy_zone": "$324.0 - $324.0",
-      "tp1_price": 486.0,
-      "tp1_pct": "+50.0%",
-      "target_price": 641.6,
-      "target_pct": "+98.0%",
-      "stop_price": 226.8,
-      "eff_delta": 0.55,
-      "iv_rating": "ELEVATED (High IV - Scalp Focus)",
-      "iv_badge": "\ud83d\udd34 ELEVATED"
-    },
-    "session": {
-      "name": "Asia Session (05:30 - 13:30 IST)",
-      "code": "ASIA",
-      "flag": "\ud83c\udf10",
-      "volatility": "Moderate (Mean-Reversion & S/R Sweeps)",
-      "tp_bias": "Scalp Focus (TP1 priority)"
-    }
-  },
+  "active_trade": null,
   "last_alerted_catalyst_guid": null,
   "daily_counts": {
     "date": "2026-11-16",
     "trades_given": 3,
     "wins": 1,
-    "losses": 1
+    "losses": 2
   },
   "telegram_handshake_sent": true
 }
