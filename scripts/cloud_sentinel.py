@@ -886,15 +886,14 @@ def run_sentinel():
     # 2b. One-Time Connection Handshake (Confirms to trader that Sentinel is alive)
     if not state.get("telegram_handshake_sent", False):
         welcome_msg = f"""🟢 <b>DELTA INDIA 24/7 CLOUD SENTINEL CONNECTED</b>
-━━━━━━━━━━━━━━━━━━━━━━
-✅ <b>Status:</b> Active & Monitoring (24/7/365)
+━━━━━━━━━━━━━━━━━━━━━━━━
 ⚡ <b>Target Feed:</b> Delta Exchange India (BTCUSD 15m)
-📊 <b>Strategy Engine:</b> Institutional SMC Sweeps, FVGs & BOS
-🎯 <b>Option Execution:</b> Dynamic Delta Potential (TP1 +50% Derisk / TP2 Full Runner)
-⏰ <b>Connection Time:</b> {get_now_ist_str()}
+📊 <b>Strategy:</b> Institutional SMC Sweeps, FVGs & BOS
+🎯 <b>Execution:</b> Dynamic Option Potential (TP1 +50% / TP2 Runner)
+⏰ <b>Time:</b> {get_now_ist_str()}
 
-<i>You will now receive confirmed trade entries, profit targets, and market catalysts automatically even when your app is completely closed.</i>
-🔗 <a href="https://delta-trading-journal-gmp.vercel.app/">Open Live Journal & Chart</a>"""
+<i>Confirmed trade entries, dynamic targets, and risk alerts will appear here in real time.</i>
+🔗 <a href="https://delta-trading-journal-gmp.vercel.app/chart.html">Open Live Chart & Terminal</a>"""
         if send_telegram_message(bot_token, chat_id, welcome_msg):
             state["telegram_handshake_sent"] = True
             save_sentinel_state(state)
@@ -969,15 +968,18 @@ def run_sentinel():
             # Trailed Stop Activation: Derisk 50% & Move SL to Breakeven
             active_trade["reached_tp1"] = True
             active_trade["sl"] = entry # Breakeven
-            tp1_msg = f"""🛡️ <b>DELTA INDIA TARGET 1 HIT (+50.0% DERISK)</b>
-━━━━━━━━━━━━━━━━━━━━━━
-🎯 <b>Action:</b> 🟢 <b>50% POSITION LOCKED IN PROFIT</b>
-🏷️ <b>Contract:</b> <code>{contract}</code>
-💰 <b>Option Fill:</b> Buy: ${buy_p:.1f} ➔ <b>TP1 Booked: ${tp1_p:.1f} (+50.0%)</b>
-🎯 <b>Stop Trailed:</b> Invalidation moved to <b>Breakeven (${entry:,.0f})</b>
-⏰ <b>Alert Time:</b> {get_now_ist_str()}
-⚡ <i>Risk Status: Zero downside risk remaining. Trailing remaining 50% for full structural expansion to Target 2 (${tp:,.0f})!</i>
-🔗 <a href="https://delta-trading-journal-gmp.vercel.app/">Open Live Journal & Chart</a>"""
+            est_prefix = "🛡️ <b>[ESTIMATION]</b> " if is_est else ""
+            tp1_msg = f"""{est_prefix}🎯 <b>TARGET 1 HIT (+50.0% DERISK)</b>
+🏷️ <code>{contract}</code>
+
+💰 <b>DERISK EXECUTION</b>
+• Booked: <b>${tp1_p:.1f} (+50.0% Profit on 50% Position)</b>
+• Initial Fill: ${buy_p:.1f}
+• Stop Status: <b>Trailed to Breakeven (${entry:,.0f})</b>
+
+⚡ <i>Zero downside risk remaining. Trailing remaining 50% runner to Target 2 (${tp:,.0f})!</i>
+⏰ <i>{get_now_ist_str()}</i>
+🔗 <a href="https://delta-trading-journal-gmp.vercel.app/chart.html">Open Live Chart</a>"""
             send_telegram_message(bot_token, chat_id, tp1_msg)
             sync_trade_to_firestore(active_trade)
             state["active_trade"] = active_trade
@@ -994,31 +996,33 @@ def run_sentinel():
             blended_pct = round(((sell_p - buy_p) / buy_p) * 100, 1)
 
             if is_est:
-                msg = f"""🛡️ <b>DELTA INDIA SHADOW TARGET HIT (+{blended_pct:.1f}%) [ESTIMATION MODE]</b>
-━━━━━━━━━━━━━━━━━━━━━━
-🎯 <b>Observed Outcome:</b> 🟢 <b>ESTIMATION WIN (+{blended_pct:.1f}% Blended Gain)</b>
-🏷️ <b>Contract:</b> <code>{contract}</code>
-💰 <b>Theoretical Fill:</b> Buy: ${buy_p:.1f} ➔ <b>Blended Exit: ${sell_p:.1f} (+{blended_pct:.1f}%)</b>
-🎯 <b>BTC Spot:</b> ${entry:,.0f} ➔ <b>${current_price:,.0f} (Target Achieved)</b>
-⏰ <b>Alert Time:</b> {get_now_ist_str()}
-🛡️ <i>Risk Status: 2-SL Circuit Breaker protected capital (₹0 allocated). Outcome isolated from real mathematical totals.</i>
-🔗 <a href="https://delta-trading-journal-gmp.vercel.app/">Open Live Journal & Chart</a>"""
+                msg = f"""🛡️ <b>ESTIMATION TARGET HIT (+{blended_pct:.1f}%)</b>
+🏷️ <code>{contract}</code>
+
+💰 <b>THEORETICAL RETURN (OBSERVATION ONLY)</b>
+• Fill: ${buy_p:.1f} ➔ <b>Blended Exit: ${sell_p:.1f} (+{blended_pct:.1f}%)</b>
+• Spot Move: ${entry:,.0f} ➔ <b>${current_price:,.0f}</b>
+• Risk Guard: <i>2-SL Protection active. Capital preserved (₹0 risk).</i>
+
+⏰ <i>{get_now_ist_str()}</i>
+🔗 <a href="https://delta-trading-journal-gmp.vercel.app/chart.html">Open Live Chart</a>"""
             else:
-                msg = f"""🏆 <b>DELTA INDIA TRADE TARGET HIT (+{blended_pct:.1f}%)</b>
-━━━━━━━━━━━━━━━━━━━━━━
-🎯 <b>Result:</b> 🟢 <b>WIN (+{blended_pct:.1f}% Blended Gain)</b>
-🏷️ <b>Contract:</b> <code>{contract}</code>
-💰 <b>Option Realization:</b> 50% booked at ${tp1_exit:.1f} (+50%) + 50% at ${tp2_exit:.1f} ({target_pct}) ➔ <b>Blended Fill: ${sell_p:.1f} (+{blended_pct:.1f}%)</b>
-🎯 <b>BTC Spot:</b> ${entry:,.0f} ➔ <b>${current_price:,.0f} (Target Achieved)</b>
-⏰ <b>Alert Time:</b> {get_now_ist_str()}
+                total_resolved = daily_counts['wins'] + daily_counts['losses']
+                win_rate_calc = round((daily_counts['wins'] / max(1, total_resolved)) * 100)
+                msg = f"""🏆 <b>TRADE TARGET HIT (+{blended_pct:.1f}% NET GAIN)</b>
+🏷️ <code>{contract}</code>
 
-📊 <b>TODAY'S SCORECARD:</b>
-• Total Given: <b>{daily_counts['trades_given']}</b>
-• Won: <b>{daily_counts['wins']}</b> | Lost: <b>{daily_counts['losses']}</b>
-• Win Rate: <b>{round((daily_counts['wins'] / max(1, daily_counts['wins'] + daily_counts['losses'])) * 100)}%</b>
+💰 <b>REALIZED RETURN</b>
+• Entry: ${buy_p:.1f} ➔ <b>Blended Exit: ${sell_p:.1f} (+{blended_pct:.1f}%)</b>
+• 50% booked at TP1 (+50%) + 50% at TP2 ({target_pct})
+• BTC Spot: ${entry:,.0f} ➔ <b>${current_price:,.0f}</b>
 
-⚡ <i>Institutional execution: Scalp target booked at TP1 (+50%), runner captured full structural liquidity expansion at TP2! Blended net return: +{blended_pct:.1f}%.</i>
-🔗 <a href="https://delta-trading-journal-gmp.vercel.app/">Open Live Journal & Chart</a>"""
+📊 <b>TODAY'S SCORECARD</b>
+• Record: <b>{daily_counts['wins']}W - {daily_counts['losses']}L</b> ({win_rate_calc}% Win Rate)
+• Total Alerts: <b>{daily_counts['trades_given']}</b>
+
+⏰ <i>{get_now_ist_str()}</i>
+🔗 <a href="https://delta-trading-journal-gmp.vercel.app/chart.html">Open Live Chart</a>"""
             send_telegram_message(bot_token, chat_id, msg)
             active_trade["outcome"] = "WIN"
             active_trade["exitPrice"] = current_price
@@ -1040,31 +1044,30 @@ def run_sentinel():
             pts_gain = round(sell_p - buy_p, 1)
 
             if is_est:
-                msg = f"""🛡️ <b>DELTA INDIA SHADOW BREAKEVEN HIT (+25% NET GAIN) [ESTIMATION MODE]</b>
-━━━━━━━━━━━━━━━━━━━━━━
-🎯 <b>Observed Outcome:</b> 🟢 <b>BE WIN (+25.0% Net Trailed Profit)</b>
-🏷️ <b>Contract:</b> <code>{contract}</code>
-💰 <b>Theoretical Fill:</b> 50% at ${tp1_p:.1f} (+50%) + 50% at ${buy_p:.1f} (BE) ➔ <b>Net: ${sell_p:.1f} (+25.0%)</b>
-🎯 <b>BTC Spot:</b> Returned to entry ${entry:,.0f} after booking TP1
-⏰ <b>Alert Time:</b> {get_now_ist_str()}
-🛡️ <i>Risk Status: 2-SL Circuit Breaker protected capital (₹0 allocated). Outcome isolated from real mathematical totals.</i>
-🔗 <a href="https://delta-trading-journal-gmp.vercel.app/">Open Live Journal & Chart</a>"""
+                msg = f"""🛡️ <b>ESTIMATION TRAILED STOP BREAKEVEN (+25.0%)</b>
+🏷️ <code>{contract}</code>
+
+💰 <b>THEORETICAL RETURN</b>
+• Net Realization: <b>+25.0% Net Profit</b> (50% booked at +50%, 50% at BE)
+• BTC Spot: Returned to entry ${entry:,.0f} after TP1
+
+⏰ <i>{get_now_ist_str()}</i>
+🔗 <a href="https://delta-trading-journal-gmp.vercel.app/chart.html">Open Live Chart</a>"""
             else:
-                msg = f"""🛡️ <b>DELTA INDIA TRAILED STOP BREAKEVEN HIT (+25% NET GAIN)</b>
-━━━━━━━━━━━━━━━━━━━━━━
-🎯 <b>Result:</b> 🟢 <b>BE WIN (+25.0% Net Trailed Profit)</b>
-🏷️ <b>Contract:</b> <code>{contract}</code>
-💰 <b>Option Realization:</b> 50% booked at ${tp1_p:.1f} (+50%) + 50% at ${buy_p:.1f} (BE) ➔ <b>Net: ${sell_p:.1f} (+25.0%)</b>
-🎯 <b>BTC Spot:</b> Returned to entry ${entry:,.0f} after booking TP1
-⏰ <b>Alert Time:</b> {get_now_ist_str()}
+                msg = f"""🛡️ <b>TRAILED STOP BREAKEVEN HIT (+25.0% NET PROFIT)</b>
+🏷️ <code>{contract}</code>
 
-📊 <b>TODAY'S SCORECARD:</b>
-• Total Given: <b>{daily_counts['trades_given']}</b>
-• Won: <b>{daily_counts['wins']}</b> | Lost: <b>{daily_counts['losses']}</b>
-• Win Rate: <b>{round((daily_counts['wins'] / max(1, daily_counts['wins'] + daily_counts['losses'])) * 100)}%</b>
+💰 <b>REALIZED RETURN</b>
+• Entry: ${buy_p:.1f} ➔ <b>Net Exit: ${sell_p:.1f} (+25.0%)</b>
+• Scalp booked +50% at TP1; remaining position exited at Breakeven
+• BTC Spot: Returned to entry ${entry:,.0f} after booking TP1
 
-⚡ <i>Capital Protection in Action: Market reversed after initial impulse, but trailed stop locked in +25% net profit!</i>
-🔗 <a href="https://delta-trading-journal-gmp.vercel.app/">Open Live Journal & Chart</a>"""
+📊 <b>TODAY'S SCORECARD</b>
+• Record: <b>{daily_counts['wins']}W - {daily_counts['losses']}L</b>
+• Trailed Stop protected profits after market reversal
+
+⏰ <i>{get_now_ist_str()}</i>
+🔗 <a href="https://delta-trading-journal-gmp.vercel.app/chart.html">Open Live Chart</a>"""
             send_telegram_message(bot_token, chat_id, msg)
             active_trade["outcome"] = "BE_WIN"
             active_trade["exitPrice"] = current_price
@@ -1086,30 +1089,30 @@ def run_sentinel():
             pts_loss = round(buy_p - sell_p, 1)
 
             if is_est:
-                msg = f"""🛡️ <b>DELTA INDIA SHADOW STOP LOSS HIT (-30.0%) [ESTIMATION MODE]</b>
-━━━━━━━━━━━━━━━━━━━━━━
-🎯 <b>Observed Outcome:</b> 🔴 <b>ESTIMATION LOSS (-30.0%)</b>
-🏷️ <b>Contract:</b> <code>{contract}</code>
-💰 <b>Theoretical Fill:</b> Buy: ${buy_p:.1f} ➔ <b>Exit: ${sell_p:.1f}</b> (-{pts_loss} pts)
-🎯 <b>BTC Spot:</b> ${entry:,.0f} ➔ <b>${current_price:,.0f} (Stop Hit)</b>
-⏰ <b>Alert Time:</b> {get_now_ist_str()}
-🛡️ <i>Risk Status: 2-SL Circuit Breaker protected capital (₹0 allocated). Zero capital drawdown.</i>
-🔗 <a href="https://delta-trading-journal-gmp.vercel.app/">Open Live Journal & Chart</a>"""
+                msg = f"""🛡️ <b>ESTIMATION STOP LOSS HIT (-30.0%)</b>
+🏷️ <code>{contract}</code>
+
+💰 <b>THEORETICAL DRAWDOWN</b>
+• Exit: ${sell_p:.1f} (-{pts_loss} pts / -30.0%)
+• BTC Spot: ${entry:,.0f} ➔ <b>${current_price:,.0f}</b>
+• Status: <i>2-SL Rule preserved capital. Zero real loss.</i>
+
+⏰ <i>{get_now_ist_str()}</i>
+🔗 <a href="https://delta-trading-journal-gmp.vercel.app/chart.html">Open Live Chart</a>"""
             else:
-                msg = f"""🛑 <b>DELTA INDIA STOP LOSS TRIGGERED</b>
-━━━━━━━━━━━━━━━━━━━━━━
-🎯 <b>Result:</b> 🔴 <b>LOSS (-30.0%)</b>
-🏷️ <b>Contract:</b> <code>{contract}</code>
-💰 <b>Option Fill:</b> Buy: ${buy_p:.1f} ➔ <b>Exit: ${sell_p:.1f}</b> (-{pts_loss} pts)
-🎯 <b>BTC Spot:</b> ${entry:,.0f} ➔ <b>${current_price:,.0f} (Stop Hit)</b>
-⏰ <b>Alert Time:</b> {get_now_ist_str()}
+                msg = f"""🛑 <b>STOP LOSS TRIGGERED (-30.0%)</b>
+🏷️ <code>{contract}</code>
 
-📊 <b>TODAY'S SCORECARD:</b>
-• Total Given: <b>{daily_counts['trades_given']}</b>
-• Won: <b>{daily_counts['wins']}</b> | Lost: <b>{daily_counts['losses']}</b>
+💰 <b>CAPITAL PRESERVATION EXIT</b>
+• Entry: ${buy_p:.1f} ➔ <b>Exit: ${sell_p:.1f} (-{pts_loss} pts / -30.0%)</b>
+• BTC Spot: ${entry:,.0f} ➔ <b>${current_price:,.0f} (Invalidation Hit)</b>
 
-⚡ <i>Strict risk discipline: Capital preserved by cutting loss at -30% limit.</i>
-🔗 <a href="https://delta-trading-journal-gmp.vercel.app/">Open Live Journal & Chart</a>"""
+📊 <b>TODAY'S SCORECARD</b>
+• Record: <b>{daily_counts['wins']}W - {daily_counts['losses']}L</b>
+• Strict Risk Discipline: Position cut cleanly at -30% limit
+
+⏰ <i>{get_now_ist_str()}</i>
+🔗 <a href="https://delta-trading-journal-gmp.vercel.app/chart.html">Open Live Chart</a>"""
             send_telegram_message(bot_token, chat_id, msg)
             active_trade["outcome"] = "LOSS"
             active_trade["exitPrice"] = current_price
@@ -1126,14 +1129,15 @@ def run_sentinel():
 
             # Idea 12: Daily Loss Circuit Breaker Trigger
             if not is_est and daily_counts["losses"] >= 2:
-                cb_msg = f"""🛡️ <b>DELTA INDIA RISK CIRCUIT BREAKER ENGAGED</b>
-━━━━━━━━━━━━━━━━━━━━━━
-⚠️ <b>Daily Loss Threshold Hit:</b> 2/2 Losses Today
-🛑 <b>Action:</b> Signal generation halted for the remainder of today's session.
-⏰ <b>Trigger Time:</b> {get_now_ist_str()}
-🔄 <b>Automatic Reset:</b> Tomorrow morning at 05:30 AM IST.
-💎 <i>Strict institutional risk discipline: Limiting daily drawdown to preserve capital. Subsequent setups evaluated in Estimation Mode only.</i>
-🔗 <a href="https://delta-trading-journal-gmp.vercel.app/">View Risk Dashboard</a>"""
+                cb_msg = f"""🛡️ <b>RISK CIRCUIT BREAKER ENGAGED (2/2 LOSSES)</b>
+━━━━━━━━━━━━━━━━━━━━━━━━
+⚠️ <b>Status:</b> Signal generation halted for today's session.
+🛑 <b>Reason:</b> 2 Consecutive Stop Losses reached.
+🔄 <b>Reset:</b> Automatically resets at 05:30 AM IST tomorrow.
+
+💎 <i>Capital Protection First: Any further market setups will be evaluated in Estimation Mode only (₹0 capital allocated).</i>
+⏰ <i>{get_now_ist_str()}</i>
+🔗 <a href="https://delta-trading-journal-gmp.vercel.app/chart.html">View Risk Dashboard</a>"""
                 send_telegram_message(bot_token, chat_id, cb_msg)
 
     # 5. Evaluate New SMC Setups (Sweeps, FVGs, BOS)
@@ -1197,39 +1201,28 @@ def run_sentinel():
                     setup["skippedReason"] = "2 SL Daily Limit Hit - Risk Guard Preserving Capital"
                     setup["optionEntryLockedMark"] = opt.get("mark_price", 220)
 
-                    msg = f"""🛡️ <b>DELTA INDIA ESTIMATION SETUP (2 SL RISK GUARD)</b>
-━━━━━━━━━━━━━━━━━━━━━━
-🛑 <b>Execution Status:</b> 🛡️ <b>ESTIMATION MODE (2 SL Daily Limit Hit)</b>
-🎯 <b>Observed Action:</b> {('🟢 BUY CALL OPTION' if is_call else '🔴 BUY PUT OPTION')}
-📌 <b>Setup Pattern:</b> {setup['name']}
-🏷️ <b>Delta Contract:</b> <code>{opt['symbol']}</code>
-🏛️ <b>Trading Session:</b> {session['flag']} <b>{session['name']}</b> ({session['volatility']})
-💎 <b>Option Pricing (IV):</b> {opt.get('iv_badge', '🟡 FAIR')} <i>({opt.get('iv_rating', 'Calibrated')})</i>
-🏛️ <b>1H Trend Alignment:</b> {setup.get('htf_trend', {}).get('label', '⚪ Neutral')}
+                    action_title = "🟡 BUY CALL (ESTIMATION)" if is_call else "🟡 BUY PUT (ESTIMATION)"
+                    entry_p = opt.get("mark_price", 220)
+                    msg = f"""<b>{action_title}</b>
+🏷️ <code>{opt['symbol']}</code> · 🛡️ <b>2-SL Risk Guard</b>
 
-📊 <b>DYNAMIC OPTION TARGETS (OBSERVATION ONLY):</b>
-• <b>Option Buy Zone:</b> {opt['buy_zone']}
-• <b>Target 1 (Scalp / Derisk):</b> ${opt['tp1_price']:.1f} ({opt['tp1_pct']}) ➔ <i>Lock 50% & Move SL to BE</i>
-• <b>Target 2 (Structural Potential):</b> ${opt['target_price']:.1f} ({opt['target_pct']} Runner)
-• <b>Blended Net Target:</b> +{blended_target_pct:.1f}% <i>(50% @ TP1 + 50% @ TP2)</i>
-• <b>Option Invalidation (SL):</b> ${opt['stop_price']:.1f} (-30.0%)
+🎯 <b>OBSERVATION PARAMETERS (₹0 RISK)</b>
+• Buy Zone: <b>{opt['buy_zone']}</b> (Mark: ${entry_p:.1f})
+• Hard Stop (SL): <b>${opt['stop_price']:.1f}</b> (-30.0%)
 
-🎯 <b>BTC SPOT TRIGGER LEVEL:</b>
-• <b>Spot Entry:</b> ${setup['entry']:,}
-• <b>Target Level:</b> ${setup['tp']:,} (R:R {setup['rr']})
-• <b>Invalidation (SL):</b> ${setup['sl']:,}
+📈 <b>PROJECTED TARGETS</b>
+• Target 1: <b>${opt['tp1_price']:.1f}</b> ({opt['tp1_pct']}) ➔ <i>Lock 50% & Move SL to BE</i>
+• Target 2: <b>${opt['target_price']:.1f}</b> ({opt['target_pct']} Runner)
+• Blended Net: <b>+{blended_target_pct:.1f}%</b>
 
-🧠 <b>INSTITUTIONAL SETUP LOGIC:</b>
-• <b>Level Tested:</b> {setup['rationale']['levelTested']}
-• <b>Pattern:</b> {setup['rationale']['pattern']}
-• <b>Absorption & Delta:</b> {setup['rationale'].get('absorption', 'Order Flow')}
-• <b>Confirmation:</b> {setup['rationale']['confirmation']}
-• <b>Momentum:</b> RSI {setup['rsi']} | {setup['rvol']}x RVOL
+🔍 <b>SMC CONTEXT & SPOT REF</b>
+• Spot: <b>${setup['entry']:,}</b> ➔ TP <b>${setup['tp']:,}</b> (R:R {setup['rr']}) | SL <b>${setup['sl']:,}</b>
+• Pattern: {setup['name']}
+• Edge: {setup['rationale']['levelTested']} · {setup['rvol']}x RVOL
+• Status: <i>2 SL hit today. Signal tracked for learning only. Zero capital allocated.</i>
 
-🛡️ <i>Strict Risk Discipline: 2 SL hits reached today. Signal logged as ESTIMATION to eliminate drawdown risk. Synced to WebApp Radar & Paper Fund for knowledge & observation (₹0 allocated).</i>
-📈 <b>DAILY TRACKER:</b> {daily_counts['trades_given']} Alerted ({daily_counts['wins']}W - {daily_counts['losses']}L) · 🛡️ Circuit Breaker: 🔴 Engaged (2/2)
-⏰ <b>Alert Time:</b> {get_now_ist_str()} · (15m Candle: {ist_time} IST)
-🔗 <a href="https://delta-trading-journal-gmp.vercel.app/">Open Live Journal & Chart</a>"""
+⏰ <i>{get_now_ist_str()}</i>
+🔗 <a href="https://delta-trading-journal-gmp.vercel.app/chart.html">Open Live Chart</a>"""
 
                     if send_telegram_message(bot_token, chat_id, msg):
                         state["last_alerted_trade_id"] = trade_id
@@ -1244,37 +1237,28 @@ def run_sentinel():
                     setup["outcome"] = "ACTIVE"
                     setup["optionEntryLockedMark"] = opt.get("mark_price", 220)
 
-                    msg = f"""⚡ <b>DELTA INDIA 24/7 CLOUD SMC SIGNAL</b>
-━━━━━━━━━━━━━━━━━━━━━━
-🎯 <b>Action:</b> {('🟢 BUY CALL OPTION' if is_call else '🔴 BUY PUT OPTION')}
-📌 <b>Setup Pattern:</b> {setup['name']}
-🏷️ <b>Delta Contract:</b> <code>{opt['symbol']}</code>
-🏛️ <b>Trading Session:</b> {session['flag']} <b>{session['name']}</b> ({session['volatility']})
-💎 <b>Option Pricing (IV):</b> {opt.get('iv_badge', '🟡 FAIR')} <i>({opt.get('iv_rating', 'Calibrated')})</i>
-🏛️ <b>1H Trend Alignment:</b> {setup.get('htf_trend', {}).get('label', '⚪ Neutral')}
+                    action_title = "🟢 BUY CALL OPTION" if is_call else "🔴 BUY PUT OPTION"
+                    entry_p = opt.get("mark_price", 220)
+                    msg = f"""<b>{action_title}</b>
+🏷️ <code>{opt['symbol']}</code> · {session['flag']} <b>{session['name']}</b>
 
-📊 <b>DYNAMIC OPTION TARGETS:</b>
-• <b>Option Buy Zone:</b> {opt['buy_zone']}
-• <b>Target 1 (Scalp / Derisk):</b> ${opt['tp1_price']:.1f} ({opt['tp1_pct']}) ➔ <i>Lock 50% & Move SL to BE</i>
-• <b>Target 2 (Structural Potential):</b> ${opt['target_price']:.1f} ({opt['target_pct']} Runner)
-• <b>Blended Net Target:</b> +{blended_target_pct:.1f}% <i>(50% @ TP1 + 50% @ TP2)</i>
-• <b>Option Invalidation (SL):</b> ${opt['stop_price']:.1f} (-30.0%)
+🎯 <b>EXECUTION PARAMETERS</b>
+• Buy Zone: <b>{opt['buy_zone']}</b> (Mark: ${entry_p:.1f})
+• Hard Stop (SL): <b>${opt['stop_price']:.1f}</b> (-30.0%)
 
-🎯 <b>BTC SPOT TRIGGER LEVEL:</b>
-• <b>Spot Entry:</b> ${setup['entry']:,}
-• <b>Target Level:</b> ${setup['tp']:,} (R:R {setup['rr']})
-• <b>Invalidation (SL):</b> ${setup['sl']:,}
+📈 <b>PROFIT TARGETS</b>
+• Target 1: <b>${opt['tp1_price']:.1f}</b> ({opt['tp1_pct']}) ➔ <i>Book 50%, Trail SL to BE</i>
+• Target 2: <b>${opt['target_price']:.1f}</b> ({opt['target_pct']} Runner)
+• Net Blended Gain: <b>+{blended_target_pct:.1f}%</b>
 
-🧠 <b>INSTITUTIONAL SETUP LOGIC:</b>
-• <b>Level Tested:</b> {setup['rationale']['levelTested']}
-• <b>Pattern:</b> {setup['rationale']['pattern']}
-• <b>Absorption & Delta:</b> {setup['rationale'].get('absorption', 'Order Flow')}
-• <b>Confirmation:</b> {setup['rationale']['confirmation']}
-• <b>Momentum:</b> RSI {setup['rsi']} | {setup['rvol']}x RVOL
+🔍 <b>SMC CONTEXT & SPOT REF</b>
+• Spot: <b>${setup['entry']:,}</b> ➔ TP <b>${setup['tp']:,}</b> (R:R {setup['rr']}) | SL <b>${setup['sl']:,}</b>
+• Pattern: {setup['name']}
+• Edge: {setup['rationale']['levelTested']} · {setup['rvol']}x RVOL
+• IV Pricing: {opt.get('iv_badge', '🟡 FAIR')} ({opt.get('iv_rating', 'Calibrated')})
 
-📈 <b>DAILY TRACKER:</b> {daily_counts['trades_given']} Trade(s) Alerted Today ({daily_counts['wins']}W - {daily_counts['losses']}L) · 🛡️ Circuit Breaker: 🟢 Normal ({daily_counts['losses']}/2 Limit)
-⏰ <b>Alert Time:</b> {get_now_ist_str()} · (15m Candle: {ist_time} IST)
-🔗 <a href="https://delta-trading-journal-gmp.vercel.app/">Open Live Journal & Chart</a>"""
+⏰ <i>{get_now_ist_str()}</i>
+🔗 <a href="https://delta-trading-journal-gmp.vercel.app/chart.html">Open Live Chart & Cockpit</a>"""
 
                     if send_telegram_message(bot_token, chat_id, msg):
                         state["last_alerted_trade_id"] = trade_id
@@ -1296,15 +1280,16 @@ def run_sentinel():
         last_guid = state.get("last_alerted_catalyst_guid")
         if guid and guid != last_guid:
             bias_emoji = "🔴" if catalyst["bias"] == "BEARISH" else "🟢"
-            news_msg = f"""🚨 <b>CRITICAL MARKET CATALYST DETECTED</b>
-━━━━━━━━━━━━━━━━━━━━━━
-📢 <b>Headline:</b> {catalyst['title']}
-📰 <b>Category:</b> {catalyst['category']}
-⚡ <b>Market Bias:</b> {bias_emoji} <b>{catalyst['bias']} CATALYST ({'PUTS FAVORED' if catalyst['bias'] == 'BEARISH' else 'CALLS FAVORED'})</b>
-⏰ <b>Alert Time:</b> {get_now_ist_str()}
+            action_favored = "PUTS FAVORED" if catalyst["bias"] == "BEARISH" else "CALLS FAVORED"
+            news_msg = f"""🚨 <b>CRITICAL MARKET CATALYST</b>
+{bias_emoji} <b>{catalyst['bias']} · {action_favored}</b>
 
-⚠️ <i>Institutional Advisory: Breaking macro events trigger heavy volatility. Check Delta option strikes & respect stop loss levels.</i>
-🔗 <a href="https://delta-trading-journal-gmp.vercel.app/">Open Live Journal & Chart</a>"""
+📢 <b>{catalyst['title']}</b>
+📰 Category: <b>{catalyst['category']}</b>
+
+⚠️ <i>High volatility expected on Delta Option contracts. Respect stop loss levels.</i>
+⏰ <i>{get_now_ist_str()}</i>
+🔗 <a href="https://delta-trading-journal-gmp.vercel.app/chart.html">Open Live Chart</a>"""
             if send_telegram_message(bot_token, chat_id, news_msg):
                 state["last_alerted_catalyst_guid"] = guid
                 save_sentinel_state(state)

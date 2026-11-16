@@ -418,7 +418,7 @@ window.DeltaApp = (function() {
       statusEl.innerText = "Sending test message to Telegram...";
     }
 
-    const testMsg = `🚀 <b>Delta Trading Journal: Connected Successfully!</b>\n━━━━━━━━━━━━━━━━━━━━━━\nYour Telegram trade signal alerts are active.\nWhenever an institutional SMC reversal setup triggers on Delta Exchange India, you will receive real-time execution orders directly on your phone.\n\n⏰ <b>Time:</b> ${new Date().toLocaleTimeString('en-IN', { timeZone: 'Asia/Kolkata' })} IST\n🔗 <a href="https://delta-trading-journal-gmp.vercel.app/">Open Delta Live Terminal</a>`;
+    const testMsg = `🟢 <b>DELTA INDIA SENTINEL CONNECTED</b>\n━━━━━━━━━━━━━━━━━━━━━━━━\nYour Telegram signal engine is active & verified.\n\n🎯 <b>INSTITUTIONAL ALERTS ENABLED</b>\n• SMC Sweeps, FVGs & BOS (BTCUSD 15m)\n• Option Buy Zones & +50% / +100% Targets\n• -30% Capital Protection & Trailed Breakeven\n\n⏰ <i>${new Date().toLocaleTimeString('en-IN', { timeZone: 'Asia/Kolkata' })} IST</i>\n🔗 <a href="https://delta-trading-journal-gmp.vercel.app/chart.html">Open Live Chart & Terminal</a>`;
 
     try {
       const res = await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
