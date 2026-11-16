@@ -1784,52 +1784,56 @@ window.DeltaApp = (function() {
   // 7. TAB 3: AI COACH & EDGE ANALYTICS SCREEN
   // -------------------------------------------------------------
   function renderCoachTab() {
-    const dossier = DeltaQuant.generateQuantDossier(currentFilteredTrades, document.getElementById('kpiActivity')?.innerText || "Selected Timeframe");
+    try {
+      const dossier = DeltaQuant.generateQuantDossier(currentFilteredTrades || [], document.getElementById('kpiActivity')?.innerText || "Selected Timeframe");
 
-    // Render Metrics Banner
-    const rrEl = document.getElementById('coachRealizedRR');
-    const expEl = document.getElementById('coachExpectancy');
-    const feeEl = document.getElementById('coachFeeDrag');
-    const thetaRatioEl = document.getElementById('coachThetaRatio');
-    const thetaDiagEl = document.getElementById('coachThetaDiagnosis');
+      // Render Metrics Banner
+      const rrEl = document.getElementById('coachRealizedRR');
+      const expEl = document.getElementById('coachExpectancy');
+      const feeEl = document.getElementById('coachFeeDrag');
+      const thetaRatioEl = document.getElementById('coachThetaRatio');
+      const thetaDiagEl = document.getElementById('coachThetaDiagnosis');
 
-    if (rrEl) rrEl.innerText = `${dossier.metrics.realizedRR} : 1`;
-    if (expEl) expEl.innerText = formatUSD(dossier.metrics.expectancy);
-    if (feeEl) feeEl.innerText = `${dossier.metrics.feeDragPct}%`;
-    if (thetaRatioEl) thetaRatioEl.innerText = `${dossier.thetaAnalysis.holdRatio}x`;
-    if (thetaDiagEl) thetaDiagEl.innerText = dossier.thetaAnalysis.diagnosis;
+      if (rrEl) rrEl.innerText = `${dossier.metrics.realizedRR} : 1`;
+      if (expEl) expEl.innerText = formatUSD(dossier.metrics.expectancy);
+      if (feeEl) feeEl.innerText = `${dossier.metrics.feeDragPct}%`;
+      if (thetaRatioEl) thetaRatioEl.innerText = `${dossier.thetaAnalysis.holdRatio}x`;
+      if (thetaDiagEl) thetaDiagEl.innerText = dossier.thetaAnalysis.diagnosis;
 
-    // Render Strategy Edge Table
-    const tbody = document.getElementById('coachStrategyBody');
-    if (tbody) {
-      if (dossier.strategyMatrix.length === 0) {
-        tbody.innerHTML = `<tr><td colspan="6" class="text-center py-6 text-slate-500">No strategy tags assigned yet. Tag trades in the audit log to reveal your edge!</td></tr>`;
-      } else {
-        let html = '';
-        dossier.strategyMatrix.forEach(s => {
-          const badge = s.tier === 'ALPHA'
-            ? `<span class="px-2 py-0.5 rounded text-[9px] font-bold tier-badge-alpha">ALPHA EDGE</span>`
-            : (s.tier === 'LEAK' ? `<span class="px-2 py-0.5 rounded text-[9px] font-bold tier-badge-leak">LEAK</span>` : `<span class="px-2 py-0.5 rounded text-[9px] font-bold tier-badge-neutral">NEUTRAL</span>`);
+      // Render Strategy Edge Table
+      const tbody = document.getElementById('coachStrategyBody');
+      if (tbody) {
+        if (dossier.strategyMatrix.length === 0) {
+          tbody.innerHTML = `<tr><td colspan="6" class="text-center py-6 text-slate-500">No strategy tags assigned yet. Tag trades in the audit log to reveal your edge!</td></tr>`;
+        } else {
+          let html = '';
+          dossier.strategyMatrix.forEach(s => {
+            const badge = s.tier === 'ALPHA'
+              ? `<span class="px-2 py-0.5 rounded text-[9px] font-bold tier-badge-alpha">ALPHA EDGE</span>`
+              : (s.tier === 'LEAK' ? `<span class="px-2 py-0.5 rounded text-[9px] font-bold tier-badge-leak">LEAK</span>` : `<span class="px-2 py-0.5 rounded text-[9px] font-bold tier-badge-neutral">NEUTRAL</span>`);
 
-          html += `
-            <tr class="border-b border-borderDark/40 hover:bg-panelDark/50 font-mono text-xs">
-              <td class="py-2.5 px-3 font-semibold text-white font-sans">${s.tag}</td>
-              <td class="py-2.5 px-3 text-center">${badge}</td>
-              <td class="py-2.5 px-3 text-right">${s.trades}</td>
-              <td class="py-2.5 px-3 text-right font-bold ${s.winRate >= 50 ? 'text-winGreen' : 'text-slate-300'}">${s.winRate}%</td>
-              <td class="py-2.5 px-3 text-right font-bold ${s.netPnl >= 0 ? 'text-winGreen' : 'text-lossRed'}">${s.netPnl >= 0 ? '+' : ''}${formatUSD(s.netPnl)}</td>
-              <td class="py-2.5 px-3 text-right font-bold ${s.expectancy >= 0 ? 'text-winGreen' : 'text-lossRed'}">${formatUSD(s.expectancy)}</td>
-            </tr>
-          `;
-        });
-        tbody.innerHTML = html;
+            html += `
+              <tr class="border-b border-borderDark/40 hover:bg-panelDark/50 font-mono text-xs">
+                <td class="py-2.5 px-3 font-semibold text-white font-sans">${s.tag}</td>
+                <td class="py-2.5 px-3 text-center">${badge}</td>
+                <td class="py-2.5 px-3 text-right">${s.trades}</td>
+                <td class="py-2.5 px-3 text-right font-bold ${s.winRate >= 50 ? 'text-winGreen' : 'text-slate-300'}">${s.winRate}%</td>
+                <td class="py-2.5 px-3 text-right font-bold ${s.netPnl >= 0 ? 'text-winGreen' : 'text-lossRed'}">${s.netPnl >= 0 ? '+' : ''}${formatUSD(s.netPnl)}</td>
+                <td class="py-2.5 px-3 text-right font-bold ${s.expectancy >= 0 ? 'text-winGreen' : 'text-lossRed'}">${formatUSD(s.expectancy)}</td>
+              </tr>
+            `;
+          });
+          tbody.innerHTML = html;
+        }
       }
-    }
 
-    // Auto-render offline analysis preview if AI area empty
-    const aiChat = document.getElementById('coachAIArea');
-    if (aiChat && aiChat.children.length <= 1) {
-      aiChat.innerHTML = DeltaCoach.generateOfflineDiagnostic(dossier);
+      // Auto-render offline analysis preview if AI area empty
+      const aiChat = document.getElementById('coachAIArea');
+      if (aiChat && aiChat.children.length <= 1) {
+        aiChat.innerHTML = DeltaCoach.generateOfflineDiagnostic(dossier);
+      }
+    } catch (err) {
+      console.warn("[App] Error in renderCoachTab:", err);
     }
   }
 
