@@ -675,6 +675,48 @@ window.DeltaLiveChart = (function() {
   }
 
   /**
+   * Adjusts the chart visible range to the last 36 hours (TradingView institutional auto-fit standard)
+   * Prevents squashing hundreds of multi-day bars into a flat strip while preserving full scrollable history.
+   */
+  function adjustVisibleRangeTo36Hours() {
+    if (!chart || !candleData || candleData.length === 0) return;
+    const latestCandle = candleData[candleData.length - 1];
+    if (!latestCandle || !latestCandle.time) {
+      chart.timeScale().fitContent();
+      return;
+    }
+
+    if (activeTimeframe === '1D') {
+      const startIdx = Math.max(0, candleData.length - 45);
+      chart.timeScale().setVisibleLogicalRange({ from: startIdx, to: candleData.length + 3 });
+      return;
+    }
+    if (activeTimeframe === '4h') {
+      const startIdx = Math.max(0, candleData.length - 30);
+      chart.timeScale().setVisibleLogicalRange({ from: startIdx, to: candleData.length + 4 });
+      return;
+    }
+
+    // Default intraday (1m, 5m, 15m, 1h): strictly target the last 36 hours of trading action
+    const target36hAgo = latestCandle.time - (36 * 3600);
+    let startIdx = candleData.findIndex(c => c.time >= target36hAgo);
+    if (startIdx < 0) {
+      // 144 candles on 15m = 36h
+      startIdx = Math.max(0, candleData.length - 144);
+    }
+
+    // Ensure at least 20 candles are visible so it never over-zooms
+    if (candleData.length - startIdx < 20) {
+      startIdx = Math.max(0, candleData.length - 25);
+    }
+
+    chart.timeScale().setVisibleLogicalRange({
+      from: startIdx,
+      to: candleData.length + 6
+    });
+  }
+
+  /**
    * Initializes the TradingView Lightweight Charts canvas in container
    */
   function initChart() {
@@ -691,7 +733,7 @@ window.DeltaLiveChart = (function() {
       if (!candleData || candleData.length === 0) {
         loadTimeframe(activeTimeframe);
       } else {
-        chart.timeScale().fitContent();
+        adjustVisibleRangeTo36Hours();
         renderPositionBox(selectedTrade);
         if (candleSeries && currentAnalysis && currentAnalysis.markers) {
           try {
@@ -730,17 +772,31 @@ window.DeltaLiveChart = (function() {
         borderColor: '#1e293b',
         timeVisible: true,
         secondsVisible: false,
-        tickMarkFormatter: (time) => {
-          // Native browser timezone (IST) formatting
+        rightOffset: 6,
+        barSpacing: 9,
+        minBarSpacing: 3,
+        tickMarkFormatter: (time, tickMarkType) => {
           const d = new Date(time * 1000);
-          return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false });
+          if (tickMarkType <= 2) {
+            // Day or month transition label (e.g. "16 Nov")
+            return d.toLocaleDateString('en-US', { day: 'numeric', month: 'short' });
+          }
+          const hours = String(d.getHours()).padStart(2, '0');
+          const mins = String(d.getMinutes()).padStart(2, '0');
+          return `${hours}:${mins}`;
         }
       },
       localization: {
         dateFormat: 'yyyy-MM-dd',
         timeFormatter: (time) => {
           const d = new Date(time * 1000);
-          return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true });
+          const dayName = d.toLocaleDateString('en-US', { weekday: 'short' });
+          const day = d.toLocaleDateString('en-US', { day: '2-digit' });
+          const month = d.toLocaleDateString('en-US', { month: 'short' });
+          const year = d.toLocaleDateString('en-US', { year: '2-digit' });
+          const hours = String(d.getHours()).padStart(2, '0');
+          const mins = String(d.getMinutes()).padStart(2, '0');
+          return `${dayName} ${day} ${month} '${year}  ${hours}:${mins}`;
         }
       },
       rightPriceScale: {
@@ -1029,7 +1085,7 @@ window.DeltaLiveChart = (function() {
     }));
     if (volumeSeries) volumeSeries.setData(volumeData);
 
-    if (chart) chart.timeScale().fitContent();
+    adjustVisibleRangeTo36Hours();
 
     // Update Header Live Price immediately
     const latestCandle = candleData[candleData.length - 1];
@@ -1617,6 +1673,7 @@ window.DeltaLiveChart = (function() {
     selectedTrade = null;
     renderPositionBox(null);
     updatePositionToolCockpit(null);
+    adjustVisibleRangeTo36Hours();
     const activeLabel = document.getElementById('ptActiveLabel');
     if (activeLabel) activeLabel.innerText = "Position tool hidden";
   }
@@ -2996,7 +3053,7 @@ Expected Profit: +50% Option Gross / +40% Net`;
       }
     }
 
-    chart.timeScale().fitContent();
+    adjustVisibleRangeTo36Hours();
     renderPositionBox(selectedTrade);
   }
 
