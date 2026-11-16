@@ -675,8 +675,8 @@ window.DeltaLiveChart = (function() {
   }
 
   /**
-   * Adjusts the chart visible range to the last 36 hours (TradingView institutional auto-fit standard)
-   * Prevents squashing hundreds of multi-day bars into a flat strip while preserving full scrollable history.
+   * Auto-adjusts chart visible range so that Bitcoin price scale tick marks are strictly in differences of 100
+   * (e.g. 64500, 64600, 64700, 64800, 64900, 65000), exactly matching TradingView institutional layout.
    */
   function adjustVisibleRangeTo36Hours() {
     if (!chart || !candleData || candleData.length === 0) return;
@@ -687,32 +687,46 @@ window.DeltaLiveChart = (function() {
     }
 
     if (activeTimeframe === '1D') {
-      const startIdx = Math.max(0, candleData.length - 45);
+      const startIdx = Math.max(0, candleData.length - 40);
       chart.timeScale().setVisibleLogicalRange({ from: startIdx, to: candleData.length + 3 });
       return;
     }
     if (activeTimeframe === '4h') {
-      const startIdx = Math.max(0, candleData.length - 30);
+      const startIdx = Math.max(0, candleData.length - 25);
       chart.timeScale().setVisibleLogicalRange({ from: startIdx, to: candleData.length + 4 });
       return;
     }
 
-    // Default intraday (1m, 5m, 15m, 1h): strictly target the last 36 hours of trading action
-    const target36hAgo = latestCandle.time - (36 * 3600);
-    let startIdx = candleData.findIndex(c => c.time >= target36hAgo);
-    if (startIdx < 0) {
-      // 144 candles on 15m = 36h
-      startIdx = Math.max(0, candleData.length - 144);
-    }
+    // For intraday timeframes (15m, 5m, 1h, 1m):
+    // Start with candidate recent history (~75 candles, approx 18-20h of 15m candles)
+    let targetCandles = 75;
+    if (activeTimeframe === '1m') targetCandles = 90;
+    else if (activeTimeframe === '5m') targetCandles = 80;
+    else if (activeTimeframe === '15m') targetCandles = 75;
+    else if (activeTimeframe === '1h') targetCandles = 24;
 
-    // Ensure at least 20 candles are visible so it never over-zooms
-    if (candleData.length - startIdx < 20) {
-      startIdx = Math.max(0, candleData.length - 25);
+    let startIdx = Math.max(0, candleData.length - targetCandles);
+
+    // Calculate high/low price range across candidate visible slice
+    let slice = candleData.slice(startIdx);
+    let minP = Math.min(...slice.map(c => c.low));
+    let maxP = Math.max(...slice.map(c => c.high));
+    let pRange = maxP - minP;
+
+    // To guarantee the price scale marks are strictly in differences of 100 (65500, 65600, 65700...),
+    // the visible price span must stay within ~$1,350. If an earlier flash dump/spike widened the range,
+    // advance startIdx forward until pRange <= 1350 (keeping at least 35-40 candles).
+    while (pRange > 1350 && startIdx < candleData.length - 35) {
+      startIdx += 4;
+      slice = candleData.slice(startIdx);
+      minP = Math.min(...slice.map(c => c.low));
+      maxP = Math.max(...slice.map(c => c.high));
+      pRange = maxP - minP;
     }
 
     chart.timeScale().setVisibleLogicalRange({
       from: startIdx,
-      to: candleData.length + 6
+      to: candleData.length + 5
     });
   }
 
@@ -801,9 +815,10 @@ window.DeltaLiveChart = (function() {
       },
       rightPriceScale: {
         borderColor: '#1e293b',
+        autoScale: true,
         scaleMargins: {
-          top: 0.08,
-          bottom: 0.20 // Dedicated bottom 20% breathing room for volume overlay & trade box safety
+          top: 0.06,
+          bottom: 0.12 // Optimal 12% margin so price scale stays calibrated to 100-step ticks (e.g. 64500, 64600...)
         }
       }
     });
@@ -814,18 +829,23 @@ window.DeltaLiveChart = (function() {
       downColor: '#f43f5e',
       borderVisible: false,
       wickUpColor: '#10b981',
-      wickDownColor: '#f43f5e'
-    });
-
-    // Ensure candle price scale leaves bottom 20% unobstructed
-    candleSeries.priceScale().applyOptions({
-      scaleMargins: {
-        top: 0.08,
-        bottom: 0.20
+      wickDownColor: '#f43f5e',
+      priceFormat: {
+        type: 'price',
+        precision: 1,
+        minMove: 0.1
       }
     });
 
-    // Add Synchronized Volume Histogram Series (Idea 1+2 Hybrid: Strictly pinned to bottom 18% floor with clean axis)
+    // Ensure candle price scale margins match rightPriceScale
+    candleSeries.priceScale().applyOptions({
+      scaleMargins: {
+        top: 0.06,
+        bottom: 0.12
+      }
+    });
+
+    // Add Synchronized Volume Histogram Series (Idea 1+2 Hybrid: Strictly pinned to bottom 15% floor with clean axis)
     volumeSeries = chart.addHistogramSeries({
       priceFormat: { type: 'volume' },
       priceScaleId: '', // Separate price scale overlay
@@ -833,10 +853,10 @@ window.DeltaLiveChart = (function() {
       priceLineVisible: false
     });
 
-    // Pin volume histogram strictly to bottom 18% (0.82 to 1.0)
+    // Pin volume histogram strictly to bottom 15% (0.85 to 1.0)
     volumeSeries.priceScale().applyOptions({
       scaleMargins: {
-        top: 0.82,
+        top: 0.85,
         bottom: 0
       }
     });
