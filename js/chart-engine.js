@@ -1589,13 +1589,14 @@ window.DeltaLiveChart = (function() {
       // Highlight row in table
       const rows = document.querySelectorAll('.bt-trade-row');
       rows.forEach(r => r.classList.remove('bg-indigo-600/20', 'border-indigo-500'));
-      const activeRow = document.getElementById(`row_${tradeId}`);
+      const tId = t.id || tradeIdentifier;
+      const activeRow = document.getElementById(`row_${tId}`);
       if (activeRow) activeRow.classList.add('bg-indigo-600/20');
 
       // Highlight mobile card
       const mcards = document.querySelectorAll('.bt-trade-mcard');
       mcards.forEach(c => c.classList.remove('ring-2', 'ring-indigo-500', 'bg-indigo-950/30'));
-      const activeMcard = document.getElementById(`mcard_${tradeId}`);
+      const activeMcard = document.getElementById(`mcard_${tId}`);
       if (activeMcard) activeMcard.classList.add('ring-2', 'ring-indigo-500', 'bg-indigo-950/30');
     }
   }
