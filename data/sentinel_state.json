@@ -1,58 +1,6 @@
 {
   "last_alerted_trade_id": "cloud_fvg_bear_1794842100",
-  "active_trade": {
-    "id": "cloud_fvg_bear_1794842100",
-    "name": "Bearish Fair Value Gap (FVG) Mitigation",
-    "direction": "SHORT",
-    "time": 1794842100,
-    "entry": 64320,
-    "tp": 62782,
-    "sl": 65068,
-    "rr": "1:2.1",
-    "rsi": 48.7,
-    "rvol": 1.65,
-    "rationale": {
-      "pattern": "Imbalance Void Mitigation",
-      "levelTested": "FVG Equilibrium ($64,708)",
-      "confirmation": "Price filled institutional imbalance and rejected with 1.65x RVOL",
-      "htfAlignment": "\ud83d\udd34 BEARISH CONFLUENCE (1H Macro Downtrend)",
-      "absorption": "Institutional Flow (1.65x RVOL)"
-    },
-    "htf_trend": {
-      "trend": "BEARISH",
-      "label": "\ud83d\udd34 BEARISH CONFLUENCE (1H Macro Downtrend)",
-      "cur_price": 64220,
-      "ema20": 64643,
-      "ema50": 65356
-    },
-    "option": {
-      "symbol": "P-BTC-64200-171126",
-      "strike": 64200.0,
-      "strike_tier": "Exact ATM (Delta ~0.50)",
-      "mark_price": 649.2,
-      "buy_zone": "$649.2 - $649.2",
-      "tp1_price": 973.8,
-      "tp1_pct": "+50.0%",
-      "target_price": 1625.2,
-      "target_pct": "+150.3%",
-      "stop_price": 454.4,
-      "eff_delta": 0.63,
-      "iv_rating": "ELEVATED (High IV - Scalp Focus)",
-      "iv_badge": "\ud83d\udd34 ELEVATED"
-    },
-    "session": {
-      "name": "New York Session (19:00 - 02:30 IST)",
-      "code": "NEW_YORK",
-      "flag": "\ud83d\udd25",
-      "volatility": "Peak Liquidity (Gamma Spikes & Momentum)",
-      "tp_bias": "Maximum DOEV Runner Potential"
-    },
-    "outcome": "ACTIVE",
-    "skipped": true,
-    "isEstimation": true,
-    "skippedReason": "2 SL Daily Limit Hit - Risk Guard Preserving Capital",
-    "optionEntryLockedMark": 649.2
-  },
+  "active_trade": null,
   "last_alerted_catalyst_guid": null,
   "daily_counts": {
     "date": "2026-11-16",
@@ -61,6 +9,6 @@
     "losses": 2
   },
   "telegram_handshake_sent": true,
-  "last_trade_time": 1794843634,
+  "last_trade_time": 1794855038,
   "last_trade_direction": "SHORT"
 }
