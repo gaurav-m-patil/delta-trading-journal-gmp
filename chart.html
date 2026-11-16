@@ -105,10 +105,26 @@
 
   <!-- Live Chart Canvas Area -->
   <main class="flex-1 relative w-full h-[calc(100vh-56px)] bg-[#0b0f17] overflow-hidden">
+    <!-- TradingView OHLCV Legend in Top-Left Corner -->
+    <div id="tvChartLegend" class="absolute top-2 left-3 z-20 pointer-events-none flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] font-mono text-slate-300">
+      <div class="flex items-center gap-1.5 font-bold text-white">
+        <span class="text-white">BTCUSDT</span>
+        <span class="text-[9px] px-1 py-0.2 rounded bg-indigo-500/20 text-indigo-300 border border-indigo-500/30" id="legendTfLabel">15m</span>
+      </div>
+      <div class="flex items-center gap-2 text-[10px] sm:text-[11px]" id="legendMetrics">
+        <span>O <strong class="font-normal text-white" id="legendO">--</strong></span>
+        <span>H <strong class="font-normal text-white" id="legendH">--</strong></span>
+        <span>L <strong class="font-normal text-white" id="legendL">--</strong></span>
+        <span>C <strong class="font-normal text-white" id="legendC">--</strong></span>
+        <span id="legendChange" class="font-bold text-slate-400">--</span>
+        <span class="ml-1 text-slate-400">Vol <strong class="font-normal text-white" id="legendVol">--</strong></span>
+      </div>
+    </div>
+
     <div id="tvLiveChartContainer" class="w-full h-full relative"></div>
 
-    <!-- Floating Compact Trade Cockpit Bar (Bottom Overlay) -->
-    <div id="tvPositionToolCockpit" class="absolute bottom-3 left-3 right-3 max-w-4xl mx-auto p-3.5 rounded-2xl glass-cockpit shadow-2xl flex flex-col sm:flex-row items-center justify-between gap-3 z-10 transition-all font-mono">
+    <!-- Floating Compact Trade Cockpit Bar (Repositioned to Top-Left Below Legend - Bottom Axis 100% Clear) -->
+    <div id="tvPositionToolCockpit" class="absolute top-10 left-3 max-w-xl p-2.5 sm:p-3 rounded-2xl glass-cockpit shadow-2xl flex flex-col sm:flex-row items-center justify-between gap-3 z-20 transition-all font-mono border border-borderDark/80 backdrop-blur-md bg-slate-900/85">
       <div class="flex items-center gap-3 w-full sm:w-auto">
         <div id="ptDirectionBadge" class="h-8 w-8 rounded-xl bg-indigo-500/20 text-indigo-400 flex items-center justify-center font-bold text-sm shrink-0">
           <i class="fa-solid fa-radar animate-pulse"></i>

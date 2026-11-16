@@ -75,27 +75,50 @@ window.DeltaPaperFund = (function() {
     const processedTrades = chronoTrades.map(t => {
       const opt = t.realOption;
       const calculatedAtmEntry = Math.round((t.entry || 65000) * 0.0033 * 10) / 10;
-      const buyPrice = (opt && opt.entryPrice > 0) ? opt.entryPrice : (t.optionEntryMark || calculatedAtmEntry);
+      const buyPrice = (opt && opt.lockedEntryMark > 0) ? opt.lockedEntryMark : ((opt && opt.entryPrice > 0) ? opt.entryPrice : (t.optionEntryLockedMark || t.optionEntryMark || calculatedAtmEntry));
       let sellPrice = buyPrice;
       let isResolved = false;
-      const isSkipped = t.outcome === "SKIPPED_CIRCUIT_BREAKER" || t.skipped;
+      const isSkipped = t.outcome === "SKIPPED_CIRCUIT_BREAKER" || t.skipped || t.isEstimation;
+
+      // Simulated Estimation Calculation for 2-SL rule (Knowledge Gathering)
+      let estOutcome = t.estOutcome || (t.entry && t.tp && t.exitPrice ? (Math.abs(t.exitPrice - t.tp) < Math.abs(t.exitPrice - t.sl) ? "WIN" : "LOSS") : (t.optionSellPrice ? (t.optionSellPrice > buyPrice ? "WIN" : "LOSS") : "WIN"));
+      let estSellPrice = buyPrice;
+      let estPnlPts = 0;
+      let estPnlPctStr = "0.0%";
+      let estNetPnlInr = 0;
+
+      if (isSkipped) {
+        if (estOutcome === "WIN") {
+          const tp1Price = (opt && opt.tp1Price > 0) ? opt.tp1Price : Math.round(buyPrice * 1.50 * 10) / 10;
+          const tp2Price = (opt && opt.targetPrice > 0) ? opt.targetPrice : (t.exitOpt || Math.round(buyPrice * 1.50 * 10) / 10);
+          estSellPrice = Math.round(((tp1Price * 0.5) + (tp2Price * 0.5)) * 10) / 10;
+        } else {
+          estSellPrice = (opt && opt.stopPrice > 0) ? opt.stopPrice : Math.round(buyPrice * 0.7 * 10) / 10;
+        }
+        estPnlPts = Math.round((estSellPrice - buyPrice) * 10) / 10;
+        const estPnlPct = buyPrice > 0 ? (estPnlPts / buyPrice) : 0;
+        estPnlPctStr = `${estPnlPts >= 0 ? '+' : ''}${(estPnlPct * 100).toFixed(1)}%`;
+        const simMarginInr = Math.round(currentBalance * allocPct);
+        const simGrossInr = Math.round(simMarginInr * estPnlPct);
+        estNetPnlInr = simGrossInr > 0 ? (simGrossInr - Math.round(simGrossInr * 0.15)) : simGrossInr;
+      }
 
       if (t.outcome === "WIN") {
         // Scaled Exit: 50% booked at TP1 (+50%), remaining 50% runner closed at TP2 (structural target)
         const tp1Price = (opt && opt.tp1Price > 0) ? opt.tp1Price : Math.round(buyPrice * 1.50 * 10) / 10;
         const tp2Price = (opt && opt.targetPrice > 0) ? opt.targetPrice : (t.exitOpt || Math.round(buyPrice * 1.50 * 10) / 10);
-        sellPrice = Math.round(((tp1Price * 0.5) + (tp2Price * 0.5)) * 10) / 10;
+        sellPrice = (t.optionExitLockedMark && t.optionExitLockedMark > 0) ? t.optionExitLockedMark : Math.round(((tp1Price * 0.5) + (tp2Price * 0.5)) * 10) / 10;
         isResolved = true;
       } else if (t.outcome === "BE_WIN") {
-        // Idea 8: Trailed Stop-Loss Simulation (50% locked at TP1 (+50%), remainder exited at Breakeven -> Net +25%)
-        sellPrice = Math.round((buyPrice * 1.25) * 10) / 10;
+        // Trailed Stop-Loss Simulation (50% locked at TP1 (+50%), remainder exited at Breakeven -> Net +25%)
+        sellPrice = (t.optionExitLockedMark && t.optionExitLockedMark > 0) ? t.optionExitLockedMark : Math.round((buyPrice * 1.25) * 10) / 10;
         isResolved = true;
       } else if (t.outcome === "LOSS") {
-        sellPrice = (opt && opt.stopPrice > 0) ? opt.stopPrice : Math.round(buyPrice * 0.7 * 10) / 10;
+        sellPrice = (t.optionExitLockedMark && t.optionExitLockedMark > 0) ? t.optionExitLockedMark : ((opt && opt.stopPrice > 0) ? opt.stopPrice : Math.round(buyPrice * 0.7 * 10) / 10);
         isResolved = true;
       } else if (isSkipped) {
-        // 🛡️ Not Taken due to 2 SL Daily Limit (Risk Guard active)
-        sellPrice = buyPrice;
+        // 🛡️ Estimation Mode: 2 SL Daily Limit Protected (Real capital = ₹0)
+        sellPrice = estSellPrice;
         isResolved = true;
       } else if (t.outcome === "TIMEOUT") {
         sellPrice = Math.round(buyPrice * 0.82 * 10) / 10;
@@ -106,11 +129,11 @@ window.DeltaPaperFund = (function() {
         isResolved = false;
       }
 
-      const pnlPts = isSkipped ? 0 : Math.round((sellPrice - buyPrice) * 10) / 10;
-      const pnlPct = (isSkipped || buyPrice <= 0) ? 0 : (pnlPts / buyPrice);
-      const pnlPctStr = isSkipped ? "0.0%" : `${pnlPts >= 0 ? '+' : ''}${(pnlPct * 100).toFixed(1)}%`;
+      const pnlPts = isSkipped ? estPnlPts : Math.round((sellPrice - buyPrice) * 10) / 10;
+      const pnlPct = (buyPrice <= 0) ? 0 : (pnlPts / buyPrice);
+      const pnlPctStr = isSkipped ? estPnlPctStr : `${pnlPts >= 0 ? '+' : ''}${(pnlPct * 100).toFixed(1)}%`;
 
-      // Position allocation in INR for this setup (Zero capital at risk if skipped by circuit breaker)
+      // Real Position allocation in INR for this setup (Zero capital at risk if Estimation / skipped by 2-SL rule)
       const allocatedInr = isSkipped ? 0 : Math.round(currentBalance * allocPct);
 
       // Delta Exchange India transaction fee + 18% GST modeling
@@ -135,6 +158,12 @@ window.DeltaPaperFund = (function() {
 
       return {
         ...t,
+        isEstimation: isSkipped,
+        estOutcome,
+        estSellPrice,
+        estPnlPts,
+        estPnlPctStr,
+        estNetPnlInr,
         buyPrice,
         sellPrice,
         pnlPts,
@@ -446,8 +475,8 @@ window.DeltaPaperFund = (function() {
                 outcomeBadge = `<span class="px-2 py-0.5 rounded text-[9px] font-bold bg-teal-500/15 text-teal-300 border border-teal-500/30 whitespace-nowrap"><i class="fa-solid fa-shield-halved mr-1"></i>BE WIN (+25% Trailed)</span>`;
               } else if (isLoss) {
                 outcomeBadge = `<span class="px-2 py-0.5 rounded text-[9px] font-bold bg-rose-500/15 text-rose-400 border border-rose-500/30 whitespace-nowrap">LOSS (${t.pnlPctStr})</span>`;
-              } else if (t.outcome === "SKIPPED_CIRCUIT_BREAKER" || t.skipped) {
-                outcomeBadge = `<span class="px-2 py-0.5 rounded text-[9px] font-bold bg-amber-500/15 text-amber-400 border border-amber-500/30 whitespace-nowrap"><i class="fa-solid fa-shield-halved mr-1"></i>NOT TAKEN (2 SL Hit)</span>`;
+              } else if (t.outcome === "SKIPPED_CIRCUIT_BREAKER" || t.skipped || t.isEstimation) {
+                outcomeBadge = `<span class="px-2 py-0.5 rounded text-[9px] font-bold bg-amber-500/15 text-amber-400 border border-amber-500/30 whitespace-nowrap"><i class="fa-solid fa-graduation-cap mr-1"></i>EST: ${t.pnlPctStr} (2-SL Protected)</span>`;
               } else {
                 outcomeBadge = `<span class="px-2 py-0.5 rounded text-[9px] font-bold bg-slate-500/15 text-slate-400 border border-slate-500/30 whitespace-nowrap">TIMEOUT</span>`;
               }
@@ -469,7 +498,7 @@ window.DeltaPaperFund = (function() {
                         <i class="fa-solid ${isCall ? 'fa-arrow-up' : 'fa-arrow-down'} text-[9px]"></i>
                         ${isCall ? 'CALL' : 'PUT'}
                       </span>
-                      ${(t.outcome === 'SKIPPED_CIRCUIT_BREAKER' || t.skipped) ? '<span class="text-[9px] px-1.5 py-0.2 rounded bg-amber-500/20 text-amber-300 border border-amber-500/40 shrink-0 font-bold">NOT TAKEN</span>' : ''}
+                      ${(t.outcome === 'SKIPPED_CIRCUIT_BREAKER' || t.skipped || t.isEstimation) ? '<span class="text-[9px] px-1.5 py-0.2 rounded bg-amber-500/20 text-amber-300 border border-amber-500/40 shrink-0 font-bold">ESTIMATION</span>' : ''}
                       <span class="text-indigo-300 font-bold text-[11px] truncate" title="${contractLabel}">
                         ${contractLabel}
                       </span>
@@ -485,7 +514,7 @@ window.DeltaPaperFund = (function() {
                       <i class="fa-regular fa-clock text-[9px] text-slate-500 mr-1"></i>${timeStr} IST · ${dateStr}
                     </div>
                     <div class="text-[10px] text-slate-300">
-                      <span class="text-slate-500">Margin:</span> ${(t.outcome === 'SKIPPED_CIRCUIT_BREAKER' || t.skipped) ? '<strong class="text-amber-400">₹0 (Risk Guard)</strong>' : `<strong class="text-slate-200">₹${t.allocatedInr.toLocaleString('en-IN')}</strong>`}
+                      <span class="text-slate-500">Margin:</span> ${(t.outcome === 'SKIPPED_CIRCUIT_BREAKER' || t.skipped || t.isEstimation) ? '<strong class="text-amber-400">₹0 (Estimation)</strong>' : `<strong class="text-slate-200">₹${t.allocatedInr.toLocaleString('en-IN')}</strong>`}
                     </div>
                   </div>
 
@@ -494,40 +523,40 @@ window.DeltaPaperFund = (function() {
                     <div class="bg-brandDark/80 p-2 rounded-lg border border-borderDark/60 space-y-1">
                       <div class="text-[9px] uppercase tracking-wider text-slate-400 font-semibold flex items-center justify-between">
                         <span>Option Price</span>
-                        <span class="${(t.outcome === 'SKIPPED_CIRCUIT_BREAKER' || t.skipped) ? 'text-amber-400 font-bold' : (t.pnlPts >= 0 ? 'text-winGreen' : 'text-lossRed')}">${(t.outcome === 'SKIPPED_CIRCUIT_BREAKER' || t.skipped) ? 'Not Taken' : t.pnlPctStr}</span>
+                        <span class="${(t.outcome === 'SKIPPED_CIRCUIT_BREAKER' || t.skipped || t.isEstimation) ? 'text-amber-400 font-bold' : (t.pnlPts >= 0 ? 'text-winGreen' : 'text-lossRed')}">${(t.outcome === 'SKIPPED_CIRCUIT_BREAKER' || t.skipped || t.isEstimation) ? `Est: ${t.pnlPctStr}` : t.pnlPctStr}</span>
                       </div>
                       <div class="flex items-center justify-between text-[10px]">
                         <span class="text-slate-400">Buy:</span>
                         <strong class="text-white">$${t.buyPrice.toFixed(1)}</strong>
                       </div>
                       <div class="flex items-center justify-between text-[10px]">
-                        <span class="text-slate-400">${isActive ? 'Live' : 'Sell'}:</span>
-                        <strong class="${(isWin || t.outcome === 'BE_WIN') ? 'text-winGreen' : ((t.outcome === 'SKIPPED_CIRCUIT_BREAKER' || t.skipped) ? 'text-amber-400' : (isLoss ? 'text-lossRed' : 'text-slate-200'))}">$${t.sellPrice.toFixed(1)}</strong>
+                        <span class="text-slate-400">${isActive ? 'Live' : ((t.outcome === 'SKIPPED_CIRCUIT_BREAKER' || t.skipped || t.isEstimation) ? 'Est Exit' : 'Sell')}:</span>
+                        <strong class="${(isWin || t.outcome === 'BE_WIN') ? 'text-winGreen' : ((t.outcome === 'SKIPPED_CIRCUIT_BREAKER' || t.skipped || t.isEstimation) ? 'text-amber-400' : (isLoss ? 'text-lossRed' : 'text-slate-200'))}">$${t.sellPrice.toFixed(1)}</strong>
                       </div>
                       <div class="flex items-center justify-between text-[10px] pt-1 border-t border-borderDark/40">
                         <span class="text-slate-400">Points PnL:</span>
-                        <strong class="${(t.outcome === 'SKIPPED_CIRCUIT_BREAKER' || t.skipped) ? 'text-amber-400' : (t.pnlPts >= 0 ? 'text-winGreen' : 'text-lossRed')}">${(t.outcome === 'SKIPPED_CIRCUIT_BREAKER' || t.skipped) ? '0.0 pts (Risk Guard)' : `${t.pnlPts >= 0 ? '+' : ''}${t.pnlPts.toFixed(1)} pts`}</strong>
+                        <strong class="${(t.outcome === 'SKIPPED_CIRCUIT_BREAKER' || t.skipped || t.isEstimation) ? 'text-amber-400' : (t.pnlPts >= 0 ? 'text-winGreen' : 'text-lossRed')}">${(t.outcome === 'SKIPPED_CIRCUIT_BREAKER' || t.skipped || t.isEstimation) ? `Est: ${t.pnlPts >= 0 ? '+' : ''}${t.pnlPts.toFixed(1)} pts` : `${t.pnlPts >= 0 ? '+' : ''}${t.pnlPts.toFixed(1)} pts`}</strong>
                       </div>
                     </div>
 
                     <div class="bg-brandDark/80 p-2 rounded-lg border border-borderDark/60 space-y-1">
                       <div class="text-[9px] uppercase tracking-wider text-slate-400 font-semibold flex items-center justify-between">
                         <span>₹100k Impact</span>
-                        <span class="text-slate-500 text-[8px]">${(t.outcome === 'SKIPPED_CIRCUIT_BREAKER' || t.skipped) ? 'Zero Risk' : `Fee ₹${t.feeInr}`}</span>
+                        <span class="text-slate-500 text-[8px]">${(t.outcome === 'SKIPPED_CIRCUIT_BREAKER' || t.skipped || t.isEstimation) ? 'Excluded P&L' : `Fee ₹${t.feeInr}`}</span>
                       </div>
                       <div class="flex items-center justify-between text-[10px]">
                         <span class="text-slate-400">Net Return:</span>
                         ${isActive ? `
                           <strong class="text-cyan-400 text-[10px]">LIVE</strong>
-                        ` : ((t.outcome === 'SKIPPED_CIRCUIT_BREAKER' || t.skipped) ? `
-                          <strong class="text-amber-400 text-[10px]">₹0 (Preserved)</strong>
+                        ` : ((t.outcome === 'SKIPPED_CIRCUIT_BREAKER' || t.skipped || t.isEstimation) ? `
+                          <strong class="text-amber-400 text-[10px]">₹0 (Est: ${t.estNetPnlInr >= 0 ? '+' : ''}₹${Math.abs(t.estNetPnlInr || 0).toLocaleString('en-IN')})</strong>
                         ` : `
                           <strong class="${pnlClass}">${pnlSign}₹${t.netPnlInr.toLocaleString('en-IN')}</strong>
                         `)}
                       </div>
                       <div class="flex items-center justify-between text-[10px]">
                         <span class="text-slate-400">Brokerage:</span>
-                        <span class="text-slate-400">${(t.outcome === 'SKIPPED_CIRCUIT_BREAKER' || t.skipped) ? '₹0 (Risk Guard)' : `₹${t.feeInr} (incl. GST)`}</span>
+                        <span class="text-slate-400">${(t.outcome === 'SKIPPED_CIRCUIT_BREAKER' || t.skipped || t.isEstimation) ? '₹0 (Estimation)' : `₹${t.feeInr} (incl. GST)`}</span>
                       </div>
                       <div class="flex items-center justify-between text-[10px] pt-1 border-t border-borderDark/40">
                         <span class="text-slate-400">Post-Trade:</span>
@@ -611,23 +640,23 @@ window.DeltaPaperFund = (function() {
                         <div class="flex items-center gap-1 font-bold ${isCall ? 'text-winGreen' : 'text-lossRed'} text-[11px]">
                           <i class="fa-solid ${isCall ? 'fa-arrow-up' : 'fa-arrow-down'} text-[9px]"></i>
                           <span>${isCall ? 'CALL' : 'PUT'}</span>
-                          ${(t.outcome === 'SKIPPED_CIRCUIT_BREAKER' || t.skipped) ? '<span class="text-[8px] px-1 py-0.2 rounded bg-amber-500/20 text-amber-300 border border-amber-500/40 font-mono">NOT TAKEN</span>' : ''}
+                          ${(t.outcome === 'SKIPPED_CIRCUIT_BREAKER' || t.skipped || t.isEstimation) ? '<span class="text-[8px] px-1 py-0.2 rounded bg-amber-500/20 text-amber-300 border border-amber-500/40 font-mono">ESTIMATION</span>' : ''}
                         </div>
                         <span class="text-indigo-300 font-semibold block text-[10px] truncate" title="${contractLabel}">${contractLabel}</span>
                       </td>
                       <td class="py-2.5 px-2 text-[11px]">
                         <div>Buy: <strong class="text-white">$${t.buyPrice.toFixed(1)}</strong></div>
-                        <div>${isActive ? 'Live' : 'Sell'}: <strong class="${(isWin || t.outcome === 'BE_WIN') ? 'text-winGreen' : ((t.outcome === 'SKIPPED_CIRCUIT_BREAKER' || t.skipped) ? 'text-amber-400' : (isLoss ? 'text-lossRed' : 'text-slate-200'))}">$${t.sellPrice.toFixed(1)}</strong> <span class="text-[9px] ${(t.outcome === 'SKIPPED_CIRCUIT_BREAKER' || t.skipped) ? 'text-amber-400 font-semibold' : 'text-slate-400'}">(${(t.outcome === 'SKIPPED_CIRCUIT_BREAKER' || t.skipped) ? 'Not Taken' : t.pnlPctStr})</span></div>
+                        <div>${isActive ? 'Live' : ((t.outcome === 'SKIPPED_CIRCUIT_BREAKER' || t.skipped || t.isEstimation) ? 'Est Exit' : 'Sell')}: <strong class="${(isWin || t.outcome === 'BE_WIN') ? 'text-winGreen' : ((t.outcome === 'SKIPPED_CIRCUIT_BREAKER' || t.skipped || t.isEstimation) ? 'text-amber-400' : (isLoss ? 'text-lossRed' : 'text-slate-200'))}">$${t.sellPrice.toFixed(1)}</strong> <span class="text-[9px] ${(t.outcome === 'SKIPPED_CIRCUIT_BREAKER' || t.skipped || t.isEstimation) ? 'text-amber-400 font-semibold' : 'text-slate-400'}">(${(t.outcome === 'SKIPPED_CIRCUIT_BREAKER' || t.skipped || t.isEstimation) ? `Est: ${t.pnlPctStr}` : t.pnlPctStr})</span></div>
                       </td>
                       <td class="py-2.5 px-2 text-[11px] text-slate-300">
-                        ${(t.outcome === 'SKIPPED_CIRCUIT_BREAKER' || t.skipped) ? '<span class="text-amber-400 font-bold">₹0 <span class="text-[9px] text-slate-400 font-normal block sm:inline">(Risk Guard)</span></span>' : `₹${t.allocatedInr.toLocaleString('en-IN')}`}
+                        ${(t.outcome === 'SKIPPED_CIRCUIT_BREAKER' || t.skipped || t.isEstimation) ? '<span class="text-amber-400 font-bold">₹0 <span class="text-[9px] text-slate-400 font-normal block sm:inline">(Estimation)</span></span>' : `₹${t.allocatedInr.toLocaleString('en-IN')}`}
                       </td>
                       <td class="py-2.5 px-2 font-bold text-[11px] ${pnlClass}">
                         ${isActive ? `
                           <span class="text-cyan-400 text-[10px]"><span class="h-1.5 w-1.5 rounded-full bg-cyan-400 animate-ping inline-block mr-1"></span>LIVE</span>
-                        ` : ((t.outcome === 'SKIPPED_CIRCUIT_BREAKER' || t.skipped) ? `
-                          <div class="text-amber-400 font-bold">₹0 <span class="text-[9px] font-normal text-slate-400">(Preserved)</span></div>
-                          <div class="text-[9px] text-slate-500 font-normal">Risk Guard</div>
+                        ` : ((t.outcome === 'SKIPPED_CIRCUIT_BREAKER' || t.skipped || t.isEstimation) ? `
+                          <div class="text-amber-400 font-bold">₹0 <span class="text-[9px] font-normal text-slate-400">(Excluded)</span></div>
+                          <div class="text-[9px] ${t.pnlPts >= 0 ? 'text-winGreen' : 'text-lossRed'} font-normal">Est: ${t.estNetPnlInr >= 0 ? '+' : ''}₹${Math.abs(t.estNetPnlInr || 0).toLocaleString('en-IN')} (${t.pnlPctStr})</div>
                         ` : `
                           <div>${pnlSign}₹${t.netPnlInr.toLocaleString('en-IN')}</div>
                           <div class="text-[9px] text-slate-500 font-normal">Fee: ₹${t.feeInr}</div>

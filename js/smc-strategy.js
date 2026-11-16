@@ -1019,28 +1019,30 @@ window.DeltaSMCStrategy = (function() {
         const isLoss = outcome === "LOSS";
         const isActive = outcome === "ACTIVE";
         const isCall = setup.direction === "LONG";
+        const dirSymbol = isCall ? "▲" : "▼";
 
-        let labelText = isCall ? "CALL" : "PUT";
+        let labelText = `${dirSymbol} ${isCall ? "CALL" : "PUT"}`;
         let markerColor = isCall ? "#38bdf8" : "#818cf8";
 
         if (isActive) {
-          labelText = "LIVE";
+          labelText = `${dirSymbol} LIVE`;
           markerColor = "#38bdf8";
         } else if (isWin) {
           const rawPct = setup.optionPnlPct || "+72%";
-          labelText = rawPct.startsWith('+') ? rawPct : `+${rawPct}`;
+          const cleanPct = rawPct.startsWith('+') ? rawPct : `+${rawPct}`;
+          labelText = `${dirSymbol} ${cleanPct}`;
           markerColor = "#10b981";
         } else if (isBeWin) {
-          labelText = "BE +25%";
+          labelText = `${dirSymbol} +25%`;
           markerColor = "#10b981";
         } else if (isLoss) {
-          labelText = "-30%";
+          labelText = `${dirSymbol} -30%`;
           markerColor = "#f43f5e";
         } else if (outcome === "TIMEOUT") {
-          labelText = "SCR";
+          labelText = `${dirSymbol} SCR`;
           markerColor = "#64748b";
         } else {
-          labelText = isCall ? "CALL" : "PUT";
+          labelText = `${dirSymbol} ${isCall ? "CALL" : "PUT"}`;
           markerColor = "#38bdf8";
         }
 

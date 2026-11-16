@@ -24,6 +24,65 @@ window.DeltaLiveChart = (function() {
   let isInitialized = false;
   let currentAnalysis = null;
   let selectedTrade = null;
+  let currentMasterTrades = [];
+
+  function getMasterTradesList() {
+    const map = new Map();
+    if (currentMasterTrades && currentMasterTrades.length > 0) {
+      currentMasterTrades.forEach(t => { if (t && t.id) map.set(t.id, t); });
+    }
+    if (window.DeltaDB && typeof DeltaDB.getSignalTrades === 'function') {
+      const signals = DeltaDB.getSignalTrades(0);
+      if (signals) signals.forEach(t => { if (t && t.id && !map.has(t.id)) map.set(t.id, t); });
+    }
+    if (currentAnalysis && currentAnalysis.trades) {
+      currentAnalysis.trades.forEach(t => { if (t && t.id && !map.has(t.id)) map.set(t.id, t); });
+    }
+    return Array.from(map.values());
+  }
+
+  function updateChartLegend(c, v) {
+    const oEl = document.getElementById('legendO');
+    const hEl = document.getElementById('legendH');
+    const lEl = document.getElementById('legendL');
+    const cEl = document.getElementById('legendC');
+    const chgEl = document.getElementById('legendChange');
+    const volEl = document.getElementById('legendVol');
+    const tfEl = document.getElementById('legendTfLabel');
+    if (tfEl) tfEl.innerText = activeTimeframe || '15m';
+
+    if (!c) {
+      if (candleData && candleData.length > 0) {
+        c = candleData[candleData.length - 1];
+        v = c ? c.volume : 0;
+      } else {
+        return;
+      }
+    }
+
+    if (oEl && c) oEl.innerText = `$${Number(c.open).toLocaleString(undefined, { minimumFractionDigits: 1, maximumFractionDigits: 1 })}`;
+    if (hEl && c) hEl.innerText = `$${Number(c.high).toLocaleString(undefined, { minimumFractionDigits: 1, maximumFractionDigits: 1 })}`;
+    if (lEl && c) lEl.innerText = `$${Number(c.low).toLocaleString(undefined, { minimumFractionDigits: 1, maximumFractionDigits: 1 })}`;
+    if (cEl && c) cEl.innerText = `$${Number(c.close).toLocaleString(undefined, { minimumFractionDigits: 1, maximumFractionDigits: 1 })}`;
+
+    if (c && c.open && c.close) {
+      const isUp = c.close >= c.open;
+      const diff = c.close - c.open;
+      const pct = (diff / c.open) * 100;
+      const sign = diff >= 0 ? '+' : '';
+      if (chgEl) {
+        chgEl.className = `font-bold ${isUp ? 'text-winGreen' : 'text-lossRed'}`;
+        chgEl.innerText = `${sign}${pct.toFixed(2)}% (${sign}${diff.toFixed(1)})`;
+      }
+      if (cEl) {
+        cEl.className = `font-bold ${isUp ? 'text-winGreen' : 'text-lossRed'}`;
+      }
+    }
+    if (volEl) {
+      const volVal = (v !== undefined && v !== null) ? (typeof v === 'object' ? v.value : v) : (c ? c.volume : 0);
+      volEl.innerText = volVal ? Math.round(volVal).toLocaleString() : '--';
+    }
+  }
 
   let cachedDeltaTickers = null;
   let lastDeltaTickersFetchTime = 0;
@@ -683,13 +742,13 @@ window.DeltaLiveChart = (function() {
       wickDownColor: '#f43f5e'
     });
 
-    // Add Synchronized Volume Histogram Series
+    // Add Synchronized Volume Histogram Series (Confined strictly to bottom 12% so it never overpowers candles)
     volumeSeries = chart.addHistogramSeries({
-      color: '#38bdf8',
+      color: 'rgba(56, 189, 248, 0.4)',
       priceFormat: { type: 'volume' },
       priceScaleId: '', // Overlay over price scale with bottom margin
       scaleMargins: {
-        top: 0.82,
+        top: 0.88,
         bottom: 0
       }
     });
@@ -710,18 +769,58 @@ window.DeltaLiveChart = (function() {
       container.appendChild(svgOverlay);
     }
 
+    // Dynamic TradingView OHLCV Legend in Top-Left Corner
+    let legendEl = document.getElementById('tvChartLegend');
+    if (!legendEl) {
+      legendEl = document.createElement('div');
+      legendEl.setAttribute('id', 'tvChartLegend');
+      legendEl.className = "absolute top-2 left-3 z-20 pointer-events-none flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] font-mono text-slate-300";
+      legendEl.innerHTML = `
+        <div class="flex items-center gap-1.5 font-bold text-white">
+          <span class="text-white">BTCUSDT</span>
+          <span class="text-[9px] px-1 py-0.2 rounded bg-indigo-500/20 text-indigo-300 border border-indigo-500/30" id="legendTfLabel">${activeTimeframe || '15m'}</span>
+        </div>
+        <div class="flex items-center gap-2 text-[10px] sm:text-[11px]" id="legendMetrics">
+          <span>O <strong class="font-normal text-white" id="legendO">--</strong></span>
+          <span>H <strong class="font-normal text-white" id="legendH">--</strong></span>
+          <span>L <strong class="font-normal text-white" id="legendL">--</strong></span>
+          <span>C <strong class="font-normal text-white" id="legendC">--</strong></span>
+          <span id="legendChange" class="font-bold">--</span>
+          <span class="text-slate-400">Vol <strong class="font-normal text-sky-400" id="legendVol">--</strong></span>
+        </div>
+      `;
+      container.appendChild(legendEl);
+    }
+
+    // Subscribe to crosshair movement to dynamically update legend figures
+    chart.subscribeCrosshairMove((param) => {
+      if (!param || !param.time || !param.seriesData) {
+        updateChartLegend(null);
+        return;
+      }
+      const cData = param.seriesData.get(candleSeries);
+      const vData = param.seriesData.get(volumeSeries);
+      if (cData) {
+        updateChartLegend(cData, vData ? vData.value : null);
+      } else {
+        updateChartLegend(null);
+      }
+    });
+
     // Keep position box locked to candles during pan / zoom
     chart.timeScale().subscribeVisibleLogicalRangeChange(() => {
       renderPositionBox(selectedTrade);
     });
 
-    // Subscribe to chart clicks to select nearest trade
+    // Subscribe to chart clicks to select nearest trade and draw standard Position Tool
     chart.subscribeClick((param) => {
-      if (!param || !param.time || !currentAnalysis) return;
+      if (!param || !param.time) return;
       const clickedTime = param.time;
-      const match = currentAnalysis.trades.find(t => Math.abs(t.time - clickedTime) < 1800);
+      const allTrades = getMasterTradesList();
+      const match = allTrades.find(t => Math.abs(t.time - clickedTime) <= 1800);
       if (match) {
         selectTrade(match.id);
+        try { DeltaSound.playChime('click'); } catch (e) {}
       }
     });
 
@@ -1131,69 +1230,86 @@ window.DeltaLiveChart = (function() {
         }
         const boxWidth = Math.max(150, x2 - x1);
 
-        const yEntry = candleSeries.priceToCoordinate(trade.entry);
-        const yTp = candleSeries.priceToCoordinate(trade.tp);
-        const ySl = candleSeries.priceToCoordinate(trade.sl);
+        const isCall = trade.direction === "LONG";
+        const isEstimation = trade.outcome === "SKIPPED_CIRCUIT_BREAKER" || trade.skipped || trade.isEstimation;
 
-        if (yEntry !== null && yTp !== null && ySl !== null) {
-          const isCall = trade.direction === "LONG";
-          let profitY, profitHeight, lossY, lossHeight;
+        const entryVal = trade.entry;
+        const slVal = trade.sl;
+        const tp2Val = trade.tp2 || trade.tp;
+        const tp1Val = trade.tp1 || (isCall ? Math.round(entryVal + (tp2Val - entryVal) * 0.45) : Math.round(entryVal - (entryVal - tp2Val) * 0.45));
 
-          if (isCall) {
-            profitY = yTp;
-            profitHeight = Math.max(6, yEntry - yTp);
-            lossY = yEntry;
-            lossHeight = Math.max(6, ySl - yEntry);
-          } else {
-            profitY = yEntry;
-            profitHeight = Math.max(6, yTp - yEntry);
-            lossY = ySl;
-            lossHeight = Math.max(6, yEntry - ySl);
-          }
+        const yEntry = candleSeries.priceToCoordinate(entryVal);
+        const ySl = candleSeries.priceToCoordinate(slVal);
+        const yTp1 = candleSeries.priceToCoordinate(tp1Val);
+        const yTp2 = candleSeries.priceToCoordinate(tp2Val);
 
-          const profitFill = "rgba(16, 185, 129, 0.08)";
-          const profitStroke = "rgba(16, 185, 129, 0.55)";
-          const lossFill = "rgba(244, 63, 94, 0.08)";
-          const lossStroke = "rgba(244, 63, 94, 0.55)";
+        if (yEntry !== null && yTp2 !== null && ySl !== null && yTp1 !== null) {
+          // Geometry: TP2 zone (Runner), TP1 zone (Scalp/Derisk), and Stop Loss zone
+          const tp2Y = Math.min(yTp2, yTp1);
+          const tp2Height = Math.max(4, Math.abs(yTp2 - yTp1));
+
+          const tp1Y = Math.min(yTp1, yEntry);
+          const tp1Height = Math.max(4, Math.abs(yTp1 - yEntry));
+
+          const lossY = Math.min(yEntry, ySl);
+          const lossHeight = Math.max(6, Math.abs(yEntry - ySl));
 
           const opt = trade.realOption || {};
-          const targetOptLabel = opt.targetPrice ? ` (Opt: $${opt.targetPrice})` : ` (+50%)`;
+          const tp1OptLabel = opt.tp1Price ? ` (Opt: $${opt.tp1Price})` : ` (+50%)`;
+          const tp2OptLabel = opt.targetPrice ? ` (Opt: $${opt.targetPrice})` : (opt.targetGainPct || ` (+100%+)`);
           const stopOptLabel = opt.stopPrice ? ` (Opt: $${opt.stopPrice})` : ` (-30%)`;
 
           const containerWidth = svg.clientWidth || 800;
-          const badgeW = 125;
+          const badgeW = 145;
           let badgeX = x1 + boxWidth + 4;
           if (badgeX + badgeW > containerWidth) {
             badgeX = Math.max(x1 + 65, x1 + boxWidth - badgeW - 4);
           }
 
+          const estBanner = isEstimation ? `
+            <!-- Estimation Mode Notification Badge -->
+            <rect x="${x1}" y="${Math.min(tp2Y, lossY) - 18}" width="${boxWidth}" height="16" fill="rgba(245, 158, 11, 0.95)" rx="3" />
+            <text x="${x1 + 6}" y="${Math.min(tp2Y, lossY) - 6}" font-family="-apple-system, BlinkMacSystemFont, monospace" font-size="8.5" font-weight="bold" fill="#0f172a">⚠️ ESTIMATION (2-SL Protected · Real PnL ₹0)</text>
+          ` : '';
+
           positionBoxHTML = `
-            <!-- Green Take Profit Zone (Translucent) -->
-            <rect x="${x1}" y="${profitY}" width="${boxWidth}" height="${profitHeight}"
-                  fill="${profitFill}" stroke="${profitStroke}" stroke-width="1" stroke-dasharray="3,2" rx="3" />
+            ${estBanner}
 
-            <!-- Red Stop Loss Zone (Translucent) -->
+            <!-- Green TP2 Runner Zone (Emerald Translucent) -->
+            <rect x="${x1}" y="${tp2Y}" width="${boxWidth}" height="${tp2Height}"
+                  fill="rgba(16, 185, 129, 0.09)" stroke="rgba(16, 185, 129, 0.65)" stroke-width="1" stroke-dasharray="3,2" rx="3" />
+
+            <!-- Cyan TP1 Scalp Zone (Cyan Translucent) -->
+            <rect x="${x1}" y="${tp1Y}" width="${boxWidth}" height="${tp1Height}"
+                  fill="rgba(6, 182, 212, 0.09)" stroke="rgba(6, 182, 212, 0.55)" stroke-width="1" stroke-dasharray="3,2" rx="3" />
+
+            <!-- Red Stop Loss Zone (Rose Translucent) -->
             <rect x="${x1}" y="${lossY}" width="${boxWidth}" height="${lossHeight}"
-                  fill="${lossFill}" stroke="${lossStroke}" stroke-width="1" stroke-dasharray="3,2" rx="3" />
+                  fill="rgba(244, 63, 94, 0.09)" stroke="rgba(244, 63, 94, 0.65)" stroke-width="1" stroke-dasharray="3,2" rx="3" />
 
-            <!-- Dashed Level Guidelines Connecting Entry to Labels -->
+            <!-- Dashed Level Guidelines Connecting Entry, TP1, TP2, SL to Badges -->
             <line x1="${x1}" y1="${yEntry}" x2="${badgeX}" y2="${yEntry}"
                   stroke="#38bdf8" stroke-width="1.2" stroke-dasharray="4,3" opacity="0.8" />
-            <line x1="${x1}" y1="${yTp}" x2="${badgeX}" y2="${yTp}"
-                  stroke="#10b981" stroke-width="1" stroke-dasharray="3,3" opacity="0.6" />
+            <line x1="${x1}" y1="${yTp1}" x2="${badgeX}" y2="${yTp1}"
+                  stroke="#06b6d4" stroke-width="1" stroke-dasharray="3,3" opacity="0.75" />
+            <line x1="${x1}" y1="${yTp2}" x2="${badgeX}" y2="${yTp2}"
+                  stroke="#10b981" stroke-width="1" stroke-dasharray="3,3" opacity="0.75" />
             <line x1="${x1}" y1="${ySl}" x2="${badgeX}" y2="${ySl}"
-                  stroke="#f43f5e" stroke-width="1" stroke-dasharray="3,3" opacity="0.6" />
+                  stroke="#f43f5e" stroke-width="1" stroke-dasharray="3,3" opacity="0.75" />
 
-            <!-- Compact Price Badges Floating on the Right -->
+            <!-- Interactive Floating Price Badges on the Right -->
             <g font-family="-apple-system, BlinkMacSystemFont, monospace" font-size="9" font-weight="bold">
-              <rect x="${badgeX}" y="${profitY + 2}" width="${badgeW}" height="16" fill="rgba(8, 11, 17, 0.85)" rx="3" stroke="rgba(16, 185, 129, 0.5)" stroke-width="1" />
-              <text x="${badgeX + 6}" y="${profitY + 13}" fill="#10b981">TP: $${trade.tp.toLocaleString()}${targetOptLabel}</text>
+              <rect x="${badgeX}" y="${yTp2 - 8}" width="${badgeW}" height="16" fill="rgba(8, 11, 17, 0.9)" rx="3" stroke="rgba(16, 185, 129, 0.6)" stroke-width="1" />
+              <text x="${badgeX + 6}" y="${yTp2 + 3}" fill="#10b981">TP2: $${tp2Val.toLocaleString()}${tp2OptLabel}</text>
 
-              <rect x="${badgeX}" y="${yEntry - 18}" width="${badgeW}" height="16" fill="rgba(8, 11, 17, 0.85)" rx="3" stroke="rgba(56, 189, 248, 0.5)" stroke-width="1" />
-              <text x="${badgeX + 6}" y="${yEntry - 7}" fill="#38bdf8">Entry: $${trade.entry.toLocaleString()}</text>
+              <rect x="${badgeX}" y="${yTp1 - 8}" width="${badgeW}" height="16" fill="rgba(8, 11, 17, 0.9)" rx="3" stroke="rgba(6, 182, 212, 0.6)" stroke-width="1" />
+              <text x="${badgeX + 6}" y="${yTp1 + 3}" fill="#06b6d4">TP1: $${tp1Val.toLocaleString()}${tp1OptLabel}</text>
 
-              <rect x="${badgeX}" y="${isCall ? (lossY + lossHeight - 18) : (lossY + 2)}" width="${badgeW}" height="16" fill="rgba(8, 11, 17, 0.85)" rx="3" stroke="rgba(244, 63, 94, 0.5)" stroke-width="1" />
-              <text x="${badgeX + 6}" y="${isCall ? (lossY + lossHeight - 7) : (lossY + 13)}" fill="#f43f5e">SL: $${trade.sl.toLocaleString()}${stopOptLabel}</text>
+              <rect x="${badgeX}" y="${yEntry - 8}" width="${badgeW}" height="16" fill="rgba(8, 11, 17, 0.9)" rx="3" stroke="rgba(56, 189, 248, 0.6)" stroke-width="1" />
+              <text x="${badgeX + 6}" y="${yEntry + 3}" fill="#38bdf8">Entry: $${entryVal.toLocaleString()}</text>
+
+              <rect x="${badgeX}" y="${ySl - 8}" width="${badgeW}" height="16" fill="rgba(8, 11, 17, 0.9)" rx="3" stroke="rgba(244, 63, 94, 0.6)" stroke-width="1" />
+              <text x="${badgeX + 6}" y="${ySl + 3}" fill="#f43f5e">SL: $${slVal.toLocaleString()}${stopOptLabel}</text>
             </g>
           `;
         }
@@ -1385,18 +1501,24 @@ window.DeltaLiveChart = (function() {
   /**
    * Selects a trade, centers the chart view directly on it, draws the box, and updates cockpit
    */
-  function selectTrade(tradeId) {
+  function selectTrade(tradeIdentifier) {
     let t = null;
-    if (currentAnalysis && currentAnalysis.trades) {
-      t = currentAnalysis.trades.find(x => x.id === tradeId);
-    }
-    if (!t && window.DeltaDB && typeof DeltaDB.getSignalTrades === 'function') {
-      const signals = DeltaDB.getSignalTrades(0);
-      if (signals) t = signals.find(x => x.id === tradeId);
-    }
-    if (!t && window.DeltaPaperFund && typeof DeltaPaperFund.getPortfolio === 'function') {
-      const pf = DeltaPaperFund.getPortfolio();
-      if (pf && pf.trades) t = pf.trades.find(x => x.id === tradeId);
+    const allTrades = getMasterTradesList();
+    if (typeof tradeIdentifier === 'object' && tradeIdentifier !== null) {
+      t = tradeIdentifier;
+    } else {
+      t = allTrades.find(x => x.id === tradeIdentifier);
+      if (!t && currentAnalysis && currentAnalysis.trades) {
+        t = currentAnalysis.trades.find(x => x.id === tradeIdentifier);
+      }
+      if (!t && window.DeltaDB && typeof DeltaDB.getSignalTrades === 'function') {
+        const signals = DeltaDB.getSignalTrades(0);
+        if (signals) t = signals.find(x => x.id === tradeIdentifier);
+      }
+      if (!t && window.DeltaPaperFund && typeof DeltaPaperFund.getPortfolio === 'function') {
+        const pf = DeltaPaperFund.getPortfolio();
+        if (pf && pf.trades) t = pf.trades.find(x => x.id === tradeIdentifier);
+      }
     }
 
     if (t) {
@@ -2147,6 +2269,8 @@ Expected Profit: +50% Option Gross / +40% Net`;
           updatePositionToolCockpit(null);
         }
 
+        currentMasterTrades = realTrades;
+
         // Build chart markers: Verified Sentinel trades have absolute priority over synthetic backtests
         let verifiedMarkers = [];
         let verifiedTimes = new Set();
@@ -2154,34 +2278,39 @@ Expected Profit: +50% Option Gross / +40% Net`;
         if (realTrades.length > 0) {
           realTrades.forEach(st => {
             const isCall = st.direction === "LONG";
+            const dirSymbol = isCall ? "▲" : "▼";
             const isWin = st.outcome === "WIN";
             const isBeWin = st.outcome === "BE_WIN";
             const isLoss = st.outcome === "LOSS";
             const isActive = st.outcome === "ACTIVE";
+            const isEstimation = st.outcome === "SKIPPED_CIRCUIT_BREAKER" || st.skipped || st.isEstimation;
 
-            let markerText = isCall ? "CALL" : "PUT";
+            let markerText = `${dirSymbol} ${isCall ? 'CALL' : 'PUT'}`;
             let markerColor = isCall ? "#38bdf8" : "#818cf8";
             let markerPos = isCall ? "belowBar" : "aboveBar";
             let markerShape = isCall ? "arrowUp" : "arrowDown";
 
             if (isActive) {
-              markerText = "LIVE";
+              markerText = `${dirSymbol} LIVE`;
               markerColor = "#38bdf8";
             } else if (isWin) {
               const runnerPct = st.optionPnlPct || (st.realOption && st.realOption.targetGainPct) || "+72%";
-              markerText = runnerPct.startsWith('+') ? runnerPct : `+${runnerPct}`;
+              const cleanPct = runnerPct.startsWith('+') ? runnerPct : `+${runnerPct}`;
+              markerText = `${dirSymbol} ${cleanPct}`;
               markerColor = "#10b981";
             } else if (isBeWin) {
-              markerText = "BE +25%";
+              markerText = `${dirSymbol} +25%`;
               markerColor = "#10b981";
             } else if (isLoss) {
-              markerText = "-30%";
+              markerText = `${dirSymbol} -30%`;
               markerColor = "#f43f5e";
-            } else if (st.outcome === "SKIPPED_CIRCUIT_BREAKER" || st.skipped) {
-              markerText = "SKP (2SL)";
+            } else if (isEstimation) {
+              const estPct = st.optionPnlPct || (st.realOption && st.realOption.targetGainPct) || "+50%";
+              const cleanEst = estPct.startsWith('+') ? estPct : `+${estPct}`;
+              markerText = `${dirSymbol} EST (${cleanEst})`;
               markerColor = "#f59e0b";
             } else {
-              markerText = "SCR";
+              markerText = `${dirSymbol} SCR`;
               markerColor = "#64748b";
             }
 
@@ -2198,17 +2327,8 @@ Expected Profit: +50% Option Gross / +40% Net`;
           });
         }
 
-        // Merge backtest markers ONLY for candles where no verified trade exists within 1800s (2 bars)
+        // Strict 100% state sync: chart markers mirror verified real trades without phantom backtest markers
         let chartMarkers = [...verifiedMarkers];
-        if (currentAnalysis && currentAnalysis.markers) {
-          currentAnalysis.markers.forEach(bm => {
-            const hasVerifiedNearby = Array.from(verifiedTimes).some(vt => Math.abs(vt - bm.time) < 1800);
-            if (!hasVerifiedNearby) {
-              chartMarkers.push(bm);
-            }
-          });
-        }
-
         if (candleSeries) {
           candleSeries.setMarkers(sanitizeMarkersNoOverlap(chartMarkers));
         }
@@ -2393,11 +2513,12 @@ Expected Profit: +50% Option Gross / +40% Net`;
       }
     }
 
-    // Update win rate element in table header
+    // Update win rate element in table header (Strictly excludes Estimation / 2-SL trades from mathematical totals)
     const histWrEl = document.getElementById('btHistoryWinRate');
     if (histWrEl) {
-      const wins = sorted.filter(t => t.outcome === "WIN" || t.outcome === "BE_WIN").length;
-      const total = sorted.filter(t => t.outcome === "WIN" || t.outcome === "BE_WIN" || t.outcome === "LOSS").length;
+      const realDone = sorted.filter(t => !t.skipped && t.outcome !== "SKIPPED_CIRCUIT_BREAKER" && !t.isEstimation);
+      const wins = realDone.filter(t => t.outcome === "WIN" || t.outcome === "BE_WIN").length;
+      const total = realDone.filter(t => t.outcome === "WIN" || t.outcome === "BE_WIN" || t.outcome === "LOSS").length;
       const winRate = total > 0 ? Math.round((wins / total) * 100) : 0;
       histWrEl.innerText = `${winRate}% Win Rate (${wins}W - ${total - wins}L)`;
     }
@@ -2451,10 +2572,18 @@ Expected Profit: +50% Option Gross / +40% Net`;
           sellPrice = (opt && opt.stopPrice > 0) ? opt.stopPrice : Math.round(buyPrice * 0.7 * 10) / 10;
           pnlDiff = Math.round((sellPrice - buyPrice) * 10) / 10;
           optGainPct = `-30%`;
-        } else if (t.outcome === "SKIPPED_CIRCUIT_BREAKER" || t.skipped) {
-          sellPrice = buyPrice;
-          pnlDiff = 0;
-          optGainPct = `0.0%`;
+        } else if (t.outcome === "SKIPPED_CIRCUIT_BREAKER" || t.skipped || t.isEstimation) {
+          // Estimation Mode: Show what outcome WOULD have been for learning, but isolated from real PnL
+          const estOutcome = t.estOutcome || (t.entry && t.tp && t.exitPrice ? (Math.abs(t.exitPrice - t.tp) < Math.abs(t.exitPrice - t.sl) ? "WIN" : "LOSS") : (t.optionSellPrice ? (t.optionSellPrice > buyPrice ? "WIN" : "LOSS") : "WIN"));
+          if (estOutcome === "WIN") {
+            sellPrice = (opt && opt.targetPrice > 0) ? opt.targetPrice : (t.exitOpt || Math.round(buyPrice * 1.5 * 10) / 10);
+            pnlDiff = Math.round((sellPrice - buyPrice) * 10) / 10;
+            optGainPct = `+${Math.round((pnlDiff / buyPrice) * 100)}%`;
+          } else {
+            sellPrice = (opt && opt.stopPrice > 0) ? opt.stopPrice : Math.round(buyPrice * 0.7 * 10) / 10;
+            pnlDiff = Math.round((sellPrice - buyPrice) * 10) / 10;
+            optGainPct = `-30%`;
+          }
         } else if (t.outcome === "TIMEOUT") {
           sellPrice = Math.round(buyPrice * 0.82 * 10) / 10;
           pnlDiff = Math.round((sellPrice - buyPrice) * 10) / 10;
@@ -2478,8 +2607,8 @@ Expected Profit: +50% Option Gross / +40% Net`;
           outcomeBadge = `<span class="px-1.5 sm:px-2 py-0.5 rounded text-[9px] sm:text-[10px] font-bold bg-teal-500/10 text-teal-300 border border-teal-500/30 whitespace-nowrap"><i class="fa-solid fa-shield-halved mr-0.5"></i>BE WIN (+25%)</span>`;
         } else if (isLoss) {
           outcomeBadge = `<span class="px-1.5 sm:px-2 py-0.5 rounded text-[9px] sm:text-[10px] font-bold bg-rose-500/10 text-rose-400 border border-rose-500/30 whitespace-nowrap">LOSS (-1R)</span>`;
-        } else if (t.outcome === "SKIPPED_CIRCUIT_BREAKER" || t.skipped) {
-          outcomeBadge = `<span class="px-1.5 sm:px-2 py-0.5 rounded text-[9px] sm:text-[10px] font-bold bg-amber-500/10 text-amber-400 border border-amber-500/30 whitespace-nowrap"><i class="fa-solid fa-shield-halved mr-0.5"></i>NOT TAKEN (2 SL Hit)</span>`;
+        } else if (t.outcome === "SKIPPED_CIRCUIT_BREAKER" || t.skipped || t.isEstimation) {
+          outcomeBadge = `<span class="px-1.5 sm:px-2 py-0.5 rounded text-[9px] sm:text-[10px] font-bold bg-amber-500/15 text-amber-300 border border-amber-500/40 whitespace-nowrap"><i class="fa-solid fa-graduation-cap mr-1"></i>EST: ${optGainPct} (2-SL)</span>`;
         } else {
           outcomeBadge = `<span class="px-1.5 sm:px-2 py-0.5 rounded text-[9px] sm:text-[10px] font-bold bg-slate-500/10 text-slate-400 border border-slate-500/30 whitespace-nowrap">TIMEOUT</span>`;
         }
@@ -2501,7 +2630,7 @@ Expected Profit: +50% Option Gross / +40% Net`;
               <div class="flex items-center gap-1 font-bold ${isCall ? 'text-winGreen' : 'text-lossRed'} text-xs">
                 <i class="fa-solid ${isCall ? 'fa-arrow-up' : 'fa-arrow-down'} text-[10px]"></i>
                 <span>${isCall ? 'CALL' : 'PUT'}</span>
-                ${(t.outcome === 'SKIPPED_CIRCUIT_BREAKER' || t.skipped) ? '<span class="text-[8px] px-1 py-0.2 rounded bg-amber-500/20 text-amber-300 border border-amber-500/40 font-mono">NOT TAKEN</span>' : ''}
+                ${(t.outcome === 'SKIPPED_CIRCUIT_BREAKER' || t.skipped || t.isEstimation) ? '<span class="text-[8px] px-1 py-0.2 rounded bg-amber-500/20 text-amber-300 border border-amber-500/40 font-mono">ESTIMATION</span>' : ''}
                 ${t.strategyId && t.strategyId.includes('BOS') ? '<span class="text-[8px] px-1 py-0.2 rounded bg-amber-500/20 text-amber-300 border border-amber-500/40 font-mono">BOS</span>' : ''}
               </div>
               <span class="text-[10px] text-slate-400 block truncate" title="${t.name}">${cleanPatternName}</span>
@@ -2597,10 +2726,17 @@ Expected Profit: +50% Option Gross / +40% Net`;
           sellPrice = (opt && opt.stopPrice > 0) ? opt.stopPrice : Math.round(buyPrice * 0.7 * 10) / 10;
           pnlDiff = Math.round((sellPrice - buyPrice) * 10) / 10;
           optGainPct = `-30%`;
-        } else if (t.outcome === "SKIPPED_CIRCUIT_BREAKER" || t.skipped) {
-          sellPrice = buyPrice;
-          pnlDiff = 0;
-          optGainPct = `0.0%`;
+        } else if (t.outcome === "SKIPPED_CIRCUIT_BREAKER" || t.skipped || t.isEstimation) {
+          const estOutcome = t.estOutcome || (t.entry && t.tp && t.exitPrice ? (Math.abs(t.exitPrice - t.tp) < Math.abs(t.exitPrice - t.sl) ? "WIN" : "LOSS") : (t.optionSellPrice ? (t.optionSellPrice > buyPrice ? "WIN" : "LOSS") : "WIN"));
+          if (estOutcome === "WIN") {
+            sellPrice = (opt && opt.targetPrice > 0) ? opt.targetPrice : (t.exitOpt || Math.round(buyPrice * 1.5 * 10) / 10);
+            pnlDiff = Math.round((sellPrice - buyPrice) * 10) / 10;
+            optGainPct = `+${Math.round((pnlDiff / buyPrice) * 100)}%`;
+          } else {
+            sellPrice = (opt && opt.stopPrice > 0) ? opt.stopPrice : Math.round(buyPrice * 0.7 * 10) / 10;
+            pnlDiff = Math.round((sellPrice - buyPrice) * 10) / 10;
+            optGainPct = `-30%`;
+          }
         } else if (t.outcome === "TIMEOUT") {
           sellPrice = Math.round(buyPrice * 0.82 * 10) / 10;
           pnlDiff = Math.round((sellPrice - buyPrice) * 10) / 10;
@@ -2622,8 +2758,8 @@ Expected Profit: +50% Option Gross / +40% Net`;
           outcomeBadge = `<span class="px-2 py-0.5 rounded text-[9px] font-bold bg-teal-500/15 text-teal-300 border border-teal-500/30 whitespace-nowrap"><i class="fa-solid fa-shield-halved mr-0.5"></i>BE WIN (+25%)</span>`;
         } else if (isLoss) {
           outcomeBadge = `<span class="px-2 py-0.5 rounded text-[9px] font-bold bg-rose-500/15 text-rose-400 border border-rose-500/30 whitespace-nowrap">LOSS (-1R)</span>`;
-        } else if (t.outcome === "SKIPPED_CIRCUIT_BREAKER" || t.skipped) {
-          outcomeBadge = `<span class="px-2 py-0.5 rounded text-[9px] font-bold bg-amber-500/15 text-amber-400 border border-amber-500/30 whitespace-nowrap"><i class="fa-solid fa-shield-halved mr-1"></i>NOT TAKEN (2 SL Hit)</span>`;
+        } else if (t.outcome === "SKIPPED_CIRCUIT_BREAKER" || t.skipped || t.isEstimation) {
+          outcomeBadge = `<span class="px-2 py-0.5 rounded text-[9px] font-bold bg-amber-500/15 text-amber-400 border border-amber-500/30 whitespace-nowrap"><i class="fa-solid fa-graduation-cap mr-1"></i>EST: ${optGainPct} (2-SL)</span>`;
         } else {
           outcomeBadge = `<span class="px-2 py-0.5 rounded text-[9px] font-bold bg-slate-500/15 text-slate-400 border border-slate-500/30 whitespace-nowrap">TIMEOUT</span>`;
         }
@@ -2641,7 +2777,7 @@ Expected Profit: +50% Option Gross / +40% Net`;
                   <i class="fa-solid ${isCall ? 'fa-arrow-up' : 'fa-arrow-down'} text-[9px]"></i>
                   ${isCall ? 'CALL' : 'PUT'}
                 </span>
-                ${(t.outcome === 'SKIPPED_CIRCUIT_BREAKER' || t.skipped) ? '<span class="text-[9px] px-1.5 py-0.2 rounded bg-amber-500/20 text-amber-300 border border-amber-500/40 shrink-0 font-bold">NOT TAKEN</span>' : ''}
+                ${(t.outcome === 'SKIPPED_CIRCUIT_BREAKER' || t.skipped || t.isEstimation) ? '<span class="text-[9px] px-1.5 py-0.2 rounded bg-amber-500/20 text-amber-300 border border-amber-500/40 shrink-0 font-bold">ESTIMATION</span>' : ''}
                 ${t.strategyId && t.strategyId.includes('BOS') ? '<span class="text-[9px] px-1.5 py-0.2 rounded bg-amber-500/20 text-amber-300 border border-amber-500/40 shrink-0 font-bold">BOS</span>' : ''}
                 <span class="text-[11px] text-slate-200 font-bold truncate" title="${t.name}">${cleanPatternName}</span>
               </div>

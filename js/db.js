@@ -753,13 +753,14 @@ window.DeltaDB = (function() {
       const existing = registry[t.id];
 
       // Keep entry mark price and strike STRICTLY IMMUTABLE once recorded!
-      const entryOpt = existing?.optionEntryMark || t.realOption?.entryPrice || t.entryOpt || 220;
+      const entryOpt = existing?.optionEntryLockedMark || existing?.optionEntryMark || t.realOption?.entryPrice || t.entryOpt || 220;
       const strike = existing?.optionStrike || t.realOption?.strike || t.optionStrike || Math.round(t.entry / 200) * 200;
       const symbol = existing?.optionSymbol || t.realOption?.symbol || `${t.direction === 'LONG' ? 'C' : 'P'}-BTC-${strike}`;
       const buyZone = existing?.buyZone || t.realOption?.buyZone || `$${(entryOpt * 0.98).toFixed(1)} - $${(entryOpt * 1.02).toFixed(1)}`;
       const targetGainPct = existing?.optionTargetGainPct || t.realOption?.targetGainPct || t.targetGainPct || "+50.0%";
       const targetPrice = existing?.optionTargetPrice || t.realOption?.targetPrice || (entryOpt * 1.5);
       const stopPrice = existing?.optionStopPrice || t.realOption?.stopPrice || (entryOpt * 0.7);
+      const exitOpt = existing?.optionExitLockedMark || existing?.optionSellPrice || t.optionExitLockedMark || t.optionSellPrice || (t.outcome === 'WIN' ? targetPrice : (t.outcome === 'LOSS' ? stopPrice : (t.outcome === 'TIMEOUT' ? Math.round(entryOpt * 0.82 * 10) / 10 : (t.realOption?.markPrice || entryOpt))));
 
       const docData = {
         id: t.id,
@@ -778,8 +779,10 @@ window.DeltaDB = (function() {
         optionSymbol: symbol,
         optionStrike: strike,
         optionEntryMark: entryOpt, // IMMUTABLE FROZEN ENTRY PRICE
+        optionEntryLockedMark: entryOpt,
         optionBuyPrice: entryOpt,
-        optionSellPrice: t.outcome === 'WIN' ? targetPrice : (t.outcome === 'LOSS' ? stopPrice : (t.outcome === 'TIMEOUT' ? Math.round(entryOpt * 0.82 * 10) / 10 : (t.realOption?.markPrice || entryOpt))),
+        optionSellPrice: exitOpt,
+        optionExitLockedMark: t.outcome !== 'ACTIVE' ? exitOpt : null,
         buyZone: buyZone,
         optionTargetPrice: targetPrice,
         optionTargetGainPct: targetGainPct,
@@ -860,7 +863,8 @@ window.DeltaDB = (function() {
     const id = data.id || docId;
     if (!id || id === "test_doc_123") return null;
 
-    const entryOpt = Number(data.optionEntryMark) || 220;
+    const entryOpt = Number(data.optionEntryLockedMark) || Number(data.optionEntryMark) || 220;
+    const exitOpt = Number(data.optionExitLockedMark) || Number(data.optionSellPrice) || null;
     const targetPrice = Number(data.optionTargetPrice) || Math.round(entryOpt * 1.65 * 10) / 10;
     const stopPrice = Number(data.optionStopPrice) || Math.round(entryOpt * 0.70 * 10) / 10;
     const tp1Price = Number(data.optionTp1Price) || Math.round(entryOpt * 1.50 * 10) / 10;
@@ -880,13 +884,17 @@ window.DeltaDB = (function() {
     data.barsHeld = data.barsHeld || 1;
     data.time = Number(data.time) || Math.floor(Date.now() / 1000);
     data.outcome = data.outcome || "ACTIVE";
+    data.optionEntryLockedMark = entryOpt;
+    data.optionExitLockedMark = exitOpt;
 
     data.realOption = data.realOption || {
       symbol: data.optionSymbol || `${data.direction === 'LONG' ? 'C' : 'P'}-BTC-${data.optionStrike || 65000}`,
       strike: Number(data.optionStrike) || Math.round(entrySpot / 200) * 200,
       entryPrice: entryOpt,
-      markPrice: (data.optionSellPrice && data.outcome !== "ACTIVE") ? data.optionSellPrice : entryOpt,
-      sellPrice: data.optionSellPrice || (data.outcome === "WIN" ? targetPrice : (data.outcome === "LOSS" ? stopPrice : null)),
+      lockedEntryMark: entryOpt,
+      lockedExitMark: exitOpt,
+      markPrice: (exitOpt !== null && data.outcome !== "ACTIVE") ? exitOpt : entryOpt,
+      sellPrice: exitOpt || (data.outcome === "WIN" ? targetPrice : (data.outcome === "LOSS" ? stopPrice : null)),
       targetPrice: targetPrice,
       tp1Price: tp1Price,
       stopPrice: stopPrice,

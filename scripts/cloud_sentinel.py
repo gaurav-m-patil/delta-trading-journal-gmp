@@ -145,6 +145,7 @@ def sync_trade_to_firestore(trade_data):
             "optionStrike": {"integerValue": str(strike_val)},
             "optionSymbol": {"stringValue": str(opt.get("symbol", trade_data.get("optionSymbol", "")))},
             "optionEntryMark": {"doubleValue": entry_opt},
+            "optionEntryLockedMark": {"doubleValue": float(trade_data.get("optionEntryLockedMark", entry_opt))},
             "buyZone": {"stringValue": buy_zone},
             "optionTp1Price": {"doubleValue": tp1_price},
             "optionTp1Pct": {"stringValue": "+50.0%"},
@@ -160,8 +161,10 @@ def sync_trade_to_firestore(trade_data):
 
         if trade_data.get("exitPrice"):
             fields["exitPrice"] = {"doubleValue": float(trade_data["exitPrice"])}
-        if trade_data.get("optionSellPrice"):
-            fields["optionSellPrice"] = {"doubleValue": float(trade_data["optionSellPrice"])}
+        if trade_data.get("optionSellPrice") or trade_data.get("optionExitLockedMark"):
+            exit_mark = float(trade_data.get("optionExitLockedMark", trade_data.get("optionSellPrice")))
+            fields["optionSellPrice"] = {"doubleValue": exit_mark}
+            fields["optionExitLockedMark"] = {"doubleValue": exit_mark}
         if trade_data.get("skipped"):
             fields["skipped"] = {"booleanValue": bool(trade_data["skipped"])}
         if trade_data.get("skippedReason"):
@@ -1005,6 +1008,7 @@ def run_sentinel():
             active_trade["outcome"] = "WIN"
             active_trade["exitPrice"] = current_price
             active_trade["optionSellPrice"] = sell_p
+            active_trade["optionExitLockedMark"] = sell_p
             sync_trade_to_firestore(active_trade)
 
             state["active_trade"] = None
@@ -1035,6 +1039,7 @@ def run_sentinel():
             active_trade["outcome"] = "BE_WIN"
             active_trade["exitPrice"] = current_price
             active_trade["optionSellPrice"] = sell_p
+            active_trade["optionExitLockedMark"] = sell_p
             sync_trade_to_firestore(active_trade)
 
             state["active_trade"] = None
@@ -1064,6 +1069,7 @@ def run_sentinel():
             active_trade["outcome"] = "LOSS"
             active_trade["exitPrice"] = current_price
             active_trade["optionSellPrice"] = sell_p
+            active_trade["optionExitLockedMark"] = sell_p
             sync_trade_to_firestore(active_trade)
 
             state["active_trade"] = None
