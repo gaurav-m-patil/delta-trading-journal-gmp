@@ -1,14 +1,63 @@
 {
-  "last_alerted_trade_id": "cloud_bos_down_1794891600",
-  "active_trade": null,
+  "last_alerted_trade_id": "cloud_bos_down_1794929400",
+  "active_trade": {
+    "id": "cloud_bos_down_1794929400",
+    "name": "Bearish Break of Structure (BOS)",
+    "direction": "SHORT",
+    "time": 1794929400,
+    "entry": 64158,
+    "tp": 62282,
+    "sl": 65097,
+    "rr": "1:2.0",
+    "rsi": 38.2,
+    "rvol": 2.06,
+    "rationale": {
+      "pattern": "Trend Continuation Breakdown",
+      "levelTested": "Key Structure Floor ($64,503)",
+      "confirmation": "Aggressive institutional selling breaking prior structure with 2.06x RVOL",
+      "htfAlignment": "\ud83d\udd34 BEARISH CONFLUENCE (1H Macro Downtrend)",
+      "absorption": "Institutional Flow (2.06x RVOL)"
+    },
+    "htf_trend": {
+      "trend": "BEARISH",
+      "label": "\ud83d\udd34 BEARISH CONFLUENCE (1H Macro Downtrend)",
+      "cur_price": 64173,
+      "ema20": 64718,
+      "ema50": 64984
+    },
+    "option": {
+      "symbol": "P-BTC-64200-181126",
+      "strike": 64200.0,
+      "strike_tier": "Exact ATM (Delta ~0.50)",
+      "mark_price": 584.7,
+      "buy_zone": "$584.7 - $584.7",
+      "tp1_price": 1270.0,
+      "tp1_pct": "+117.2%",
+      "target_price": 1830.6,
+      "target_pct": "+213.1%",
+      "stop_price": 409.3,
+      "eff_delta": 0.66,
+      "iv_rating": "ELEVATED (High IV - Scalp Focus)",
+      "iv_badge": "\ud83d\udd34 ELEVATED"
+    },
+    "session": {
+      "name": "New York Session (19:00 - 02:30 IST)",
+      "code": "NEW_YORK",
+      "flag": "\ud83d\udd25",
+      "volatility": "Peak Liquidity (Gamma Spikes & Momentum)",
+      "tp_bias": "Maximum DOEV Runner Potential"
+    },
+    "outcome": "ACTIVE",
+    "optionEntryLockedMark": 584.7
+  },
   "last_alerted_catalyst_guid": null,
   "daily_counts": {
     "date": "2026-11-17",
-    "trades_given": 2,
+    "trades_given": 3,
     "wins": 1,
     "losses": 1
   },
   "telegram_handshake_sent": true,
-  "last_trade_time": 1794897326,
+  "last_trade_time": 1794930333,
   "last_trade_direction": "SHORT"
 }
