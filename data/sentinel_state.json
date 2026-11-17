@@ -7,7 +7,7 @@
     "time": 1794891600,
     "entry": 64800,
     "tp": 64316,
-    "sl": 65032,
+    "sl": 64800,
     "rr": "1:2.1",
     "rsi": 48.1,
     "rvol": 1.65,
@@ -48,7 +48,8 @@
       "tp_bias": "Scalp Focus (TP1 priority)"
     },
     "outcome": "ACTIVE",
-    "optionEntryLockedMark": 294.8
+    "optionEntryLockedMark": 294.8,
+    "reached_tp1": true
   },
   "last_alerted_catalyst_guid": null,
   "daily_counts": {
