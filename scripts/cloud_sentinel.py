@@ -122,7 +122,8 @@ def sync_trade_to_firestore(trade_data):
         rr_val = round(target_dist / max(1.0, sl_dist), 2)
 
         strike_val = int(opt.get("strike", trade_data.get("optionStrike", round(entry_val / 200) * 200)))
-        entry_opt = float(opt.get("mark_price", trade_data.get("optionEntryMark", 220)))
+        # Strictly preserve frozen entry mark price to prevent state desync
+        entry_opt = float(trade_data.get("optionEntryLockedMark", opt.get("mark_price", trade_data.get("optionEntryMark", 220))))
         buy_zone = str(opt.get("buy_zone", trade_data.get("buyZone", f"${entry_opt * 0.98:.1f} - ${entry_opt * 1.02:.1f}")))
         tp1_price = float(opt.get("tp1_price", trade_data.get("optionTp1Price", round(entry_opt * 1.50, 1))))
         target_price = float(opt.get("target_price", trade_data.get("optionTargetPrice", round(entry_opt * 1.72, 1))))
@@ -145,10 +146,10 @@ def sync_trade_to_firestore(trade_data):
             "optionStrike": {"integerValue": str(strike_val)},
             "optionSymbol": {"stringValue": str(opt.get("symbol", trade_data.get("optionSymbol", "")))},
             "optionEntryMark": {"doubleValue": entry_opt},
-            "optionEntryLockedMark": {"doubleValue": float(trade_data.get("optionEntryLockedMark", entry_opt))},
+            "optionEntryLockedMark": {"doubleValue": entry_opt},
             "buyZone": {"stringValue": buy_zone},
             "optionTp1Price": {"doubleValue": tp1_price},
-            "optionTp1Pct": {"stringValue": "+50.0%"},
+            "optionTp1Pct": {"stringValue": str(opt.get("tp1_pct", trade_data.get("optionTp1Pct", "+50.0%")))},
             "optionTargetPrice": {"doubleValue": target_price},
             "optionPnlPct": {"stringValue": target_pct},
             "optionStopPrice": {"doubleValue": stop_price},
@@ -543,10 +544,12 @@ def fetch_delta_option_contract(direction, spot_price, spot_dist=1200):
                     gain_pct_full = 65.0
                     proj_pts = round(mark * 0.65, 1)
                 target_full = round(mark + proj_pts, 1)
-                target_tp1 = round(mark * 1.5, 1)
+                # Dynamic TP1 Option Target: 55% of the projected spot-move delta gain (min +40%, calibrated to underlying R:R)
+                tp1_opt_pct_val = max(40.0, round(gain_pct_full * 0.55, 1))
+                target_tp1 = round(mark * (1.0 + (tp1_opt_pct_val / 100.0)), 1)
                 if target_full <= target_tp1:
-                    gain_pct_full = 65.0
-                    target_full = round(mark * 1.65, 1)
+                    target_full = round(mark * (1.0 + ((tp1_opt_pct_val + 20.0) / 100.0)), 1)
+                    gain_pct_full = round(((target_full - mark) / mark) * 100, 1)
                 stop_price = round(mark * 0.7, 1)
 
                 ratio = (mark / spot_price) if spot_price > 0 else 0.003
@@ -567,7 +570,7 @@ def fetch_delta_option_contract(direction, spot_price, spot_dist=1200):
                     "mark_price": mark,
                     "buy_zone": buy_zone,
                     "tp1_price": target_tp1,
-                    "tp1_pct": "+50.0%",
+                    "tp1_pct": f"+{tp1_opt_pct_val:.1f}%",
                     "target_price": target_full,
                     "target_pct": f"+{gain_pct_full}%",
                     "stop_price": stop_price,
@@ -592,6 +595,11 @@ def fetch_delta_option_contract(direction, spot_price, spot_dist=1200):
         gain_pct_full = 65.0
         proj_pts = round(mark * 0.65, 1)
     target_full = round(mark + proj_pts, 1)
+    tp1_opt_pct_val = max(40.0, round(gain_pct_full * 0.55, 1))
+    target_tp1 = round(mark * (1.0 + (tp1_opt_pct_val / 100.0)), 1)
+    if target_full <= target_tp1:
+        target_full = round(mark * (1.0 + ((tp1_opt_pct_val + 20.0) / 100.0)), 1)
+        gain_pct_full = round(((target_full - mark) / mark) * 100, 1)
     ratio = (mark / spot_price) if spot_price > 0 else 0.003
     iv_badge = "🟡 FAIR" if ratio <= 0.0045 else "🔴 ELEVATED"
     iv_rating = "FAIR (Calibrated)" if ratio <= 0.0045 else "ELEVATED"
@@ -601,8 +609,8 @@ def fetch_delta_option_contract(direction, spot_price, spot_dist=1200):
         "strike_tier": "Exact ATM (Delta ~0.50)",
         "mark_price": mark,
         "buy_zone": f"${mark * 0.98:.1f} - ${mark * 1.02:.1f}",
-        "tp1_price": round(mark * 1.5, 1),
-        "tp1_pct": "+50.0%",
+        "tp1_price": target_tp1,
+        "tp1_pct": f"+{tp1_opt_pct_val:.1f}%",
         "target_price": target_full,
         "target_pct": f"+{gain_pct_full}%",
         "stop_price": round(mark * 0.7, 1),
@@ -628,19 +636,27 @@ def evaluate_smc_setup(candles, htf_trend=None):
     volumes = [c["volume"] for c in candles[-21:-1]]
     vol_sma = sum(volumes) / max(len(volumes), 1)
 
-    # 1. Dynamic Fractals (Detect 3-bar and 5-bar swing pivots)
+    # 14-period ATR for dynamic structural buffers and candle size filters
+    ranges = [max(c["high"] - c["low"], abs(c["high"] - candles[i-1]["close"]), abs(c["low"] - candles[i-1]["close"])) for i, c in enumerate(candles[-15:], start=1) if i < len(candles)]
+    atr14 = sum(ranges) / max(len(ranges), 1) if ranges else 200.0
+
+    # 1. Confluence Fractals (Detect robust 5-bar swing pivots with 3-bar fallback)
     swing_highs = []
     swing_lows = []
-    for i in range(3, len(candles) - 2):
+    for i in range(4, len(candles) - 2):
         h = candles[i]["high"]
         l = candles[i]["low"]
+        # Robust 5-bar fractal pivot (2 candles left, 2 right)
+        is_sh_5 = (candles[i-2]["high"] <= h) and (candles[i-1]["high"] <= h) and (candles[i+1]["high"] <= h) and (candles[i+2]["high"] <= h)
+        is_sl_5 = (candles[i-2]["low"] >= l) and (candles[i-1]["low"] >= l) and (candles[i+1]["low"] >= l) and (candles[i+2]["low"] >= l)
         # Fast 3-bar fractal pivot
-        is_sh_3 = (candles[i-1]["high"] <= h) and (candles[i-2]["high"] <= h) and (candles[i+1]["high"] <= h)
-        is_sl_3 = (candles[i-1]["low"] >= l) and (candles[i-2]["low"] >= l) and (candles[i+1]["low"] >= l)
-        if is_sh_3:
-            swing_highs.append({"index": i, "price": h, "time": candles[i]["time"]})
-        if is_sl_3:
-            swing_lows.append({"index": i, "price": l, "time": candles[i]["time"]})
+        is_sh_3 = (candles[i-1]["high"] <= h) and (candles[i+1]["high"] <= h)
+        is_sl_3 = (candles[i-1]["low"] >= l) and (candles[i+1]["low"] >= l)
+
+        if is_sh_5 or is_sh_3:
+            swing_highs.append({"index": i, "price": h, "time": candles[i]["time"], "is_major": is_sh_5})
+        if is_sl_5 or is_sl_3:
+            swing_lows.append({"index": i, "price": l, "time": candles[i]["time"], "is_major": is_sl_5})
 
     last_closed = candles[-2] # Most recently completed closed candle
     cur_vol = last_closed["volume"]
@@ -652,8 +668,22 @@ def evaluate_smc_setup(candles, htf_trend=None):
     open_p = last_closed["open"]
     close_p = last_closed["close"]
     rng = max(0.1, high - low)
+    candle_body = abs(close_p - open_p)
     lower_wick = min(open_p, close_p) - low
     upper_wick = high - max(open_p, close_p)
+
+    # 🛡️ INSTITUTIONAL CHOP FILTERS (Zero-Tolerance for Sideways Drift)
+    # 1. Hard RVOL Gate: Smart money does NOT enter without at least 1.40x relative volume
+    if rvol < 1.40:
+        return None
+
+    # 2. RSI Dead Zone Gate: 42 to 58 indicates absence of directional momentum (chop)
+    if 42.0 <= rsi <= 58.0:
+        return None
+
+    # 3. Minimum Candle Size: Reject micro dojis/indecision candles (< 0.40x ATR)
+    if rng < (atr14 * 0.40):
+        return None
 
     trade = None
 
@@ -661,9 +691,10 @@ def evaluate_smc_setup(candles, htf_trend=None):
     recent_lows = [sl["price"] for sl in swing_lows[-5:]] if swing_lows else []
     for sl_price in recent_lows:
         if low < sl_price and close_p > sl_price and (lower_wick / rng) >= 0.25 and close_p >= open_p:
-            risk = max(180, close_p - low * 0.998)
+            # Dynamic ATR-based risk buffer
+            risk = max(180, (close_p - low) + (atr14 * 0.15))
             tp = round(close_p + (risk * 2.2))
-            sl = round(low - (risk * 0.1))
+            sl = round(low - (atr14 * 0.10))
             rr = round((tp - close_p) / max(1, close_p - sl), 1)
 
             abs_desc = f"Bullish Delta Absorption ({round((lower_wick/rng)*100)}% wick + {rvol}x RVOL)"
@@ -692,9 +723,10 @@ def evaluate_smc_setup(candles, htf_trend=None):
         recent_highs = [sh["price"] for sh in swing_highs[-5:]] if swing_highs else []
         for sh_price in recent_highs:
             if high > sh_price and close_p < sh_price and (upper_wick / rng) >= 0.25 and close_p <= open_p:
-                risk = max(180, high * 1.002 - close_p)
+                # Dynamic ATR-based risk buffer
+                risk = max(180, (high - close_p) + (atr14 * 0.15))
                 tp = round(close_p - (risk * 2.2))
-                sl = round(high + (risk * 0.1))
+                sl = round(high + (atr14 * 0.10))
                 rr = round((close_p - tp) / max(1, sl - close_p), 1)
 
                 abs_desc = f"Bearish Delta Absorption ({round((upper_wick/rng)*100)}% wick + {rvol}x RVOL)"
@@ -719,6 +751,8 @@ def evaluate_smc_setup(candles, htf_trend=None):
                 break
 
     # Setup 3: Fair Value Gap (FVG) / Imbalance Mitigation
+    # Institutional requirement: minimum $180 gap size or 0.75x ATR to avoid micro tick noise
+    min_fvg_gap = max(180.0, atr14 * 0.75)
     if not trade and len(candles) >= 8:
         for j in range(len(candles) - 7, len(candles) - 3):
             c1 = candles[j]
@@ -726,12 +760,12 @@ def evaluate_smc_setup(candles, htf_trend=None):
             c3 = candles[j+2]
 
             # Bullish FVG: Gap between c1 high and c3 low
-            if c1["high"] < c3["low"] and (c3["low"] - c1["high"]) >= 80:
+            if c1["high"] < c3["low"] and (c3["low"] - c1["high"]) >= min_fvg_gap:
                 fvg_mid = (c1["high"] + c3["low"]) / 2.0
                 if low <= c3["low"] and close_p >= fvg_mid and close_p > open_p:
                     risk = max(180, close_p - c1["high"])
                     tp = round(close_p + (risk * 2.2))
-                    sl = round(c1["high"] - 50)
+                    sl = round(c1["high"] - (atr14 * 0.15))
                     rr = round((tp - close_p) / max(1, close_p - sl), 1)
                     trade = {
                         "id": f"cloud_fvg_bull_{last_closed['time']}",
@@ -753,12 +787,12 @@ def evaluate_smc_setup(candles, htf_trend=None):
                     break
 
             # Bearish FVG: Gap between c3 high and c1 low
-            elif c1["low"] > c3["high"] and (c1["low"] - c3["high"]) >= 80:
+            elif c1["low"] > c3["high"] and (c1["low"] - c3["high"]) >= min_fvg_gap:
                 fvg_mid = (c1["low"] + c3["high"]) / 2.0
                 if high >= c3["high"] and close_p <= fvg_mid and close_p < open_p:
                     risk = max(180, c1["low"] - close_p)
                     tp = round(close_p - (risk * 2.2))
-                    sl = round(c1["low"] + 50)
+                    sl = round(c1["low"] + (atr14 * 0.15))
                     rr = round((close_p - tp) / max(1, sl - close_p), 1)
                     trade = {
                         "id": f"cloud_fvg_bear_{last_closed['time']}",
@@ -782,10 +816,10 @@ def evaluate_smc_setup(candles, htf_trend=None):
     # Setup 4: Break of Structure (BOS) Breakdown / Breakout
     if not trade and swing_lows:
         key_low = swing_lows[-1]["price"]
-        if close_p < key_low and open_p >= key_low and (close_p - low) < (rng * 0.4) and rvol >= 1.2:
+        if close_p < key_low and open_p >= key_low and (close_p - low) < (rng * 0.4) and rvol >= 1.5:
             risk = max(220, high - close_p)
             tp = round(close_p - (risk * 2.2))
-            sl = round(high + (risk * 0.1))
+            sl = round(high + (atr14 * 0.10))
             rr = round((close_p - tp) / max(1, sl - close_p), 1)
 
             trade = {
@@ -809,7 +843,10 @@ def evaluate_smc_setup(candles, htf_trend=None):
     # Idea 4: Multi-Timeframe 1H Trend Alignment Confluence Check
     if trade and htf_trend:
         htf_bias = htf_trend.get("trend", "NEUTRAL")
-        if trade["direction"] == "LONG" and htf_bias == "BEARISH":
+        if htf_bias == "NEUTRAL":
+            print(f"[Sentinel] ⚠️ Filtered out setup {trade['id']}: 1H Macro Trend is NEUTRAL / RANGEBOUND (Chop Zone).")
+            return None
+        elif trade["direction"] == "LONG" and htf_bias == "BEARISH":
             print(f"[Sentinel] ⚠️ Filtered out LONG setup {trade['id']}: Counter to 1H Bearish Trend.")
             return None
         elif trade["direction"] == "SHORT" and htf_bias == "BULLISH":
@@ -968,12 +1005,13 @@ def run_sentinel():
             # Trailed Stop Activation: Derisk 50% & Move SL to Breakeven
             active_trade["reached_tp1"] = True
             active_trade["sl"] = entry # Breakeven
+            tp1_pct_str = active_trade.get("option", {}).get("tp1_pct", "+50.0%")
             est_prefix = "🛡️ <b>[ESTIMATION]</b> " if is_est else ""
-            tp1_msg = f"""{est_prefix}🎯 <b>TARGET 1 HIT (+50.0% DERISK)</b>
+            tp1_msg = f"""{est_prefix}🎯 <b>TARGET 1 HIT ({tp1_pct_str} DERISK)</b>
 🏷️ <code>{contract}</code>
 
 💰 <b>DERISK EXECUTION</b>
-• Booked: <b>${tp1_p:.1f} (+50.0% Profit on 50% Position)</b>
+• Booked: <b>${tp1_p:.1f} ({tp1_pct_str} Profit on 50% Position)</b>
 • Initial Fill: ${buy_p:.1f}
 • Stop Status: <b>Trailed to Breakeven (${entry:,.0f})</b>
 
@@ -1166,7 +1204,14 @@ def run_sentinel():
         htf_trend = fetch_htf_trend_1h()
         print(f"[Sentinel] HTF 1H Macro Trend: {htf_trend['label']}")
 
-        setup = evaluate_smc_setup(candles, htf_trend)
+        # Session Context Check: Strictly avoid low-probability Off-Hours Drift (02:30 - 05:30 IST)
+        current_session = get_current_trading_session()
+        if current_session.get("code") == "DRIFT":
+            print(f"[Sentinel] 🌙 OFF-HOURS DRIFT ACTIVE (02:30 - 05:30 IST). Institutional liquidity is absent; skipping new signal scanning to prevent chop stops.")
+            setup = None
+        else:
+            setup = evaluate_smc_setup(candles, htf_trend)
+
         if setup:
             # Check cooldown against repeated setups in same direction
             if time_since_trade < MIN_COOLDOWN_SECONDS and setup["direction"] == last_trade_dir:

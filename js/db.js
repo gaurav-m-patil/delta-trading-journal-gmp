@@ -753,7 +753,7 @@ window.DeltaDB = (function() {
       const existing = registry[t.id];
 
       // Keep entry mark price and strike STRICTLY IMMUTABLE once recorded!
-      const entryOpt = existing?.optionEntryLockedMark || existing?.optionEntryMark || t.realOption?.entryPrice || t.entryOpt || 220;
+      const entryOpt = existing?.optionEntryLockedMark || existing?.optionEntryMark || t.optionEntryLockedMark || t.realOption?.entryPrice || t.entryOpt || 220;
       const strike = existing?.optionStrike || t.realOption?.strike || t.optionStrike || Math.round(t.entry / 200) * 200;
       const symbol = existing?.optionSymbol || t.realOption?.symbol || `${t.direction === 'LONG' ? 'C' : 'P'}-BTC-${strike}`;
       const buyZone = existing?.buyZone || t.realOption?.buyZone || `$${(entryOpt * 0.98).toFixed(1)} - $${(entryOpt * 1.02).toFixed(1)}`;

@@ -1655,7 +1655,11 @@ window.DeltaLiveChart = (function() {
         opt.buyZone = `$${(opt.entryPrice * 0.98).toFixed(1)} - $${(opt.entryPrice * 1.02).toFixed(1)}`;
       }
 
-      const entryOpt = (opt.entryPrice && opt.entryPrice > 0) ? opt.entryPrice : ((trade.optionEntryMark && trade.optionEntryMark > 0) ? trade.optionEntryMark : 220);
+      const entryOpt = (trade.optionEntryLockedMark && trade.optionEntryLockedMark > 0)
+        ? trade.optionEntryLockedMark
+        : ((opt.entryPrice && opt.entryPrice > 0)
+            ? opt.entryPrice
+            : ((trade.optionEntryMark && trade.optionEntryMark > 0) ? trade.optionEntryMark : 220));
       const validBuyZone = (opt.buyZone && typeof opt.buyZone === 'string' && opt.buyZone !== "undefined" && !opt.buyZone.includes("undefined"))
         ? opt.buyZone
         : `$${(entryOpt * 0.98).toFixed(1)} - $${(entryOpt * 1.02).toFixed(1)}`;
@@ -2481,8 +2485,10 @@ Expected Profit: +50% Option Gross / +40% Net`;
                   const freshLen = fresh.length;
                   const latestFreshTime = fresh[0] ? fresh[0].time : 0;
                   const latestCurrTime = (currentMasterTrades && currentMasterTrades[0]) ? currentMasterTrades[0].time : 0;
-                  if (freshLen !== currLen || latestFreshTime !== latestCurrTime) {
-                    console.log("[ChartEngine] Live Sentinel trade update synchronized from Firestore:", freshLen);
+                  const latestFreshOutcome = fresh[0] ? fresh[0].outcome : "";
+                  const latestCurrOutcome = (currentMasterTrades && currentMasterTrades[0]) ? currentMasterTrades[0].outcome : "";
+                  if (freshLen !== currLen || latestFreshTime !== latestCurrTime || latestFreshOutcome !== latestCurrOutcome) {
+                    console.log("[ChartEngine] Live Sentinel trade update synchronized from Firestore (diff detected):", freshLen);
                     currentMasterTrades = fresh;
                     renderTradesTable(fresh);
                     applyVerifiedChartMarkers(fresh);
@@ -2715,7 +2721,9 @@ Expected Profit: +50% Option Gross / +40% Net`;
 
         // Calculate Option Buy vs Sell / Mark Price with calibrated ATM pricing
         const calculatedAtmEntry = Math.round((t.entry || spotPrice) * 0.0033 * 10) / 10;
-        const buyPrice = (opt && opt.entryPrice > 0) ? opt.entryPrice : (t.optionEntryMark || calculatedAtmEntry);
+        const buyPrice = (t.optionEntryLockedMark && t.optionEntryLockedMark > 0)
+          ? t.optionEntryLockedMark
+          : ((opt && opt.entryPrice > 0) ? opt.entryPrice : (t.optionEntryMark || calculatedAtmEntry));
         let sellPrice = buyPrice;
         let pnlDiff = 0;
         let optGainPct = "+0.0%";
@@ -2869,7 +2877,9 @@ Expected Profit: +50% Option Gross / +40% Net`;
         const targetGainPct = t.optionPnlPct || opt?.targetGainPct || t.targetGainPct || "+50%";
 
         const calculatedAtmEntry = Math.round((t.entry || spotPrice) * 0.0033 * 10) / 10;
-        const buyPrice = (opt && opt.entryPrice > 0) ? opt.entryPrice : (t.optionEntryMark || calculatedAtmEntry);
+        const buyPrice = (t.optionEntryLockedMark && t.optionEntryLockedMark > 0)
+          ? t.optionEntryLockedMark
+          : ((opt && opt.entryPrice > 0) ? opt.entryPrice : (t.optionEntryMark || calculatedAtmEntry));
         let sellPrice = buyPrice;
         let pnlDiff = 0;
         let optGainPct = "+0.0%";
