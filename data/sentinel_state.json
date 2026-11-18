@@ -7,7 +7,7 @@
     "time": 1795005000,
     "entry": 64032,
     "tp": 63548,
-    "sl": 64317,
+    "sl": 64032,
     "rr": "1:1.7",
     "rsi": 15.7,
     "rvol": 2.15,
@@ -48,7 +48,8 @@
       "tp_bias": "Structural Runner Expansion"
     },
     "outcome": "ACTIVE",
-    "optionEntryLockedMark": 647.0
+    "optionEntryLockedMark": 647.0,
+    "reached_tp1": true
   },
   "last_alerted_catalyst_guid": null,
   "daily_counts": {
