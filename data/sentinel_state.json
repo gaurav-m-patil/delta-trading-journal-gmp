@@ -1,64 +1,14 @@
 {
   "last_alerted_trade_id": "cloud_bos_down_1795005000",
-  "active_trade": {
-    "id": "cloud_bos_down_1795005000",
-    "name": "Bearish Break of Structure (BOS)",
-    "direction": "SHORT",
-    "time": 1795005000,
-    "entry": 64032,
-    "tp": 63548,
-    "sl": 64032,
-    "rr": "1:1.7",
-    "rsi": 15.7,
-    "rvol": 2.15,
-    "rationale": {
-      "pattern": "Trend Continuation Breakdown",
-      "levelTested": "Key Structure Floor ($64,076)",
-      "confirmation": "Aggressive institutional selling breaking prior structure with 2.15x RVOL",
-      "htfAlignment": "\ud83d\udd34 BEARISH CONFLUENCE (1H Macro Downtrend)",
-      "absorption": "Institutional Flow (2.15x RVOL)"
-    },
-    "htf_trend": {
-      "trend": "BEARISH",
-      "label": "\ud83d\udd34 BEARISH CONFLUENCE (1H Macro Downtrend)",
-      "cur_price": 63992,
-      "ema20": 64432,
-      "ema50": 64628
-    },
-    "option": {
-      "symbol": "P-BTC-64000-191126",
-      "strike": 64000.0,
-      "strike_tier": "Exact ATM (Delta ~0.50)",
-      "mark_price": 647.0,
-      "buy_zone": "$647.0 - $647.0",
-      "tp1_price": 905.8,
-      "tp1_pct": "+40.0%",
-      "target_price": 1067.6,
-      "target_pct": "+65.0%",
-      "stop_price": 452.9,
-      "eff_delta": 0.54,
-      "iv_rating": "ELEVATED (High IV - Scalp Focus)",
-      "iv_badge": "\ud83d\udd34 ELEVATED"
-    },
-    "session": {
-      "name": "London Session (13:30 - 19:00 IST)",
-      "code": "LONDON",
-      "flag": "\u26a1",
-      "volatility": "High (Breakout & Liquidity Expansion)",
-      "tp_bias": "Structural Runner Expansion"
-    },
-    "outcome": "ACTIVE",
-    "optionEntryLockedMark": 647.0,
-    "reached_tp1": true
-  },
+  "active_trade": null,
   "last_alerted_catalyst_guid": null,
   "daily_counts": {
     "date": "2026-11-18",
     "trades_given": 1,
-    "wins": 0,
+    "wins": 1,
     "losses": 0
   },
   "telegram_handshake_sent": true,
-  "last_trade_time": 1795005931,
+  "last_trade_time": 1795012834,
   "last_trade_direction": "SHORT"
 }
