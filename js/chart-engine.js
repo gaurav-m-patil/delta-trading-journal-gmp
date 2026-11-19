@@ -473,7 +473,7 @@ window.DeltaLiveChart = (function() {
   };
 
   /**
-   * Fetches real live active BTC options tickers from Delta Exchange India public API
+   * Fetches real live active options tickers from Delta Exchange India public API for active asset
    */
   async function getLiveDeltaTickers() {
     const now = Date.now();
@@ -485,7 +485,7 @@ window.DeltaLiveChart = (function() {
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = await res.json();
       if (data && data.result) {
-        cachedDeltaTickers = data.result.filter(t => t.symbol && t.symbol.includes('-BTC-'));
+        cachedDeltaTickers = data.result.filter(t => t.symbol && (t.symbol.includes(`-${activeAsset}-`) || (activeAsset === 'BTC' && t.symbol.includes('-BTC-'))));
         lastDeltaTickersFetchTime = now;
         return cachedDeltaTickers;
       }
@@ -493,6 +493,15 @@ window.DeltaLiveChart = (function() {
       console.warn("Notice: Delta tickers fetch:", e);
     }
     return cachedDeltaTickers || [];
+  }
+
+  function getAssetOptionPrefix(isCall) {
+    return isCall ? `C-${activeAsset}-` : `P-${activeAsset}-`;
+  }
+
+  function getAssetStrikeStep() {
+    const cfg = ASSET_CONFIGS[activeAsset];
+    return (cfg && cfg.strikeStep) ? cfg.strikeStep : 200;
   }
 
   /**
@@ -505,14 +514,16 @@ window.DeltaLiveChart = (function() {
    */
   function resolveRealDeltaContract(direction, spotPrice, tickers, tradeId, registry, targetDist) {
     const isCall = direction === "LONG";
-    const atmStrikeEstimate = Math.round(spotPrice / 200) * 200;
+    const strikeStep = getAssetStrikeStep();
+    const atmStrikeEstimate = Math.round(spotPrice / strikeStep) * strikeStep;
+    const optPrefix = getAssetOptionPrefix(isCall);
 
     // 1. IMMUTABLE TRADE REGISTRY LOOKUP
     // If trade was already resolved and recorded, reuse its exact contract, strike, entry price, buy zone, and targets!
     // ONLY the live mark price and unrealized PnL move with live ticker feed!
     if (registry && tradeId && registry[tradeId]) {
       const locked = registry[tradeId];
-      const fixedEntry = locked.entryPrice || 220;
+      const fixedEntry = locked.entryPrice || (activeAsset === 'XAUT' ? 14 : (activeAsset === 'ETH' ? 9 : 220));
       const matched = tickers ? tickers.find(t => t.symbol === locked.symbol) : null;
       const currentLiveMark = matched ? (Math.round((parseFloat(matched.mark_price) || fixedEntry) * 10) / 10) : fixedEntry;
       const unrealizedPts = Math.round((currentLiveMark - fixedEntry) * 10) / 10;
@@ -527,9 +538,11 @@ window.DeltaLiveChart = (function() {
       };
     }
 
+    const simRatio = (activeAsset === 'XAUT') ? 0.0025 : ((activeAsset === 'ETH') ? 0.0040 : 0.0033);
+    const simEntry = Math.round(spotPrice * simRatio * 10) / 10;
+
     if (!tickers || tickers.length === 0) {
-      const simEntry = 220.0;
-      const effDelta = Math.min(0.85, Math.max(0.50, 0.50 + ((targetDist || 1000) / 4000) * 0.35));
+      const effDelta = Math.min(0.85, Math.max(0.50, 0.50 + ((targetDist || (strikeStep * 5)) / (strikeStep * 20)) * 0.35));
       const projPts = Math.round(((targetDist && targetDist > 0) ? (targetDist * effDelta) : (simEntry * 0.50)) * 10) / 10;
       const dynGainPct = Math.max(50, Math.round((projPts / simEntry) * 100));
       const target = Math.round((simEntry + (simEntry * (dynGainPct / 100))) * 10) / 10;
@@ -537,21 +550,21 @@ window.DeltaLiveChart = (function() {
       const tp1Price = Math.round(simEntry * 1.50 * 10) / 10;
       const tp1GainPct = "+50.0%";
 
-      const ratio = spotPrice > 0 ? (simEntry / spotPrice) : 0.003;
+      const ratio = spotPrice > 0 ? (simEntry / spotPrice) : simRatio;
       const ivBadge = ratio < 0.0028 ? "🟢 CHEAP" : (ratio <= 0.0045 ? "🟡 FAIR" : "🔴 ELEVATED");
       const ivRating = ratio < 0.0028 ? "CHEAP (High Delta Leverage)" : (ratio <= 0.0045 ? "FAIR (Institutionally Calibrated)" : "ELEVATED (High IV)");
 
       const res = {
-        symbol: isCall ? `C-BTC-${atmStrikeEstimate}` : `P-BTC-${atmStrikeEstimate}`,
+        symbol: `${optPrefix}${atmStrikeEstimate}`,
         strike: atmStrikeEstimate,
         strikeTier: "Exact ATM (Delta ~0.50)",
         entryPrice: simEntry,
         markPrice: simEntry,
-        buyZone: "$210.0 - $225.0",
+        buyZone: `$${(simEntry * 0.98).toFixed(1)} - $${(simEntry * 1.02).toFixed(1)}`,
         tp1Price,
         tp1GainPct,
         targetPrice: target,
-        stopPrice: 154.0,
+        stopPrice: Math.round(simEntry * 0.7 * 10) / 10,
         targetGainPct,
         stopLossPct: "-30.0%",
         unrealizedPts: 0,
@@ -582,7 +595,7 @@ window.DeltaLiveChart = (function() {
     }
 
     const type = isCall ? "call_options" : "put_options";
-    const candidates = tickers.filter(t => t.contract_type === type);
+    const candidates = tickers.filter(t => t.contract_type === type && t.symbol && t.symbol.startsWith(optPrefix.substring(0, 2)));
 
     // 1. Filter out already-expired contracts and group by expiration timestamp
     const now = Date.now();
@@ -613,19 +626,18 @@ window.DeltaLiveChart = (function() {
     }
 
     if (activeWithExpiry.length === 0) {
-      const simEntry = 220.0;
       const res = {
-        symbol: isCall ? `C-BTC-${atmStrikeEstimate}` : `P-BTC-${atmStrikeEstimate}`,
+        symbol: `${optPrefix}${atmStrikeEstimate}`,
         strike: atmStrikeEstimate,
         strikeTier: "Exact ATM (Delta ~0.50)",
         entryPrice: simEntry,
         markPrice: simEntry,
-        buyZone: "$210.0 - $225.0",
-        tp1Price: 330.0,
+        buyZone: `$${(simEntry * 0.98).toFixed(1)} - $${(simEntry * 1.02).toFixed(1)}`,
+        tp1Price: Math.round(simEntry * 1.50 * 10) / 10,
         tp1GainPct: "+50.0%",
-        targetPrice: 330.0,
-        stopPrice: 154.0,
-        targetGainPct: "+50.0%",
+        targetPrice: Math.round(simEntry * 1.65 * 10) / 10,
+        stopPrice: Math.round(simEntry * 0.7 * 10) / 10,
+        targetGainPct: "+65.0%",
         stopLossPct: "-30.0%",
         unrealizedPts: 0,
         unrealizedPct: 0,
@@ -761,7 +773,7 @@ window.DeltaLiveChart = (function() {
     const fallbackTp1 = Math.round(simEntry * 1.50 * 10) / 10;
 
     const fallbackRes = {
-      symbol: isCall ? `C-BTC-${atmStrikeEstimate}` : `P-BTC-${atmStrikeEstimate}`,
+      symbol: `${optPrefix}${atmStrikeEstimate}`,
       strike: atmStrikeEstimate,
       strikeTier: "Exact ATM (Delta ~0.50)",
       entryPrice: simEntry,
@@ -1747,11 +1759,14 @@ window.DeltaLiveChart = (function() {
         liveTagEl.innerText = opt.isLive ? (trade.outcome === 'ACTIVE' ? "Locked Entry Plan" : "Live Delta Feed") : "Simulated Strike";
       }
     } else {
-      const safeEntry = trade.entry || spotPrice || 65000;
-      const atmStrike = trade.optionStrike || Math.round(safeEntry / 200) * 200;
-      const simEntry = Math.round(safeEntry * 0.0033 * 10) / 10;
+      const safeEntry = trade.entry || spotPrice || (activeAsset === 'XAUT' ? 3670 : (activeAsset === 'ETH' ? 1770 : 65000));
+      const strikeStep = getAssetStrikeStep();
+      const atmStrike = trade.optionStrike || Math.round(safeEntry / strikeStep) * strikeStep;
+      const simRatio = (activeAsset === 'XAUT') ? 0.0025 : ((activeAsset === 'ETH') ? 0.0040 : 0.0033);
+      const simEntry = Math.round(safeEntry * simRatio * 10) / 10;
       const simTarget = Math.round(simEntry * 1.65 * 10) / 10;
-      if (symEl) symEl.innerText = isCall ? `C-BTC-${atmStrike}` : `P-BTC-${atmStrike}`;
+      const optPrefix = getAssetOptionPrefix(isCall);
+      if (symEl) symEl.innerText = `${optPrefix}${atmStrike}`;
       if (markEl) markEl.innerText = `$${simEntry.toFixed(1)}`;
       if (buyZoneEl) buyZoneEl.innerText = `$${(simEntry * 0.98).toFixed(1)} - $${(simEntry * 1.02).toFixed(1)}`;
       if (targetEl) targetEl.innerText = `$${simTarget.toFixed(1)} (+65%)`;
@@ -3264,7 +3279,11 @@ Expected Profit: +50% Option Gross / +40% Net`;
       });
     }
 
-    // 5. Clear current position box & reload candles
+    // 5. Clear cached tickers so they refetch for the new asset
+    cachedDeltaTickers = null;
+    lastDeltaTickersFetchTime = 0;
+
+    // 6. Clear current position box & reload candles
     clearPositionBox();
     updatePositionToolCockpit(null);
     loadTimeframe(activeTimeframe);
