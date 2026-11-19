@@ -764,7 +764,6 @@ window.DeltaLiveChart = (function() {
       return res;
     }
 
-    const simEntry = Math.round(spotPrice * 0.0033 * 10) / 10;
     const effDeltaFallback = Math.min(0.85, Math.max(0.50, 0.50 + ((targetDist || 1000) / 4000) * 0.35));
     const deltaMoveFallback = (targetDist && targetDist > 0) ? (targetDist * effDeltaFallback) : (simEntry * 0.65);
     const dynGainPctFallback = Math.max(65, Math.round((deltaMoveFallback / simEntry) * 100));
