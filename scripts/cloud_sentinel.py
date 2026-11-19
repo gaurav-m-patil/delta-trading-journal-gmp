@@ -133,6 +133,7 @@ def sync_trade_to_firestore(trade_data):
         fields = {
             "id": {"stringValue": trade_id},
             "name": {"stringValue": str(trade_data.get("name", "SMC Setup"))},
+            "asset": {"stringValue": str(trade_data.get("asset", "BTC"))},
             "direction": {"stringValue": str(trade_data.get("direction", "LONG"))},
             "time": {"integerValue": str(trade_data.get("time", int(time.time())))},
             "entry": {"doubleValue": entry_val},
@@ -240,17 +241,77 @@ def send_telegram_message(bot_token, chat_id, html_text):
         return False
 
 
-def fetch_btc_candles():
+ASSET_REGIME_CONFIGS = {
+    "BTC": {
+        "asset": "BTC",
+        "delta_symbol": "BTCUSD",
+        "binance_symbol": "BTCUSDT",
+        "prefix_call": "C-BTC-",
+        "prefix_put": "P-BTC-",
+        "strike_step": 200,
+        "fvg_min_usd": 180.0,
+        "fvg_atr_mult": 0.75,
+        "atr_buffer_mult": 0.10,
+        "rvol_gate": 1.40,
+        "min_risk_pts": 180.0,
+        "default_est_mark_ratio": 0.0033,
+        "max_spread_ratio": 0.15,
+        "drift_block": True,
+        "icon": "🟠"
+    },
+    "ETH": {
+        "asset": "ETH",
+        "delta_symbol": "ETHUSD",
+        "binance_symbol": "ETHUSDT",
+        "prefix_call": "C-ETH-",
+        "prefix_put": "P-ETH-",
+        "strike_step": 50,
+        "fvg_min_usd": 8.0,
+        "fvg_atr_mult": 0.65,
+        "atr_buffer_mult": 0.20,
+        "rvol_gate": 1.35,
+        "min_risk_pts": 12.0,
+        "default_est_mark_ratio": 0.0040,
+        "max_spread_ratio": 0.18,
+        "drift_block": True,
+        "icon": "🔷"
+    },
+    "XAUT": {
+        "asset": "XAUT",
+        "delta_symbol": "XAUTUSD",
+        "binance_symbol": "PAXGUSDT",
+        "prefix_call": "C-XAUT-",
+        "prefix_put": "P-XAUT-",
+        "strike_step": 10,
+        "fvg_min_usd": 6.0,
+        "fvg_atr_mult": 0.60,
+        "atr_buffer_mult": 0.08,
+        "rvol_gate": 1.30,
+        "min_risk_pts": 8.0,
+        "default_est_mark_ratio": 0.0025,
+        "max_spread_ratio": 0.15,
+        "drift_block": True,
+        "icon": "🟡"
+    }
+}
+
+
+def fetch_asset_candles(asset="BTC"):
     """
-    Fetches recent 15m BTC candles from Delta Exchange India (Primary),
+    Fetches recent 15m candles from Delta Exchange India (Primary),
     with automatic Binance fallback if Delta is unreachable.
+    Supports BTC, ETH, and XAUT Gold.
     """
+    cfg = ASSET_REGIME_CONFIGS.get(asset, ASSET_REGIME_CONFIGS["BTC"])
+    delta_sym = cfg["delta_symbol"]
+    binance_sym = cfg["binance_symbol"]
+
     now = int(time.time())
     start = now - (86400 * 3) # Last 72 hours
 
     # 1. Delta Exchange India Native Historical Candles
     try:
-        url = f"{DELTA_BASE}/v2/history/candles?resolution=15m&symbol=BTCUSD&start={start}&end={now}"
+        url = f"{DELTA_BASE}/v2/history/candles?resolution=15m&symbol={delta_sym}&start={start}&end={now}"
         res = requests.get(url, timeout=12)
         if res.status_code == 200:
             data = res.json().get("result", [])
@@ -266,14 +327,14 @@ def fetch_btc_candles():
                         "volume": float(c.get("volume", 0))
                     })
                 candles.sort(key=lambda x: x["time"])
-                print(f"[Sentinel] Fetched {len(candles)} candles from Delta Exchange India.")
+                print(f"[Sentinel] Fetched {len(candles)} {asset} candles from Delta Exchange India.")
                 return candles
     except Exception as e:
-        print(f"[Sentinel] Delta candles error: {e}. Trying Binance fallback...")
+        print(f"[Sentinel] Delta {asset} candles error: {e}. Trying Binance fallback...")
 
     # 2. Binance Public Klines Fallback
     try:
-        url = f"{BINANCE_BASE}/api/v3/klines?symbol=BTCUSDT&interval=15m&limit=150"
+        url = f"{BINANCE_BASE}/api/v3/klines?symbol={binance_sym}&interval=15m&limit=150"
         res = requests.get(url, timeout=12)
         if res.status_code == 200:
             raw = res.json()
@@ -288,12 +349,17 @@ def fetch_btc_candles():
                     "volume": float(k[5])
                 })
             candles.sort(key=lambda x: x["time"])
-            print(f"[Sentinel] Fetched {len(candles)} candles from Binance fallback.")
+            print(f"[Sentinel] Fetched {len(candles)} {asset} candles from Binance fallback.")
             return candles
     except Exception as e:
-        print(f"[Sentinel] Binance fallback error: {e}")
+        print(f"[Sentinel] Binance {asset} fallback error: {e}")
 
     return []
+
+
+def fetch_btc_candles():
+    """Backward-compatible proxy for BTC candles."""
+    return fetch_asset_candles("BTC")
 
 
 def calculate_rsi(candles, period=14):
@@ -331,18 +397,22 @@ def calculate_ema(values, period):
     return ema
 
 
-def fetch_htf_trend_1h():
+def fetch_htf_trend_1h(asset="BTC"):
     """
-    Idea 4: Multi-Timeframe 1H Trend Alignment
+    Multi-Timeframe 1H Trend Alignment for BTC, ETH, and XAUT Gold.
     Queries 1-hour candles to evaluate higher-timeframe trend (20 EMA vs 50 EMA).
     Filters out counter-trend chop, aligning 5m/15m setups with macro momentum.
     """
+    cfg = ASSET_REGIME_CONFIGS.get(asset, ASSET_REGIME_CONFIGS["BTC"])
+    delta_sym = cfg["delta_symbol"]
+    binance_sym = cfg["binance_symbol"]
+
     now = int(time.time())
     start = now - (86400 * 5) # 5 days of 1H data
     candles = []
 
     try:
-        url = f"{DELTA_BASE}/v2/history/candles?resolution=1h&symbol=BTCUSD&start={start}&end={now}"
+        url = f"{DELTA_BASE}/v2/history/candles?resolution=1h&symbol={delta_sym}&start={start}&end={now}"
         res = requests.get(url, timeout=10)
         if res.status_code == 200:
             data = res.json().get("result", [])
@@ -353,11 +423,11 @@ def fetch_htf_trend_1h():
                 })
             candles.sort(key=lambda x: x["time"])
     except Exception as e:
-        print(f"[Sentinel] HTF 1H Delta fetch notice: {e}")
+        print(f"[Sentinel] HTF 1H Delta {asset} fetch notice: {e}")
 
     if not candles or len(candles) < 30:
         try:
-            url = f"{BINANCE_BASE}/api/v3/klines?symbol=BTCUSDT&interval=1h&limit=60"
+            url = f"{BINANCE_BASE}/api/v3/klines?symbol={binance_sym}&interval=1h&limit=60"
             res = requests.get(url, timeout=10)
             if res.status_code == 200:
                 raw = res.json()
@@ -368,7 +438,7 @@ def fetch_htf_trend_1h():
     if len(candles) < 25:
         return {
             "trend": "NEUTRAL",
-            "label": "⚪ NEUTRAL (Consolidation)",
+            "label": f"⚪ NEUTRAL ({asset} Consolidation)",
             "cur_price": 0,
             "ema20": 0,
             "ema50": 0
@@ -381,20 +451,20 @@ def fetch_htf_trend_1h():
 
     if cur_price > ema50 and ema20 >= ema50:
         trend = "BULLISH"
-        label = "🟢 BULLISH CONFLUENCE (1H Macro Uptrend)"
+        label = f"🟢 BULLISH CONFLUENCE (1H {asset} Macro Uptrend)"
     elif cur_price < ema50 and ema20 <= ema50:
         trend = "BEARISH"
-        label = "🔴 BEARISH CONFLUENCE (1H Macro Downtrend)"
+        label = f"🔴 BEARISH CONFLUENCE (1H {asset} Macro Downtrend)"
     else:
         trend = "NEUTRAL"
-        label = "🟡 NEUTRAL / RANGEBOUND (S/R Transition)"
+        label = f"🟡 NEUTRAL / RANGEBOUND (1H {asset} S/R Transition)"
 
     return {
         "trend": trend,
         "label": label,
-        "cur_price": round(cur_price),
-        "ema20": round(ema20),
-        "ema50": round(ema50)
+        "cur_price": round(cur_price, 2),
+        "ema20": round(ema20, 2),
+        "ema50": round(ema50, 2)
     }
 
 
@@ -443,15 +513,18 @@ def get_current_trading_session():
         }
 
 
-def fetch_delta_option_contract(direction, spot_price, spot_dist=1200):
+def fetch_delta_option_contract(direction, spot_price, spot_dist=1200, asset="BTC"):
     """
-    Finds the active ATM or OTM-1 Delta Exchange India BTC option contract (Call or Put)
+    Finds the active ATM or OTM-1 Delta Exchange India option contract (Call or Put)
     strictly from the CURRENT DAY'S EXPIRATION (or next-day if near 5:30 PM IST).
-    Never selects far weekly or monthly expiries.
-    Realistic mark price strictly in the $150 - $450 intraday range.
+    Supports BTC, ETH, and XAUT Gold.
     """
+    cfg = ASSET_REGIME_CONFIGS.get(asset, ASSET_REGIME_CONFIGS["BTC"])
     is_call = (direction == "LONG")
-    prefix = "C-BTC-" if is_call else "P-BTC-"
+    prefix = cfg["prefix_call"] if is_call else cfg["prefix_put"]
+    strike_step = cfg["strike_step"]
+    est_ratio = cfg["default_est_mark_ratio"]
+    max_spread = cfg["max_spread_ratio"]
 
     now_utc = datetime.now(timezone.utc)
 
@@ -508,22 +581,9 @@ def fetch_delta_option_contract(direction, spot_price, spot_dist=1200):
                 nearest_expiry = viable[0]["expiry_dt"]
                 nearest_candidates = [x for x in viable if x["expiry_dt"] == nearest_expiry]
 
-                # 2. Sort by distance to spot price to find exact ATM and Next Strike OTM (OTM-1)
+                # 2. Sort by distance to spot price to find exact ATM
                 nearest_candidates.sort(key=lambda x: abs(x["strike"] - spot_price))
                 atm_candidate = nearest_candidates[0]
-
-                # Next strike OTM
-                next_otm_candidate = None
-                for c in nearest_candidates:
-                    s = c["strike"]
-                    if is_call:
-                        if s > spot_price and (s - spot_price) <= 450:
-                            next_otm_candidate = c
-                            break
-                    else:
-                        if s < spot_price and (spot_price - s) <= 450:
-                            next_otm_candidate = c
-                            break
 
                 best = atm_candidate
                 strike_tier = "Exact ATM (Delta ~0.50)"
@@ -534,29 +594,32 @@ def fetch_delta_option_contract(direction, spot_price, spot_dist=1200):
                 best_bid = best["best_bid"]
                 best_ask = best["best_ask"]
 
-                spread_valid = (best_ask > 0 and best_bid > 0 and (best_ask - best_bid) <= (mark * 0.15))
+                spread_valid = (best_ask > 0 and best_bid > 0 and (best_ask - best_bid) <= (mark * max_spread))
                 buy_zone = f"${min(best_bid, mark):.1f} - ${max(best_ask, mark):.1f}" if spread_valid else f"${mark * 0.98:.1f} - ${mark * 1.02:.1f}"
 
-                eff_delta = min(0.85, max(0.50, 0.50 + (spot_dist / 4000.0) * 0.35))
+                # Delta sensitivity normalization per asset
+                norm_denom = 4000.0 if asset == "BTC" else (200.0 if asset == "ETH" else 80.0)
+                eff_delta = min(0.85, max(0.50, 0.50 + (spot_dist / norm_denom) * 0.35))
                 proj_pts = round(spot_dist * eff_delta, 1)
-                gain_pct_full = round((proj_pts / mark) * 100, 1)
+                gain_pct_full = round((proj_pts / max(mark, 1.0)) * 100, 1)
                 if gain_pct_full < 65.0:
                     gain_pct_full = 65.0
                     proj_pts = round(mark * 0.65, 1)
                 target_full = round(mark + proj_pts, 1)
+
                 # Dynamic TP1 Option Target: 55% of the projected spot-move delta gain (min +40%, calibrated to underlying R:R)
                 tp1_opt_pct_val = max(40.0, round(gain_pct_full * 0.55, 1))
                 target_tp1 = round(mark * (1.0 + (tp1_opt_pct_val / 100.0)), 1)
                 if target_full <= target_tp1:
                     target_full = round(mark * (1.0 + ((tp1_opt_pct_val + 20.0) / 100.0)), 1)
-                    gain_pct_full = round(((target_full - mark) / mark) * 100, 1)
+                    gain_pct_full = round(((target_full - mark) / max(mark, 1.0)) * 100, 1)
                 stop_price = round(mark * 0.7, 1)
 
-                ratio = (mark / spot_price) if spot_price > 0 else 0.003
-                if ratio < 0.0028:
+                ratio = (mark / spot_price) if spot_price > 0 else est_ratio
+                if ratio < (est_ratio * 0.85):
                     iv_rating = "CHEAP (High Delta Leverage)"
                     iv_badge = "🟢 CHEAP"
-                elif ratio <= 0.0045:
+                elif ratio <= (est_ratio * 1.35):
                     iv_rating = "FAIR (Institutionally Calibrated)"
                     iv_badge = "🟡 FAIR"
                 else:
@@ -579,18 +642,19 @@ def fetch_delta_option_contract(direction, spot_price, spot_dist=1200):
                     "iv_badge": iv_badge
                 }
     except Exception as e:
-        print(f"[Sentinel] Error querying Delta option tickers: {e}")
+        print(f"[Sentinel] Error querying Delta option tickers for {asset}: {e}")
 
     # Fallback estimated ATM contract for current day
-    rounded_strike = round(spot_price / 200) * 200
+    rounded_strike = round(spot_price / strike_step) * strike_step
     ist_now = datetime.now(timezone(timedelta(hours=5, minutes=30)))
     is_near_expiry = (ist_now.hour == 16) or (ist_now.hour == 17 and ist_now.minute < 30)
     expiry_str = (datetime.now(timezone.utc) + timedelta(days=2 if is_near_expiry else 1)).strftime("%d%m%y")
     fallback_sym = f"{prefix}{int(rounded_strike)}-{expiry_str}"
-    mark = round(spot_price * 0.0033, 1) if spot_price > 0 else 220.0
-    eff_delta = min(0.85, max(0.50, 0.50 + (spot_dist / 4000.0) * 0.35))
+    mark = round(spot_price * est_ratio, 1) if spot_price > 0 else 220.0
+    norm_denom = 4000.0 if asset == "BTC" else (200.0 if asset == "ETH" else 80.0)
+    eff_delta = min(0.85, max(0.50, 0.50 + (spot_dist / norm_denom) * 0.35))
     proj_pts = round(spot_dist * eff_delta, 1)
-    gain_pct_full = round((proj_pts / mark) * 100, 1)
+    gain_pct_full = round((proj_pts / max(mark, 1.0)) * 100, 1)
     if gain_pct_full < 65.0:
         gain_pct_full = 65.0
         proj_pts = round(mark * 0.65, 1)
@@ -599,10 +663,10 @@ def fetch_delta_option_contract(direction, spot_price, spot_dist=1200):
     target_tp1 = round(mark * (1.0 + (tp1_opt_pct_val / 100.0)), 1)
     if target_full <= target_tp1:
         target_full = round(mark * (1.0 + ((tp1_opt_pct_val + 20.0) / 100.0)), 1)
-        gain_pct_full = round(((target_full - mark) / mark) * 100, 1)
-    ratio = (mark / spot_price) if spot_price > 0 else 0.003
-    iv_badge = "🟡 FAIR" if ratio <= 0.0045 else "🔴 ELEVATED"
-    iv_rating = "FAIR (Calibrated)" if ratio <= 0.0045 else "ELEVATED"
+        gain_pct_full = round(((target_full - mark) / max(mark, 1.0)) * 100, 1)
+    ratio = (mark / spot_price) if spot_price > 0 else est_ratio
+    iv_badge = "🟡 FAIR" if ratio <= (est_ratio * 1.35) else "🔴 ELEVATED"
+    iv_rating = "FAIR (Calibrated)" if ratio <= (est_ratio * 1.35) else "ELEVATED"
     return {
         "symbol": fallback_sym,
         "strike": rounded_strike,
@@ -620,7 +684,7 @@ def fetch_delta_option_contract(direction, spot_price, spot_dist=1200):
     }
 
 
-def evaluate_smc_setup(candles, htf_trend=None):
+def evaluate_smc_setup(candles, htf_trend=None, asset="BTC"):
     """
     Institutional SMC Setup Engine:
     1. Multi-Timeframe 1H Trend Alignment (Idea 4)
@@ -628,17 +692,24 @@ def evaluate_smc_setup(candles, htf_trend=None):
     3. Bullish & Bearish Liquidity Sweeps (3-bar & 5-bar dynamic fractals)
     4. Fair Value Gap (FVG) / Imbalance Void Mitigations
     5. Break of Structure (BOS) Momentum Breakdowns & Breakouts
+    Supports BTC, ETH, and XAUT Gold with asset-specific calibration.
     """
     if len(candles) < 30:
         return None
+
+    cfg = ASSET_REGIME_CONFIGS.get(asset, ASSET_REGIME_CONFIGS["BTC"])
+    rvol_gate = cfg.get("rvol_gate", 1.40)
+    atr_buffer_mult = cfg.get("atr_buffer_mult", 0.10)
+    min_risk_pts = cfg.get("min_risk_pts", 180.0)
 
     # Calculate 20-period Volume SMA for RVOL
     volumes = [c["volume"] for c in candles[-21:-1]]
     vol_sma = sum(volumes) / max(len(volumes), 1)
 
     # 14-period ATR for dynamic structural buffers and candle size filters
+    default_atr = 200.0 if asset == "BTC" else (15.0 if asset == "ETH" else 8.0)
     ranges = [max(c["high"] - c["low"], abs(c["high"] - candles[i-1]["close"]), abs(c["low"] - candles[i-1]["close"])) for i, c in enumerate(candles[-15:], start=1) if i < len(candles)]
-    atr14 = sum(ranges) / max(len(ranges), 1) if ranges else 200.0
+    atr14 = sum(ranges) / max(len(ranges), 1) if ranges else default_atr
 
     # 1. Confluence Fractals (Detect robust 5-bar swing pivots with 3-bar fallback)
     swing_highs = []
@@ -667,14 +738,14 @@ def evaluate_smc_setup(candles, htf_trend=None):
     low = last_closed["low"]
     open_p = last_closed["open"]
     close_p = last_closed["close"]
-    rng = max(0.1, high - low)
+    rng = max(0.01, high - low)
     candle_body = abs(close_p - open_p)
     lower_wick = min(open_p, close_p) - low
     upper_wick = high - max(open_p, close_p)
 
     # 🛡️ INSTITUTIONAL CHOP FILTERS (Zero-Tolerance for Sideways Drift)
-    # 1. Hard RVOL Gate: Smart money does NOT enter without at least 1.40x relative volume
-    if rvol < 1.40:
+    # 1. Hard RVOL Gate: Smart money does NOT enter without at least relative volume
+    if rvol < rvol_gate:
         return None
 
     # 2. RSI Dead Zone Gate: 42 to 58 indicates absence of directional momentum (chop)
@@ -692,18 +763,19 @@ def evaluate_smc_setup(candles, htf_trend=None):
     for sl_price in recent_lows:
         if low < sl_price and close_p > sl_price and (lower_wick / rng) >= 0.25 and close_p >= open_p:
             # Dynamic ATR-based risk buffer
-            risk = max(180, (close_p - low) + (atr14 * 0.15))
-            tp = round(close_p + (risk * 2.2))
-            sl = round(low - (atr14 * 0.10))
-            rr = round((tp - close_p) / max(1, close_p - sl), 1)
+            risk = max(min_risk_pts, (close_p - low) + (atr14 * (atr_buffer_mult * 1.5)))
+            tp = round(close_p + (risk * 2.2), 2 if asset in ["ETH", "XAUT"] else 0)
+            sl = round(low - (atr14 * atr_buffer_mult), 2 if asset in ["ETH", "XAUT"] else 0)
+            rr = round((tp - close_p) / max(0.01, close_p - sl), 1)
 
             abs_desc = f"Bullish Delta Absorption ({round((lower_wick/rng)*100)}% wick + {rvol}x RVOL)"
             trade = {
-                "id": f"cloud_bull_{last_closed['time']}",
-                "name": "Bullish Order Block Liquidity Sweep",
+                "id": f"cloud_{asset.lower()}_bull_{last_closed['time']}",
+                "name": f"{asset} Bullish Order Block Liquidity Sweep",
+                "asset": asset,
                 "direction": "LONG",
                 "time": last_closed["time"],
-                "entry": round(close_p),
+                "entry": round(close_p, 2 if asset in ["ETH", "XAUT"] else 0),
                 "tp": tp,
                 "sl": sl,
                 "rr": f"1:{rr}",
@@ -711,7 +783,7 @@ def evaluate_smc_setup(candles, htf_trend=None):
                 "rvol": rvol,
                 "rationale": {
                     "pattern": "Bullish Lower Wick Absorption",
-                    "levelTested": f"Support Liquidity Sweep (${sl_price:,.0f})",
+                    "levelTested": f"Support Liquidity Sweep (${sl_price:,.2f if asset in ['ETH', 'XAUT'] else sl_price:,.0f})",
                     "confirmation": f"Strong green close back above swing floor with {rvol}x RVOL",
                     "absorption": abs_desc
                 }
@@ -724,18 +796,19 @@ def evaluate_smc_setup(candles, htf_trend=None):
         for sh_price in recent_highs:
             if high > sh_price and close_p < sh_price and (upper_wick / rng) >= 0.25 and close_p <= open_p:
                 # Dynamic ATR-based risk buffer
-                risk = max(180, (high - close_p) + (atr14 * 0.15))
-                tp = round(close_p - (risk * 2.2))
-                sl = round(high + (atr14 * 0.10))
-                rr = round((close_p - tp) / max(1, sl - close_p), 1)
+                risk = max(min_risk_pts, (high - close_p) + (atr14 * (atr_buffer_mult * 1.5)))
+                tp = round(close_p - (risk * 2.2), 2 if asset in ["ETH", "XAUT"] else 0)
+                sl = round(high + (atr14 * atr_buffer_mult), 2 if asset in ["ETH", "XAUT"] else 0)
+                rr = round((close_p - tp) / max(0.01, sl - close_p), 1)
 
                 abs_desc = f"Bearish Delta Absorption ({round((upper_wick/rng)*100)}% wick + {rvol}x RVOL)"
                 trade = {
-                    "id": f"cloud_bear_{last_closed['time']}",
-                    "name": "Bearish Order Block Resistance Rejection",
+                    "id": f"cloud_{asset.lower()}_bear_{last_closed['time']}",
+                    "name": f"{asset} Bearish Order Block Resistance Rejection",
+                    "asset": asset,
                     "direction": "SHORT",
                     "time": last_closed["time"],
-                    "entry": round(close_p),
+                    "entry": round(close_p, 2 if asset in ["ETH", "XAUT"] else 0),
                     "tp": tp,
                     "sl": sl,
                     "rr": f"1:{rr}",
@@ -743,7 +816,7 @@ def evaluate_smc_setup(candles, htf_trend=None):
                     "rvol": rvol,
                     "rationale": {
                         "pattern": "Bearish Upper Wick Rejection",
-                        "levelTested": f"Resistance Liquidity Sweep (${sh_price:,.0f})",
+                        "levelTested": f"Resistance Liquidity Sweep (${sh_price:,.2f if asset in ['ETH', 'XAUT'] else sh_price:,.0f})",
                         "confirmation": f"Sellers rejecting highs with {rvol}x RVOL absorption",
                         "absorption": abs_desc
                     }
@@ -751,8 +824,7 @@ def evaluate_smc_setup(candles, htf_trend=None):
                 break
 
     # Setup 3: Fair Value Gap (FVG) / Imbalance Mitigation
-    # Institutional requirement: minimum $180 gap size or 0.75x ATR to avoid micro tick noise
-    min_fvg_gap = max(180.0, atr14 * 0.75)
+    min_fvg_gap = max(cfg.get("fvg_min_usd", 180.0), atr14 * cfg.get("fvg_atr_mult", 0.75))
     if not trade and len(candles) >= 8:
         for j in range(len(candles) - 7, len(candles) - 3):
             c1 = candles[j]
@@ -763,16 +835,17 @@ def evaluate_smc_setup(candles, htf_trend=None):
             if c1["high"] < c3["low"] and (c3["low"] - c1["high"]) >= min_fvg_gap:
                 fvg_mid = (c1["high"] + c3["low"]) / 2.0
                 if low <= c3["low"] and close_p >= fvg_mid and close_p > open_p:
-                    risk = max(180, close_p - c1["high"])
-                    tp = round(close_p + (risk * 2.2))
-                    sl = round(c1["high"] - (atr14 * 0.15))
-                    rr = round((tp - close_p) / max(1, close_p - sl), 1)
+                    risk = max(min_risk_pts, close_p - c1["high"])
+                    tp = round(close_p + (risk * 2.2), 2 if asset in ["ETH", "XAUT"] else 0)
+                    sl = round(c1["high"] - (atr14 * (atr_buffer_mult * 1.5)), 2 if asset in ["ETH", "XAUT"] else 0)
+                    rr = round((tp - close_p) / max(0.01, close_p - sl), 1)
                     trade = {
-                        "id": f"cloud_fvg_bull_{last_closed['time']}",
-                        "name": "Bullish Fair Value Gap (FVG) Mitigation",
+                        "id": f"cloud_{asset.lower()}_fvg_bull_{last_closed['time']}",
+                        "name": f"{asset} Bullish Fair Value Gap (FVG) Mitigation",
+                        "asset": asset,
                         "direction": "LONG",
                         "time": last_closed["time"],
-                        "entry": round(close_p),
+                        "entry": round(close_p, 2 if asset in ["ETH", "XAUT"] else 0),
                         "tp": tp,
                         "sl": sl,
                         "rr": f"1:{rr}",
@@ -780,7 +853,7 @@ def evaluate_smc_setup(candles, htf_trend=None):
                         "rvol": rvol,
                         "rationale": {
                             "pattern": "Imbalance Void Mitigation",
-                            "levelTested": f"FVG Equilibrium (${fvg_mid:,.0f})",
+                            "levelTested": f"FVG Equilibrium (${fvg_mid:,.2f if asset in ['ETH', 'XAUT'] else fvg_mid:,.0f})",
                             "confirmation": f"Price tapped institutional imbalance and bounced with {rvol}x RVOL"
                         }
                     }
@@ -790,16 +863,17 @@ def evaluate_smc_setup(candles, htf_trend=None):
             elif c1["low"] > c3["high"] and (c1["low"] - c3["high"]) >= min_fvg_gap:
                 fvg_mid = (c1["low"] + c3["high"]) / 2.0
                 if high >= c3["high"] and close_p <= fvg_mid and close_p < open_p:
-                    risk = max(180, c1["low"] - close_p)
-                    tp = round(close_p - (risk * 2.2))
-                    sl = round(c1["low"] + (atr14 * 0.15))
-                    rr = round((close_p - tp) / max(1, sl - close_p), 1)
+                    risk = max(min_risk_pts, c1["low"] - close_p)
+                    tp = round(close_p - (risk * 2.2), 2 if asset in ["ETH", "XAUT"] else 0)
+                    sl = round(c1["low"] + (atr14 * (atr_buffer_mult * 1.5)), 2 if asset in ["ETH", "XAUT"] else 0)
+                    rr = round((close_p - tp) / max(0.01, sl - close_p), 1)
                     trade = {
-                        "id": f"cloud_fvg_bear_{last_closed['time']}",
-                        "name": "Bearish Fair Value Gap (FVG) Mitigation",
+                        "id": f"cloud_{asset.lower()}_fvg_bear_{last_closed['time']}",
+                        "name": f"{asset} Bearish Fair Value Gap (FVG) Mitigation",
+                        "asset": asset,
                         "direction": "SHORT",
                         "time": last_closed["time"],
-                        "entry": round(close_p),
+                        "entry": round(close_p, 2 if asset in ["ETH", "XAUT"] else 0),
                         "tp": tp,
                         "sl": sl,
                         "rr": f"1:{rr}",
@@ -807,7 +881,7 @@ def evaluate_smc_setup(candles, htf_trend=None):
                         "rvol": rvol,
                         "rationale": {
                             "pattern": "Imbalance Void Mitigation",
-                            "levelTested": f"FVG Equilibrium (${fvg_mid:,.0f})",
+                            "levelTested": f"FVG Equilibrium (${fvg_mid:,.2f if asset in ['ETH', 'XAUT'] else fvg_mid:,.0f})",
                             "confirmation": f"Price filled institutional imbalance and rejected with {rvol}x RVOL"
                         }
                     }
@@ -816,18 +890,19 @@ def evaluate_smc_setup(candles, htf_trend=None):
     # Setup 4: Break of Structure (BOS) Breakdown / Breakout
     if not trade and swing_lows:
         key_low = swing_lows[-1]["price"]
-        if close_p < key_low and open_p >= key_low and (close_p - low) < (rng * 0.4) and rvol >= 1.5:
-            risk = max(220, high - close_p)
-            tp = round(close_p - (risk * 2.2))
-            sl = round(high + (atr14 * 0.10))
-            rr = round((close_p - tp) / max(1, sl - close_p), 1)
+        if close_p < key_low and open_p >= key_low and (close_p - low) < (rng * 0.4) and rvol >= (rvol_gate * 1.05):
+            risk = max(min_risk_pts * 1.2, high - close_p)
+            tp = round(close_p - (risk * 2.2), 2 if asset in ["ETH", "XAUT"] else 0)
+            sl = round(high + (atr14 * atr_buffer_mult), 2 if asset in ["ETH", "XAUT"] else 0)
+            rr = round((close_p - tp) / max(0.01, sl - close_p), 1)
 
             trade = {
-                "id": f"cloud_bos_down_{last_closed['time']}",
-                "name": "Bearish Break of Structure (BOS)",
+                "id": f"cloud_{asset.lower()}_bos_down_{last_closed['time']}",
+                "name": f"{asset} Bearish Break of Structure (BOS)",
+                "asset": asset,
                 "direction": "SHORT",
                 "time": last_closed["time"],
-                "entry": round(close_p),
+                "entry": round(close_p, 2 if asset in ["ETH", "XAUT"] else 0),
                 "tp": tp,
                 "sl": sl,
                 "rr": f"1:{rr}",
@@ -835,7 +910,7 @@ def evaluate_smc_setup(candles, htf_trend=None):
                 "rvol": rvol,
                 "rationale": {
                     "pattern": "Trend Continuation Breakdown",
-                    "levelTested": f"Key Structure Floor (${key_low:,.0f})",
+                    "levelTested": f"Key Structure Floor (${key_low:,.2f if asset in ['ETH', 'XAUT'] else key_low:,.0f})",
                     "confirmation": f"Aggressive institutional selling breaking prior structure with {rvol}x RVOL"
                 }
             }
@@ -844,13 +919,13 @@ def evaluate_smc_setup(candles, htf_trend=None):
     if trade and htf_trend:
         htf_bias = htf_trend.get("trend", "NEUTRAL")
         if htf_bias == "NEUTRAL":
-            print(f"[Sentinel] ⚠️ Filtered out setup {trade['id']}: 1H Macro Trend is NEUTRAL / RANGEBOUND (Chop Zone).")
+            print(f"[Sentinel] ⚠️ Filtered out setup {trade['id']}: 1H {asset} Macro Trend is NEUTRAL / RANGEBOUND (Chop Zone).")
             return None
         elif trade["direction"] == "LONG" and htf_bias == "BEARISH":
-            print(f"[Sentinel] ⚠️ Filtered out LONG setup {trade['id']}: Counter to 1H Bearish Trend.")
+            print(f"[Sentinel] ⚠️ Filtered out LONG setup {trade['id']}: Counter to 1H {asset} Bearish Trend.")
             return None
         elif trade["direction"] == "SHORT" and htf_bias == "BULLISH":
-            print(f"[Sentinel] ⚠️ Filtered out SHORT setup {trade['id']}: Counter to 1H Bullish Trend.")
+            print(f"[Sentinel] ⚠️ Filtered out SHORT setup {trade['id']}: Counter to 1H {asset} Bullish Trend.")
             return None
         trade["htf_trend"] = htf_trend
         trade["rationale"]["htfAlignment"] = htf_trend.get("label", "Neutral")
@@ -904,10 +979,17 @@ def run_sentinel():
     print(f"Timestamp: {datetime.now(timezone.utc).isoformat()} UTC")
     print("=" * 60)
 
-    # 1. State & History (Guarantees data/sentinel_state.json exists)
+    # 1. State & History (Guarantees data/sentinel_state.json exists and supports multi-asset)
     state = load_sentinel_state()
     save_sentinel_state(state)
     daily_counts = state.get("daily_counts", {"trades_given": 0, "wins": 0, "losses": 0})
+
+    # Multi-asset active trade container (maintaining top-level state["active_trade"] for backwards compatibility)
+    active_trades = state.get("active_trades", {})
+    if not active_trades and state.get("active_trade"):
+        legacy_asset = state["active_trade"].get("asset", "BTC")
+        active_trades[legacy_asset] = state["active_trade"]
+    state["active_trades"] = active_trades
 
     # 2. Telegram Config
     cfg = get_telegram_config()
@@ -924,136 +1006,155 @@ def run_sentinel():
     if not state.get("telegram_handshake_sent", False):
         welcome_msg = f"""🟢 <b>DELTA INDIA 24/7 CLOUD SENTINEL CONNECTED</b>
 ━━━━━━━━━━━━━━━━━━━━━━━━
-⚡ <b>Target Feed:</b> Delta Exchange India (BTCUSD 15m)
+⚡ <b>Target Feeds:</b> BTCUSD · ETHUSD · XAUTUSD (Tether Gold)
 📊 <b>Strategy:</b> Institutional SMC Sweeps, FVGs & BOS
-🎯 <b>Execution:</b> Dynamic Option Potential (TP1 +50% / TP2 Runner)
+🎯 <b>Execution:</b> Multi-Asset Dynamic Option Potential
 ⏰ <b>Time:</b> {get_now_ist_str()}
 
-<i>Confirmed trade entries, dynamic targets, and risk alerts will appear here in real time.</i>
+<i>Confirmed trade entries, dynamic targets, and risk alerts across all 3 assets will appear here in real time.</i>
 🔗 <a href="https://delta-trading-journal-gmp.vercel.app/chart.html">Open Live Chart & Terminal</a>"""
         if send_telegram_message(bot_token, chat_id, welcome_msg):
             state["telegram_handshake_sent"] = True
             save_sentinel_state(state)
 
-    # 3. Market Data
-    candles = fetch_btc_candles()
-    if not candles:
-        print("[Sentinel] Failed to fetch market candles. Exiting run.")
-        return
+    # 3. Session Context
+    current_session = get_current_trading_session()
+    is_drift_hours = (current_session.get("code") == "DRIFT")
+    daily_losses = daily_counts.get("losses", 0)
+    circuit_breaker_active = (daily_losses >= 2)
 
-    current_price = candles[-1]["close"]
-    print(f"[Sentinel] Latest BTC Spot Close: ${current_price:,.2f}")
+    # Cooldown constants
+    MIN_COOLDOWN_SECONDS = 3600  # 4 candles (60 minutes)
+    now_ts = int(time.time())
 
-    # 4. Check Active Trade Outcomes
-    active_trade = state.get("active_trade")
-    just_exited = False
+    # Multi-asset loop (BTC, ETH, XAUT Gold)
+    ASSETS = ["BTC", "ETH", "XAUT"]
 
-    if active_trade:
-        trade_id = active_trade.get("id")
-        entry = active_trade.get("entry")
-        tp = active_trade.get("tp")
-        sl = active_trade.get("sl")
-        direction = active_trade.get("direction")
-        contract = active_trade.get("option", {}).get("symbol", "Delta Option")
-        buy_p = active_trade.get("option", {}).get("mark_price", 200)
-        target_p = active_trade.get("option", {}).get("target_price", round(buy_p * 1.5, 1))
-        target_pct = active_trade.get("option", {}).get("target_pct", "+50.0%")
-        tp1_p = active_trade.get("option", {}).get("tp1_price", round(buy_p * 1.5, 1))
-        is_est = bool(active_trade.get("skipped") or active_trade.get("isEstimation"))
+    for asset in ASSETS:
+        asset_cfg = ASSET_REGIME_CONFIGS.get(asset, ASSET_REGIME_CONFIGS["BTC"])
+        asset_icon = asset_cfg.get("icon", "🪙")
+        print(f"\n--- Scanning Asset: {asset_icon} {asset} ({asset_cfg['delta_symbol']}) ---")
 
-        reached_tp1 = active_trade.get("reached_tp1", False)
-        spot_dist = abs(tp - entry)
-        tp1_dist = round(spot_dist * 0.45)
+        # 3a. Fetch candles
+        candles = fetch_asset_candles(asset)
+        if not candles:
+            print(f"[Sentinel] ⚠️ Failed to fetch {asset} candles. Skipping asset.")
+            continue
 
-        is_tp1_derisk = False
-        is_win = False
-        is_be_win = False
-        is_loss = False
+        current_price = candles[-1]["close"]
+        price_fmt = f"${current_price:,.2f}" if asset in ["ETH", "XAUT"] else f"${current_price:,.0f}"
+        print(f"[Sentinel] Latest {asset} Spot Close: {price_fmt}")
 
-        sl_dist = active_trade.get("slDist") or abs(entry - sl) or 400
+        # 4. Check Active Trade Outcomes for this Asset
+        active_trade = active_trades.get(asset)
+        just_exited = False
 
-        if direction == "LONG":
-            favorable = current_price - entry
-            # 1. Full Target Expansion (TP) takes absolute priority
-            if favorable >= spot_dist or current_price >= tp:
-                is_win = True
-            elif not reached_tp1 and favorable >= tp1_dist:
-                is_tp1_derisk = True
-            elif reached_tp1:
-                # Post-TP1: Runner is given structural breathing room (0.20x SL buffer) so retest wicks do not choke winning runners
-                retest_tolerance = entry - round(sl_dist * 0.20)
-                if current_price <= retest_tolerance or current_price <= sl:
-                    is_be_win = True
-            elif not reached_tp1 and current_price <= sl:
-                is_loss = True
-        else: # SHORT
-            favorable = entry - current_price
-            # 1. Full Target Expansion (TP) takes absolute priority
-            if favorable >= spot_dist or current_price <= tp:
-                is_win = True
-            elif not reached_tp1 and favorable >= tp1_dist:
-                is_tp1_derisk = True
-            elif reached_tp1:
-                # Post-TP1: Runner is given structural breathing room (0.20x SL buffer) so retest wicks do not choke winning runners
-                retest_tolerance = entry + round(sl_dist * 0.20)
-                if current_price >= retest_tolerance or current_price >= sl:
-                    is_be_win = True
-            elif not reached_tp1 and current_price >= sl:
-                is_loss = True
+        if active_trade:
+            trade_id = active_trade.get("id")
+            entry = active_trade.get("entry")
+            tp = active_trade.get("tp")
+            sl = active_trade.get("sl")
+            direction = active_trade.get("direction")
+            contract = active_trade.get("option", {}).get("symbol", f"Delta {asset} Option")
+            buy_p = active_trade.get("option", {}).get("mark_price", 200)
+            target_p = active_trade.get("option", {}).get("target_price", round(buy_p * 1.5, 1))
+            target_pct = active_trade.get("option", {}).get("target_pct", "+50.0%")
+            tp1_p = active_trade.get("option", {}).get("tp1_price", round(buy_p * 1.5, 1))
+            is_est = bool(active_trade.get("skipped") or active_trade.get("isEstimation"))
 
-        if is_tp1_derisk:
-            # Trailed Stop Activation: Derisk 50% & Move SL to Breakeven
-            active_trade["reached_tp1"] = True
-            active_trade["sl"] = entry # Breakeven
-            tp1_pct_str = active_trade.get("option", {}).get("tp1_pct", "+50.0%")
-            est_prefix = "🛡️ <b>[ESTIMATION]</b> " if is_est else ""
-            tp1_msg = f"""{est_prefix}🎯 <b>TARGET 1 HIT ({tp1_pct_str} DERISK)</b>
+            reached_tp1 = active_trade.get("reached_tp1", False)
+            spot_dist = abs(tp - entry)
+            tp1_dist = round(spot_dist * 0.45, 2 if asset in ["ETH", "XAUT"] else 0)
+
+            is_tp1_derisk = False
+            is_win = False
+            is_be_win = False
+            is_loss = False
+
+            sl_dist = active_trade.get("slDist") or abs(entry - sl) or (20 if asset == "ETH" else (10 if asset == "XAUT" else 400))
+
+            if direction == "LONG":
+                favorable = current_price - entry
+                if favorable >= spot_dist or current_price >= tp:
+                    is_win = True
+                elif not reached_tp1 and favorable >= tp1_dist:
+                    is_tp1_derisk = True
+                elif reached_tp1:
+                    retest_tolerance = entry - (sl_dist * 0.20)
+                    if current_price <= retest_tolerance or current_price <= sl:
+                        is_be_win = True
+                elif not reached_tp1 and current_price <= sl:
+                    is_loss = True
+            else: # SHORT
+                favorable = entry - current_price
+                if favorable >= spot_dist or current_price <= tp:
+                    is_win = True
+                elif not reached_tp1 and favorable >= tp1_dist:
+                    is_tp1_derisk = True
+                elif reached_tp1:
+                    retest_tolerance = entry + (sl_dist * 0.20)
+                    if current_price >= retest_tolerance or current_price <= sl:
+                        is_be_win = True
+                elif not reached_tp1 and current_price <= sl:
+                    is_loss = True
+
+            entry_str = f"${entry:,.2f}" if asset in ["ETH", "XAUT"] else f"${entry:,.0f}"
+            cur_str = f"${current_price:,.2f}" if asset in ["ETH", "XAUT"] else f"${current_price:,.0f}"
+            tp_str = f"${tp:,.2f}" if asset in ["ETH", "XAUT"] else f"${tp:,.0f}"
+
+            if is_tp1_derisk:
+                active_trade["reached_tp1"] = True
+                active_trade["sl"] = entry # Breakeven
+                tp1_pct_str = active_trade.get("option", {}).get("tp1_pct", "+50.0%")
+                est_prefix = "🛡️ <b>[ESTIMATION]</b> " if is_est else ""
+                tp1_msg = f"""{est_prefix}🎯 <b>TARGET 1 HIT ({tp1_pct_str} DERISK) · {asset}</b>
 🏷️ <code>{contract}</code>
 
 💰 <b>DERISK EXECUTION</b>
 • Booked: <b>${tp1_p:.1f} ({tp1_pct_str} Profit on 50% Position)</b>
 • Initial Fill: ${buy_p:.1f}
-• Stop Status: <b>Trailed to Breakeven (${entry:,.0f})</b>
+• Stop Status: <b>Trailed to Breakeven ({entry_str})</b>
 
-⚡ <i>Zero downside risk remaining. Trailing remaining 50% runner to Target 2 (${tp:,.0f})!</i>
+⚡ <i>Zero downside risk remaining. Trailing remaining 50% runner to Target 2 ({tp_str})!</i>
 ⏰ <i>{get_now_ist_str()}</i>
 🔗 <a href="https://delta-trading-journal-gmp.vercel.app/chart.html">Open Live Chart</a>"""
-            send_telegram_message(bot_token, chat_id, tp1_msg)
-            sync_trade_to_firestore(active_trade)
-            state["active_trade"] = active_trade
-            save_sentinel_state(state)
+                send_telegram_message(bot_token, chat_id, tp1_msg)
+                sync_trade_to_firestore(active_trade)
+                active_trades[asset] = active_trade
+                state["active_trades"] = active_trades
+                if asset == "BTC":
+                    state["active_trade"] = active_trade
+                save_sentinel_state(state)
 
-        elif is_win:
-            if not is_est:
-                daily_counts["wins"] += 1
-            # Scaled Exit: 50% closed at TP1 (+50%) and 50% closed at TP2 (target_p)
-            tp1_exit = tp1_p  # buy_p * 1.50
-            tp2_exit = target_p  # full runner target
-            sell_p = round((tp1_exit * 0.5) + (tp2_exit * 0.5), 1)
-            pts_gain = round(sell_p - buy_p, 1)
-            blended_pct = round(((sell_p - buy_p) / buy_p) * 100, 1)
+            elif is_win:
+                if not is_est:
+                    daily_counts["wins"] += 1
+                tp1_exit = tp1_p
+                tp2_exit = target_p
+                sell_p = round((tp1_exit * 0.5) + (tp2_exit * 0.5), 1)
+                blended_pct = round(((sell_p - buy_p) / buy_p) * 100, 1)
 
-            if is_est:
-                msg = f"""🛡️ <b>ESTIMATION TARGET HIT (+{blended_pct:.1f}%)</b>
+                if is_est:
+                    msg = f"""🛡️ <b>ESTIMATION TARGET HIT (+{blended_pct:.1f}%) · {asset}</b>
 🏷️ <code>{contract}</code>
 
 💰 <b>THEORETICAL RETURN (OBSERVATION ONLY)</b>
 • Fill: ${buy_p:.1f} ➔ <b>Blended Exit: ${sell_p:.1f} (+{blended_pct:.1f}%)</b>
-• Spot Move: ${entry:,.0f} ➔ <b>${current_price:,.0f}</b>
+• Spot Move: {entry_str} ➔ <b>{cur_str}</b>
 • Risk Guard: <i>2-SL Protection active. Capital preserved (₹0 risk).</i>
 
 ⏰ <i>{get_now_ist_str()}</i>
 🔗 <a href="https://delta-trading-journal-gmp.vercel.app/chart.html">Open Live Chart</a>"""
-            else:
-                total_resolved = daily_counts['wins'] + daily_counts['losses']
-                win_rate_calc = round((daily_counts['wins'] / max(1, total_resolved)) * 100)
-                msg = f"""🏆 <b>TRADE TARGET HIT (+{blended_pct:.1f}% NET GAIN)</b>
+                else:
+                    total_resolved = daily_counts['wins'] + daily_counts['losses']
+                    win_rate_calc = round((daily_counts['wins'] / max(1, total_resolved)) * 100)
+                    msg = f"""🏆 <b>TRADE TARGET HIT (+{blended_pct:.1f}% NET GAIN) · {asset}</b>
 🏷️ <code>{contract}</code>
 
 💰 <b>REALIZED RETURN</b>
 • Entry: ${buy_p:.1f} ➔ <b>Blended Exit: ${sell_p:.1f} (+{blended_pct:.1f}%)</b>
-• 50% booked at TP1 (+50%) + 50% at TP2 ({target_pct})
-• BTC Spot: ${entry:,.0f} ➔ <b>${current_price:,.0f}</b>
+• 50% booked at TP1 + 50% at TP2 ({target_pct})
+• {asset} Spot: {entry_str} ➔ <b>{cur_str}</b>
 
 📊 <b>TODAY'S SCORECARD</b>
 • Record: <b>{daily_counts['wins']}W - {daily_counts['losses']}L</b> ({win_rate_calc}% Win Rate)
@@ -1061,89 +1162,93 @@ def run_sentinel():
 
 ⏰ <i>{get_now_ist_str()}</i>
 🔗 <a href="https://delta-trading-journal-gmp.vercel.app/chart.html">Open Live Chart</a>"""
-            send_telegram_message(bot_token, chat_id, msg)
-            active_trade["outcome"] = "WIN"
-            active_trade["exitPrice"] = current_price
-            active_trade["optionSellPrice"] = sell_p
-            active_trade["optionExitLockedMark"] = sell_p
-            sync_trade_to_firestore(active_trade)
+                send_telegram_message(bot_token, chat_id, msg)
+                active_trade["outcome"] = "WIN"
+                active_trade["exitPrice"] = current_price
+                active_trade["optionSellPrice"] = sell_p
+                active_trade["optionExitLockedMark"] = sell_p
+                sync_trade_to_firestore(active_trade)
 
-            state["active_trade"] = None
-            state["last_trade_time"] = int(time.time())
-            state["last_trade_direction"] = direction
-            state["daily_counts"] = daily_counts
-            save_sentinel_state(state)
-            just_exited = True
+                active_trades[asset] = None
+                state["active_trades"] = active_trades
+                if asset == "BTC":
+                    state["active_trade"] = None
+                state[f"last_trade_time_{asset}"] = int(time.time())
+                state[f"last_trade_direction_{asset}"] = direction
+                state["daily_counts"] = daily_counts
+                save_sentinel_state(state)
+                just_exited = True
 
-        elif is_be_win:
-            if not is_est:
-                daily_counts["wins"] += 1
-            sell_p = round(buy_p * 1.25, 1) # 50% at +50%, 50% at Breakeven -> Net +25%
-            pts_gain = round(sell_p - buy_p, 1)
+            elif is_be_win:
+                if not is_est:
+                    daily_counts["wins"] += 1
+                sell_p = round(buy_p * 1.25, 1)
 
-            if is_est:
-                msg = f"""🛡️ <b>ESTIMATION TRAILED STOP BREAKEVEN (+25.0%)</b>
+                if is_est:
+                    msg = f"""🛡️ <b>ESTIMATION TRAILED STOP BREAKEVEN (+25.0%) · {asset}</b>
 🏷️ <code>{contract}</code>
 
 💰 <b>THEORETICAL RETURN</b>
-• Net Realization: <b>+25.0% Net Profit</b> (50% booked at +50%, 50% at BE)
-• BTC Spot: Returned to entry ${entry:,.0f} after TP1
+• Net Realization: <b>+25.0% Net Profit</b> (50% booked at TP1, 50% at BE)
+• {asset} Spot: Returned to entry {entry_str} after TP1
 
 ⏰ <i>{get_now_ist_str()}</i>
 🔗 <a href="https://delta-trading-journal-gmp.vercel.app/chart.html">Open Live Chart</a>"""
-            else:
-                msg = f"""🛡️ <b>TRAILED STOP BREAKEVEN HIT (+25.0% NET PROFIT)</b>
+                else:
+                    msg = f"""🛡️ <b>TRAILED STOP BREAKEVEN HIT (+25.0% NET PROFIT) · {asset}</b>
 🏷️ <code>{contract}</code>
 
 💰 <b>REALIZED RETURN</b>
 • Entry: ${buy_p:.1f} ➔ <b>Net Exit: ${sell_p:.1f} (+25.0%)</b>
-• Scalp booked +50% at TP1; remaining position exited at Breakeven
-• BTC Spot: Returned to entry ${entry:,.0f} after booking TP1
+• Scalp booked at TP1; remaining position exited at Breakeven
+• {asset} Spot: Returned to entry {entry_str} after booking TP1
 
 📊 <b>TODAY'S SCORECARD</b>
 • Record: <b>{daily_counts['wins']}W - {daily_counts['losses']}L</b>
-• Trailed Stop protected profits after market reversal
 
 ⏰ <i>{get_now_ist_str()}</i>
 🔗 <a href="https://delta-trading-journal-gmp.vercel.app/chart.html">Open Live Chart</a>"""
-            send_telegram_message(bot_token, chat_id, msg)
-            active_trade["outcome"] = "BE_WIN"
-            active_trade["exitPrice"] = current_price
-            active_trade["optionSellPrice"] = sell_p
-            active_trade["optionExitLockedMark"] = sell_p
-            sync_trade_to_firestore(active_trade)
+                send_telegram_message(bot_token, chat_id, msg)
+                active_trade["outcome"] = "BE_WIN"
+                active_trade["exitPrice"] = current_price
+                active_trade["optionSellPrice"] = sell_p
+                active_trade["optionExitLockedMark"] = sell_p
+                sync_trade_to_firestore(active_trade)
 
-            state["active_trade"] = None
-            state["last_trade_time"] = int(time.time())
-            state["last_trade_direction"] = direction
-            state["daily_counts"] = daily_counts
-            save_sentinel_state(state)
-            just_exited = True
+                active_trades[asset] = None
+                state["active_trades"] = active_trades
+                if asset == "BTC":
+                    state["active_trade"] = None
+                state[f"last_trade_time_{asset}"] = int(time.time())
+                state[f"last_trade_direction_{asset}"] = direction
+                state["daily_counts"] = daily_counts
+                save_sentinel_state(state)
+                just_exited = True
 
-        elif is_loss:
-            if not is_est:
-                daily_counts["losses"] += 1
-            sell_p = active_trade.get("option", {}).get("stop_price", round(buy_p * 0.7, 1))
-            pts_loss = round(buy_p - sell_p, 1)
+            elif is_loss:
+                if not is_est:
+                    daily_counts["losses"] += 1
+                sell_p = active_trade.get("option", {}).get("stop_price", round(buy_p * 0.7, 1))
+                pts_loss = round(buy_p - sell_p, 1)
 
-            if is_est:
-                msg = f"""🛡️ <b>ESTIMATION STOP LOSS HIT (-30.0%)</b>
+                if is_est:
+                    msg = f"""🛡️ <b>ESTIMATION STOP LOSS HIT (-30.0%) · {asset}</b>
 🏷️ <code>{contract}</code>
 
 💰 <b>THEORETICAL DRAWDOWN</b>
 • Exit: ${sell_p:.1f} (-{pts_loss} pts / -30.0%)
-• BTC Spot: ${entry:,.0f} ➔ <b>${current_price:,.0f}</b>
+• {asset} Spot: {entry_str} ➔ <b>{cur_str}</b>
 • Status: <i>2-SL Rule preserved capital. Zero real loss.</i>
 
 ⏰ <i>{get_now_ist_str()}</i>
 🔗 <a href="https://delta-trading-journal-gmp.vercel.app/chart.html">Open Live Chart</a>"""
-            else:
-                msg = f"""🛑 <b>STOP LOSS TRIGGERED (-30.0%)</b>
+                else:
+                    msg = f"""🛑 <b>STOP LOSS TRIGGERED (-30.0%) · {asset}</b>
 🏷️ <code>{contract}</code>
 
 💰 <b>CAPITAL PRESERVATION EXIT</b>
 • Entry: ${buy_p:.1f} ➔ <b>Exit: ${sell_p:.1f} (-{pts_loss} pts / -30.0%)</b>
-• BTC Spot: ${entry:,.0f} ➔ <b>${current_price:,.0f} (Invalidation Hit)</b>
+• {asset} Spot: {entry_str} ➔ <b>{cur_str} (Invalidation Hit)</b>
 
 📊 <b>TODAY'S SCORECARD</b>
 • Record: <b>{daily_counts['wins']}W - {daily_counts['losses']}L</b>
@@ -1151,86 +1256,80 @@ def run_sentinel():
 
 ⏰ <i>{get_now_ist_str()}</i>
 🔗 <a href="https://delta-trading-journal-gmp.vercel.app/chart.html">Open Live Chart</a>"""
-            send_telegram_message(bot_token, chat_id, msg)
-            active_trade["outcome"] = "LOSS"
-            active_trade["exitPrice"] = current_price
-            active_trade["optionSellPrice"] = sell_p
-            active_trade["optionExitLockedMark"] = sell_p
-            sync_trade_to_firestore(active_trade)
+                send_telegram_message(bot_token, chat_id, msg)
+                active_trade["outcome"] = "LOSS"
+                active_trade["exitPrice"] = current_price
+                active_trade["optionSellPrice"] = sell_p
+                active_trade["optionExitLockedMark"] = sell_p
+                sync_trade_to_firestore(active_trade)
 
-            state["active_trade"] = None
-            state["last_trade_time"] = int(time.time())
-            state["last_trade_direction"] = direction
-            state["daily_counts"] = daily_counts
-            save_sentinel_state(state)
-            just_exited = True
+                active_trades[asset] = None
+                state["active_trades"] = active_trades
+                if asset == "BTC":
+                    state["active_trade"] = None
+                state[f"last_trade_time_{asset}"] = int(time.time())
+                state[f"last_trade_direction_{asset}"] = direction
+                state["daily_counts"] = daily_counts
+                save_sentinel_state(state)
+                just_exited = True
 
-            # Idea 12: Daily Loss Circuit Breaker Trigger
-            if not is_est and daily_counts["losses"] >= 2:
-                cb_msg = f"""🛡️ <b>RISK CIRCUIT BREAKER ENGAGED (2/2 LOSSES)</b>
+                # Daily Loss Circuit Breaker Trigger
+                if not is_est and daily_counts["losses"] >= 2:
+                    cb_msg = f"""🛡️ <b>RISK CIRCUIT BREAKER ENGAGED (2/2 LOSSES)</b>
 ━━━━━━━━━━━━━━━━━━━━━━━━
-⚠️ <b>Status:</b> Signal generation halted for today's session.
+⚠️ <b>Status:</b> Signal generation halted across all assets for today's session.
 🛑 <b>Reason:</b> 2 Consecutive Stop Losses reached.
 🔄 <b>Reset:</b> Automatically resets at 05:30 AM IST tomorrow.
 
 💎 <i>Capital Protection First: Any further market setups will be evaluated in Estimation Mode only (₹0 capital allocated).</i>
 ⏰ <i>{get_now_ist_str()}</i>
 🔗 <a href="https://delta-trading-journal-gmp.vercel.app/chart.html">View Risk Dashboard</a>"""
-                send_telegram_message(bot_token, chat_id, cb_msg)
+                    send_telegram_message(bot_token, chat_id, cb_msg)
 
-    # 5. Evaluate New SMC Setups (Sweeps, FVGs, BOS)
-    daily_losses = daily_counts.get("losses", 0)
-    circuit_breaker_active = (daily_losses >= 2)
+        # 5. Evaluate New SMC Setups for this Asset
+        if active_trades.get(asset):
+            active_name = active_trades[asset].get("name", f"Active {asset} Trade")
+            print(f"[Sentinel] ⏳ ACTIVE TRADE IN FLIGHT FOR {asset}: {active_name}. Skipping new setups for {asset}.")
+            continue
+        elif just_exited:
+            print(f"[Sentinel] ⏳ Position just resolved for {asset}. Allowing market structure to settle.")
+            continue
 
-    if state.get("active_trade"):
-        active_name = state["active_trade"].get("name", "Active Trade")
-        active_id = state["active_trade"].get("id", "Unknown")
-        is_active_est = state["active_trade"].get("isEstimation", False)
-        print(f"[Sentinel] ⏳ ACTIVE {'ESTIMATION ' if is_active_est else ''}TRADE IN FLIGHT: {active_name} ({active_id}). Skipping new setups until active position resolves.")
-    elif just_exited:
-        print("[Sentinel] ⏳ Position just resolved on this candle. Allowing market structure to settle before scanning new setups.")
-    else:
-        # Check cooldown to prevent duplicate / repeated trades on consecutive candles
-        last_trade_time = state.get("last_trade_time", 0)
-        last_trade_dir = state.get("last_trade_direction", "")
-        now_ts = int(time.time())
+        # Cooldown check per asset
+        last_trade_time = state.get(f"last_trade_time_{asset}", state.get("last_trade_time", 0) if asset == "BTC" else 0)
+        last_trade_dir = state.get(f"last_trade_direction_{asset}", state.get("last_trade_direction", "") if asset == "BTC" else "")
         time_since_trade = now_ts - last_trade_time
-        MIN_COOLDOWN_SECONDS = 3600  # 4 candles (60 minutes)
 
-        if circuit_breaker_active:
-            print(f"[Sentinel] 🛡️ CIRCUIT BREAKER ENGAGED ({daily_losses}/2 daily losses). Capital preserved: evaluating in Estimation Mode (Not Taken) for knowledge & observation.")
+        # Off-Hours Drift check
+        if is_drift_hours and asset_cfg.get("drift_block", True):
+            print(f"[Sentinel] 🌙 OFF-HOURS DRIFT ACTIVE (02:30 - 05:30 IST). Institutional liquidity is absent for {asset}; skipping.")
+            continue
 
-        # Multi-Timeframe 1H Trend Alignment (Idea 4)
-        htf_trend = fetch_htf_trend_1h()
-        print(f"[Sentinel] HTF 1H Macro Trend: {htf_trend['label']}")
+        # Multi-Timeframe 1H Trend Alignment
+        htf_trend = fetch_htf_trend_1h(asset)
+        print(f"[Sentinel] HTF 1H {asset} Macro Trend: {htf_trend['label']}")
 
-        # Session Context Check: Strictly avoid low-probability Off-Hours Drift (02:30 - 05:30 IST)
-        current_session = get_current_trading_session()
-        if current_session.get("code") == "DRIFT":
-            print(f"[Sentinel] 🌙 OFF-HOURS DRIFT ACTIVE (02:30 - 05:30 IST). Institutional liquidity is absent; skipping new signal scanning to prevent chop stops.")
-            setup = None
-        else:
-            setup = evaluate_smc_setup(candles, htf_trend)
+        # Evaluate SMC Setup
+        setup = evaluate_smc_setup(candles, htf_trend, asset=asset)
 
         if setup:
             # Check cooldown against repeated setups in same direction
             if time_since_trade < MIN_COOLDOWN_SECONDS and setup["direction"] == last_trade_dir:
-                print(f"[Sentinel] ⏳ Cooldown active ({time_since_trade}s < {MIN_COOLDOWN_SECONDS}s). Skipping repeated {setup['direction']} signal.")
+                print(f"[Sentinel] ⏳ Cooldown active for {asset} ({time_since_trade}s < {MIN_COOLDOWN_SECONDS}s). Skipping repeated {setup['direction']} signal.")
                 setup = None
 
         if setup:
             trade_id = setup["id"]
-            last_alerted = state.get("last_alerted_trade_id")
+            last_alerted = state.get(f"last_alerted_trade_id_{asset}", state.get("last_alerted_trade_id") if asset == "BTC" else "")
 
             if trade_id != last_alerted:
                 spot_dist = abs(setup["tp"] - setup["entry"])
-                opt = fetch_delta_option_contract(setup["direction"], current_price, spot_dist)
-                session = get_current_trading_session()
+                opt = fetch_delta_option_contract(setup["direction"], current_price, spot_dist, asset=asset)
+                session = current_session
                 setup["option"] = opt
                 setup["session"] = session
 
                 is_call = (setup["direction"] == "LONG")
-                ist_time = datetime.fromtimestamp(setup["time"], tz=timezone(timedelta(hours=5, minutes=30))).strftime("%I:%M %p · %d %b")
 
                 try:
                     tp2_pct_val = float(str(opt.get('target_pct', '+100%')).replace('+', '').replace('%', '').strip() or 100)
@@ -1238,15 +1337,19 @@ def run_sentinel():
                 except Exception:
                     blended_target_pct = 75.0
 
+                entry_disp = f"${setup['entry']:,.2f}" if asset in ["ETH", "XAUT"] else f"${setup['entry']:,}"
+                tp_disp = f"${setup['tp']:,.2f}" if asset in ["ETH", "XAUT"] else f"${setup['tp']:,}"
+                sl_disp = f"${setup['sl']:,.2f}" if asset in ["ETH", "XAUT"] else f"${setup['sl']:,}"
+
                 if circuit_breaker_active:
-                    # 🛡️ Risk Guard Active: Log as Estimation Mode
+                    # Risk Guard Active: Log as Estimation Mode
                     setup["outcome"] = "ACTIVE"
                     setup["skipped"] = True
                     setup["isEstimation"] = True
                     setup["skippedReason"] = "2 SL Daily Limit Hit - Risk Guard Preserving Capital"
                     setup["optionEntryLockedMark"] = opt.get("mark_price", 220)
 
-                    action_title = "🟡 BUY CALL (ESTIMATION)" if is_call else "🟡 BUY PUT (ESTIMATION)"
+                    action_title = f"🟡 BUY {asset} CALL (ESTIMATION)" if is_call else f"🟡 BUY {asset} PUT (ESTIMATION)"
                     entry_p = opt.get("mark_price", 220)
                     msg = f"""<b>{action_title}</b>
 🏷️ <code>{opt['symbol']}</code> · 🛡️ <b>2-SL Risk Guard</b>
@@ -1261,7 +1364,7 @@ def run_sentinel():
 • Blended Net: <b>+{blended_target_pct:.1f}%</b>
 
 🔍 <b>SMC CONTEXT & SPOT REF</b>
-• Spot: <b>${setup['entry']:,}</b> ➔ TP <b>${setup['tp']:,}</b> (R:R {setup['rr']}) | SL <b>${setup['sl']:,}</b>
+• Spot: <b>{entry_disp}</b> ➔ TP <b>{tp_disp}</b> (R:R {setup['rr']}) | SL <b>{sl_disp}</b>
 • Pattern: {setup['name']}
 • Edge: {setup['rationale']['levelTested']} · {setup['rvol']}x RVOL
 • Status: <i>2 SL hit today. Signal tracked for learning only. Zero capital allocated.</i>
@@ -1270,19 +1373,25 @@ def run_sentinel():
 🔗 <a href="https://delta-trading-journal-gmp.vercel.app/chart.html">Open Live Chart</a>"""
 
                     if send_telegram_message(bot_token, chat_id, msg):
-                        state["last_alerted_trade_id"] = trade_id
-                        state["active_trade"] = setup
-                        state["last_trade_time"] = int(time.time())
-                        state["last_trade_direction"] = setup["direction"]
+                        state[f"last_alerted_trade_id_{asset}"] = trade_id
+                        active_trades[asset] = setup
+                        state["active_trades"] = active_trades
+                        if asset == "BTC":
+                            state["active_trade"] = setup
+                            state["last_alerted_trade_id"] = trade_id
+                            state["last_trade_time"] = int(time.time())
+                            state["last_trade_direction"] = setup["direction"]
+                        state[f"last_trade_time_{asset}"] = int(time.time())
+                        state[f"last_trade_direction_{asset}"] = setup["direction"]
                         save_sentinel_state(state)
                         sync_trade_to_firestore(setup)
-                        print(f"[Sentinel] 🛡️ Estimation trade {trade_id} logged as active estimation and synced to Firestore & Telegram.")
+                        print(f"[Sentinel] 🛡️ Estimation trade {trade_id} logged for {asset} and synced.")
                 else:
                     daily_counts["trades_given"] += 1
                     setup["outcome"] = "ACTIVE"
                     setup["optionEntryLockedMark"] = opt.get("mark_price", 220)
 
-                    action_title = "🟢 BUY CALL OPTION" if is_call else "🔴 BUY PUT OPTION"
+                    action_title = f"🟢 BUY {asset} CALL OPTION" if is_call else f"🔴 BUY {asset} PUT OPTION"
                     entry_p = opt.get("mark_price", 220)
                     msg = f"""<b>{action_title}</b>
 🏷️ <code>{opt['symbol']}</code> · {session['flag']} <b>{session['name']}</b>
@@ -1297,7 +1406,7 @@ def run_sentinel():
 • Net Blended Gain: <b>+{blended_target_pct:.1f}%</b>
 
 🔍 <b>SMC CONTEXT & SPOT REF</b>
-• Spot: <b>${setup['entry']:,}</b> ➔ TP <b>${setup['tp']:,}</b> (R:R {setup['rr']}) | SL <b>${setup['sl']:,}</b>
+• Spot: <b>{entry_disp}</b> ➔ TP <b>{tp_disp}</b> (R:R {setup['rr']}) | SL <b>{sl_disp}</b>
 • Pattern: {setup['name']}
 • Edge: {setup['rationale']['levelTested']} · {setup['rvol']}x RVOL
 • IV Pricing: {opt.get('iv_badge', '🟡 FAIR')} ({opt.get('iv_rating', 'Calibrated')})
@@ -1306,17 +1415,24 @@ def run_sentinel():
 🔗 <a href="https://delta-trading-journal-gmp.vercel.app/chart.html">Open Live Chart & Cockpit</a>"""
 
                     if send_telegram_message(bot_token, chat_id, msg):
-                        state["last_alerted_trade_id"] = trade_id
-                        state["active_trade"] = setup
-                        state["last_trade_time"] = int(time.time())
-                        state["last_trade_direction"] = setup["direction"]
+                        state[f"last_alerted_trade_id_{asset}"] = trade_id
+                        active_trades[asset] = setup
+                        state["active_trades"] = active_trades
+                        if asset == "BTC":
+                            state["active_trade"] = setup
+                            state["last_alerted_trade_id"] = trade_id
+                            state["last_trade_time"] = int(time.time())
+                            state["last_trade_direction"] = setup["direction"]
+                        state[f"last_trade_time_{asset}"] = int(time.time())
+                        state[f"last_trade_direction_{asset}"] = setup["direction"]
                         state["daily_counts"] = daily_counts
                         save_sentinel_state(state)
                         sync_trade_to_firestore(setup)
             else:
-                print(f"[Sentinel] Trade setup {trade_id} was already alerted previously.")
+                print(f"[Sentinel] Trade setup {trade_id} was already alerted previously for {asset}.")
         else:
-            print("[Sentinel] No new confirmed high-conviction SMC setups on current 15m candle.")
+            print(f"[Sentinel] No new confirmed SMC setups on {asset} 15m candle.")
+
 
     # 6. Check Breaking News / Catalysts
     catalyst = check_breaking_crypto_catalysts()
