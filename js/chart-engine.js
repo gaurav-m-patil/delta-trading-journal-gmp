@@ -18,9 +18,62 @@ window.DeltaLiveChart = (function() {
   let candleSeries = null;
   let volumeSeries = null;
   let activeTimeframe = '15m';
+  let activeAsset = 'BTC'; // 'BTC', 'ETH', or 'XAUT'
   let activeSymbol = 'BTCUSDT';
+  let activeDeltaSymbol = 'BTCUSD';
   let wsConnection = null;
   let candleData = [];
+
+  const ASSET_CONFIGS = {
+    BTC: {
+      asset: 'BTC',
+      name: 'Bitcoin',
+      deltaSymbol: 'BTCUSD',
+      binanceSymbol: 'BTCUSDT',
+      coinbaseProduct: 'BTC-USD',
+      strikeStep: 200,
+      pricePrecision: 1,
+      minMove: 0.1,
+      priceScaleStepHint: 100,
+      icon: 'fa-brands fa-bitcoin',
+      colorClass: 'text-amber-400'
+    },
+    ETH: {
+      asset: 'ETH',
+      name: 'Ethereum',
+      deltaSymbol: 'ETHUSD',
+      binanceSymbol: 'ETHUSDT',
+      coinbaseProduct: 'ETH-USD',
+      strikeStep: 50,
+      pricePrecision: 2,
+      minMove: 0.05,
+      priceScaleStepHint: 10,
+      icon: 'fa-brands fa-ethereum',
+      colorClass: 'text-indigo-400'
+    },
+    XAUT: {
+      asset: 'XAUT',
+      name: 'Tether Gold',
+      deltaSymbol: 'XAUTUSD',
+      binanceSymbol: 'PAXGUSDT',
+      coinbaseProduct: null,
+      strikeStep: 10,
+      pricePrecision: 2,
+      minMove: 0.01,
+      priceScaleStepHint: 5,
+      icon: 'fa-solid fa-coins',
+      colorClass: 'text-yellow-400'
+    }
+  };
+
+  function filterTradesForActiveAsset(tradesList) {
+    if (!tradesList || !Array.isArray(tradesList)) return [];
+    return tradesList.filter(t => {
+      if (!t) return false;
+      const tAsset = (t.asset || (t.optionSymbol ? (t.optionSymbol.includes('ETH') ? 'ETH' : (t.optionSymbol.includes('XAUT') ? 'XAUT' : 'BTC')) : 'BTC')).toUpperCase();
+      return tAsset === activeAsset;
+    });
+  }
   let isInitialized = false;
   let currentAnalysis = null;
   let selectedTrade = null;
@@ -1073,7 +1126,7 @@ window.DeltaLiveChart = (function() {
 
     // 2a. PRIMARY: Delta Exchange India Native Historical Candles (100% unblocked in India)
     try {
-      const deltaUrl = `https://api.india.delta.exchange/v2/history/candles?resolution=${deltaRes}&symbol=BTCUSD&start=${start}&end=${end}`;
+      const deltaUrl = `https://api.india.delta.exchange/v2/history/candles?resolution=${deltaRes}&symbol=${activeDeltaSymbol}&start=${start}&end=${end}`;
       const res = await fetch(deltaUrl, { cache: 'no-store' });
       if (res.ok) {
         const json = await res.json();
@@ -1200,14 +1253,15 @@ window.DeltaLiveChart = (function() {
     if (deltaTickerPollInterval) clearInterval(deltaTickerPollInterval);
     deltaTickerPollInterval = setInterval(async () => {
       try {
-        const res = await fetch('https://api.india.delta.exchange/v2/tickers/BTCUSD', { cache: 'no-store' });
+        const res = await fetch(`https://api.india.delta.exchange/v2/tickers/${activeDeltaSymbol}`, { cache: 'no-store' });
         if (res.ok) {
           const json = await res.json();
           if (json && json.result && json.result.mark_price) {
             const markPrice = parseFloat(json.result.mark_price);
             const priceHeader = document.getElementById('chartLivePriceHeader');
             if (priceHeader && !isNaN(markPrice)) {
-              priceHeader.innerText = `$${markPrice.toLocaleString('en-US', { minimumFractionDigits: 1, maximumFractionDigits: 1 })}`;
+              const prec = (activeAsset === 'BTC') ? 1 : 2;
+              priceHeader.innerText = `$${markPrice.toLocaleString('en-US', { minimumFractionDigits: prec, maximumFractionDigits: prec })}`;
             }
           }
         }
@@ -2451,15 +2505,16 @@ Expected Profit: +50% Option Gross / +40% Net`;
 
     // 3. Render initial trade history table from local cache immediately (prevent blank flash)
     const initialTrades = (window.DeltaDB && typeof DeltaDB.getSignalTrades === 'function') ? DeltaDB.getSignalTrades(0) : [];
-    renderTradesTable(initialTrades);
+    renderTradesTable(filterTradesForActiveAsset(initialTrades));
 
     // 4. Asynchronously fetch real verified trades from Firestore (GP_DTJ_signal_trades)
     if (window.DeltaDB && typeof DeltaDB.fetchSignalTradesFromFirestore === 'function') {
       DeltaDB.fetchSignalTradesFromFirestore().then(remoteSignals => {
         const realTrades = (remoteSignals && remoteSignals.length > 0) ? remoteSignals : initialTrades;
+        const assetTrades = filterTradesForActiveAsset(realTrades);
 
         // Check for active trade or fall back to selected setup
-        const activeTrade = realTrades.find(t => t.outcome === "ACTIVE");
+        const activeTrade = assetTrades.find(t => t.outcome === "ACTIVE");
         if (activeTrade) {
           selectedTrade = activeTrade;
           renderPositionBox(selectedTrade);
@@ -2472,7 +2527,7 @@ Expected Profit: +50% Option Gross / +40% Net`;
         currentMasterTrades = realTrades;
 
         // Apply institutional anti-clustering deduplication and plot distinct verified markers
-        applyVerifiedChartMarkers(realTrades);
+        applyVerifiedChartMarkers(assetTrades);
 
         // Start automated background polling (every 25s) so trades alerted on Telegram map to the chart in real time
         if (!window._sentinelFirestorePollInterval) {
@@ -2490,8 +2545,9 @@ Expected Profit: +50% Option Gross / +40% Net`;
                   if (freshLen !== currLen || latestFreshTime !== latestCurrTime || latestFreshOutcome !== latestCurrOutcome) {
                     console.log("[ChartEngine] Live Sentinel trade update synchronized from Firestore (diff detected):", freshLen);
                     currentMasterTrades = fresh;
-                    renderTradesTable(fresh);
-                    applyVerifiedChartMarkers(fresh);
+                    const freshFiltered = filterTradesForActiveAsset(fresh);
+                    renderTradesTable(freshFiltered);
+                    applyVerifiedChartMarkers(freshFiltered);
                   }
                 }
               }
@@ -3134,6 +3190,61 @@ Expected Profit: +50% Option Gross / +40% Net`;
     window.open('chart.html', '_blank');
   }
 
+  function switchAsset(assetKey) {
+    if (!assetKey || !ASSET_CONFIGS[assetKey]) return;
+    if (activeAsset === assetKey) return;
+
+    activeAsset = assetKey;
+    const cfg = ASSET_CONFIGS[assetKey];
+    activeSymbol = cfg.binanceSymbol;
+    activeDeltaSymbol = cfg.deltaSymbol;
+
+    // 1. Update UI button styling in header
+    ['BTC', 'ETH', 'XAUT'].forEach(a => {
+      const btn = document.getElementById(`btnAsset_${a}`);
+      if (btn) {
+        if (a === assetKey) {
+          const activeColors = {
+            BTC: 'bg-amber-500/20 text-amber-300 border-amber-500/40',
+            ETH: 'bg-indigo-500/20 text-indigo-300 border-indigo-500/40',
+            XAUT: 'bg-yellow-500/20 text-yellow-300 border-yellow-500/40'
+          };
+          btn.className = `px-2.5 py-1 text-xs font-bold rounded-lg ${activeColors[a]} border font-mono flex items-center gap-1.5 transition-all shadow-sm`;
+        } else {
+          btn.className = "px-2.5 py-1 text-xs font-bold rounded-lg text-slate-400 hover:text-white bg-panelDark font-mono flex items-center gap-1.5 transition-all";
+        }
+      }
+    });
+
+    // 2. Update Header Subtitle
+    const assetLabelEl = document.getElementById('currentAssetLabel');
+    if (assetLabelEl) {
+      assetLabelEl.innerHTML = `<i class="${cfg.icon} ${cfg.colorClass} mr-1"></i> ${cfg.deltaSymbol}`;
+    }
+
+    // 3. Update legend symbol text
+    const legendSym = document.querySelector('#tvChartLegend span.text-white');
+    if (legendSym) {
+      legendSym.innerText = cfg.binanceSymbol;
+    }
+
+    // 4. Update Price Scale Precision for Candlesticks
+    if (candleSeries) {
+      candleSeries.applyOptions({
+        priceFormat: {
+          type: 'price',
+          precision: cfg.pricePrecision,
+          minMove: cfg.minMove
+        }
+      });
+    }
+
+    // 5. Clear current position box & reload candles
+    clearPositionBox();
+    updatePositionToolCockpit(null);
+    loadTimeframe(activeTimeframe);
+  }
+
   function clearTradeState() {
     selectedTrade = null;
     clearPositionBox();
@@ -3144,6 +3255,8 @@ Expected Profit: +50% Option Gross / +40% Net`;
   return {
     initChart,
     loadTimeframe,
+    switchAsset,
+    getActiveAsset: () => activeAsset,
     runSMCAnalysisAndBacktest,
     selectTrade,
     showLatestTrade,

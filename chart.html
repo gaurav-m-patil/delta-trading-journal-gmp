@@ -47,9 +47,23 @@
         <i class="fa-solid fa-arrow-left"></i> <span class="hidden sm:inline">Journal</span>
       </a>
       <div class="h-5 w-[1px] bg-borderDark"></div>
-      <div class="flex items-center gap-2">
-        <span class="text-sm font-bold text-white tracking-wide flex items-center gap-1.5 font-mono">
-          <i class="fa-brands fa-bitcoin text-amber-400"></i> BTC/USD
+
+      <!-- Multi-Asset Switcher Pills (BTC, ETH, XAUT Gold) -->
+      <div class="flex items-center bg-brandDark border border-borderDark rounded-xl p-1 gap-1" id="assetSwitcherContainer">
+        <button id="btnAsset_BTC" onclick="DeltaLiveChart.switchAsset('BTC')" class="px-2.5 py-1 text-xs font-bold rounded-lg bg-amber-500/20 text-amber-300 border border-amber-500/40 font-mono flex items-center gap-1.5 transition-all shadow-sm" title="Bitcoin (BTC/USD)">
+          <i class="fa-brands fa-bitcoin text-amber-400"></i> <span>BTC</span>
+        </button>
+        <button id="btnAsset_ETH" onclick="DeltaLiveChart.switchAsset('ETH')" class="px-2.5 py-1 text-xs font-bold rounded-lg text-slate-400 hover:text-white bg-panelDark font-mono flex items-center gap-1.5 transition-all" title="Ethereum (ETH/USD)">
+          <i class="fa-brands fa-ethereum text-indigo-400"></i> <span>ETH</span>
+        </button>
+        <button id="btnAsset_XAUT" onclick="DeltaLiveChart.switchAsset('XAUT')" class="px-2.5 py-1 text-xs font-bold rounded-lg text-slate-400 hover:text-white bg-panelDark font-mono flex items-center gap-1.5 transition-all" title="Tether Gold (XAUT/USD)">
+          <i class="fa-solid fa-coins text-yellow-400"></i> <span>XAUT</span>
+        </button>
+      </div>
+
+      <div class="hidden md:flex items-center gap-2">
+        <span id="currentAssetLabel" class="text-xs font-bold text-slate-300 tracking-wide font-mono">
+          BTC/USD
         </span>
         <span class="text-[10px] font-mono px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 font-bold hidden sm:inline">
           Delta India 15m
