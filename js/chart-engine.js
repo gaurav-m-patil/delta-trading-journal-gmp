@@ -132,10 +132,11 @@ window.DeltaLiveChart = (function() {
       }
     }
 
-    if (oEl && c) oEl.innerText = `$${Number(c.open).toLocaleString(undefined, { minimumFractionDigits: 1, maximumFractionDigits: 1 })}`;
-    if (hEl && c) hEl.innerText = `$${Number(c.high).toLocaleString(undefined, { minimumFractionDigits: 1, maximumFractionDigits: 1 })}`;
-    if (lEl && c) lEl.innerText = `$${Number(c.low).toLocaleString(undefined, { minimumFractionDigits: 1, maximumFractionDigits: 1 })}`;
-    if (cEl && c) cEl.innerText = `$${Number(c.close).toLocaleString(undefined, { minimumFractionDigits: 1, maximumFractionDigits: 1 })}`;
+    const prec = (activeAsset === 'BTC') ? 1 : 2;
+    if (oEl && c) oEl.innerText = `$${Number(c.open).toLocaleString(undefined, { minimumFractionDigits: prec, maximumFractionDigits: prec })}`;
+    if (hEl && c) hEl.innerText = `$${Number(c.high).toLocaleString(undefined, { minimumFractionDigits: prec, maximumFractionDigits: prec })}`;
+    if (lEl && c) lEl.innerText = `$${Number(c.low).toLocaleString(undefined, { minimumFractionDigits: prec, maximumFractionDigits: prec })}`;
+    if (cEl && c) cEl.innerText = `$${Number(c.close).toLocaleString(undefined, { minimumFractionDigits: prec, maximumFractionDigits: prec })}`;
 
     if (c && c.open && c.close) {
       const isUp = c.close >= c.open;
@@ -144,7 +145,7 @@ window.DeltaLiveChart = (function() {
       const sign = diff >= 0 ? '+' : '';
       if (chgEl) {
         chgEl.className = `font-bold ${isUp ? 'text-winGreen' : 'text-lossRed'}`;
-        chgEl.innerText = `${sign}${pct.toFixed(2)}% (${sign}${diff.toFixed(1)})`;
+        chgEl.innerText = `${sign}${pct.toFixed(2)}% (${sign}${diff.toFixed(prec)})`;
       }
       if (cEl) {
         cEl.className = `font-bold ${isUp ? 'text-winGreen' : 'text-lossRed'}`;
@@ -800,8 +801,8 @@ window.DeltaLiveChart = (function() {
   }
 
   /**
-   * Auto-adjusts chart visible range so that Bitcoin price scale tick marks are strictly in differences of 100
-   * (e.g. 64500, 64600, 64700, 64800, 64900, 65000), exactly matching TradingView institutional layout.
+   * Auto-adjusts chart visible range so that price scale tick marks and recent live candles
+   * are centered with institutional padding, matching TradingView live view for BTC, ETH, and XAUT.
    */
   function adjustVisibleRangeTo36Hours() {
     if (!chart || !candleData || candleData.length === 0) return;
@@ -832,16 +833,21 @@ window.DeltaLiveChart = (function() {
 
     let startIdx = Math.max(0, candleData.length - targetCandles);
 
+    // Dynamic price threshold calibrated per asset to avoid wide vertical distortion:
+    // BTC: $1,350 span
+    // ETH: $85 span (maintains clean 10-step ticks)
+    // XAUT: $50 span (maintains clean 5-step ticks)
+    let maxSpan = 1350;
+    if (activeAsset === 'ETH') maxSpan = 85;
+    else if (activeAsset === 'XAUT') maxSpan = 50;
+
     // Calculate high/low price range across candidate visible slice
     let slice = candleData.slice(startIdx);
     let minP = Math.min(...slice.map(c => c.low));
     let maxP = Math.max(...slice.map(c => c.high));
     let pRange = maxP - minP;
 
-    // To guarantee the price scale marks are strictly in differences of 100 (65500, 65600, 65700...),
-    // the visible price span must stay within ~$1,350. If an earlier flash dump/spike widened the range,
-    // advance startIdx forward until pRange <= 1350 (keeping at least 35-40 candles).
-    while (pRange > 1350 && startIdx < candleData.length - 35) {
+    while (pRange > maxSpan && startIdx < candleData.length - 35) {
       startIdx += 4;
       slice = candleData.slice(startIdx);
       minP = Math.min(...slice.map(c => c.low));
@@ -1235,8 +1241,9 @@ window.DeltaLiveChart = (function() {
     // Update Header Live Price immediately
     const latestCandle = candleData[candleData.length - 1];
     const priceHeader = document.getElementById('chartLivePriceHeader');
+    const prec = (activeAsset === 'BTC') ? 1 : 2;
     if (priceHeader && latestCandle) {
-      priceHeader.innerText = `$${latestCandle.close.toLocaleString('en-US', { minimumFractionDigits: 1, maximumFractionDigits: 1 })}`;
+      priceHeader.innerText = `$${latestCandle.close.toLocaleString('en-US', { minimumFractionDigits: prec, maximumFractionDigits: prec })}`;
       priceHeader.className = `text-lg sm:text-2xl font-bold font-mono ${latestCandle.close >= latestCandle.open ? 'text-winGreen' : 'text-lossRed'}`;
     }
 
@@ -1316,8 +1323,9 @@ window.DeltaLiveChart = (function() {
 
           // Update current price in header
           const priceHeader = document.getElementById('chartLivePriceHeader');
+          const prec = (activeAsset === 'BTC') ? 1 : 2;
           if (priceHeader) {
-            priceHeader.innerText = `$${updatedCandle.close.toLocaleString('en-US', { minimumFractionDigits: 1, maximumFractionDigits: 1 })}`;
+            priceHeader.innerText = `$${updatedCandle.close.toLocaleString('en-US', { minimumFractionDigits: prec, maximumFractionDigits: prec })}`;
             priceHeader.className = `text-lg sm:text-2xl font-bold font-mono ${updatedCandle.close >= updatedCandle.open ? 'text-winGreen' : 'text-lossRed'}`;
           }
 
