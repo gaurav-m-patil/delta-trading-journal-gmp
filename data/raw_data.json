@@ -1,23 +1,366 @@
 {
-  "generated_at": "2026-11-19 00:35:21 UTC",
+  "generated_at": "2026-11-19 15:51:30 UTC",
   "wallet_txs": [
     {
-      "balance": "0.00000434",
-      "amount": "-6.108",
+      "balance": "0.00010716",
+      "amount": "-173.30976471",
       "meta_data": {
-        "withdrawal_id": 13444554
+        "withdrawal_id": 13489361
       },
       "user_id": 27404882,
-      "uuid": "8e2dbc56972d4ae999bce9dd4373c7b0",
+      "uuid": "f8c6e4fb1b09433cb35b01b8bb8b3a9c",
+      "product_id": null,
       "asset_id": 14,
       "asset_symbol": "USD",
-      "created_at": "2026-11-17T19:29:08.394254Z",
+      "created_at": "2026-11-19T15:41:07.825931Z",
       "fund_id": null,
-      "product_id": null,
       "transaction_type": "withdrawal"
     }
   ],
   "orders": [
+    {
+      "actual_fee_rate": null,
+      "order_type": "limit_order",
+      "state": "closed",
+      "side": "sell",
+      "product_symbol": "P-BTC-63200-201126",
+      "updated_at": "2026-11-19T15:39:12.086932Z",
+      "limit_price": "800",
+      "gst_rate": null,
+      "scalper_size": null,
+      "stop_trigger_method": null,
+      "meta_data": {
+        "avg_exit_price": "800",
+        "cashflow": "171.2",
+        "entry_price": "525.00000000",
+        "exit_price_with_size": [
+          {
+            "price": "800.00000000",
+            "size": "214"
+          }
+        ],
+        "fills_pnl_with_margin": [
+          {
+            "margin": "112.3500000000000000000000000",
+            "pnl": "58.85000000"
+          }
+        ],
+        "ip": "2404:bd00:3:dbc3:784c:a533:47e8:d158",
+        "net_pnl": "57.26307593",
+        "otc": false,
+        "pnl": "58.85",
+        "roe": "52.38095238095238095238095238",
+        "source": "mobile_app"
+      },
+      "applied_fee_rate": null,
+      "fee_reason": null,
+      "bracket_stop_loss_limit_price": null,
+      "credits_used": "0",
+      "final_fee": null,
+      "fees_calculated": null,
+      "bracket_take_profit_limit_price": null,
+      "average_fill_price": "800",
+      "client_order_id": null,
+      "unfilled_size": 0,
+      "margin_mode": "isolated",
+      "product_id": 164954,
+      "options_premium_cap": null,
+      "post_offers_fee_rate": null,
+      "bracket_order": null,
+      "time_in_force": "gtc",
+      "trail_amount": null,
+      "reduce_only": true,
+      "cancellation_reason": null,
+      "fee_by_voucher": null,
+      "user_id": 27404882,
+      "bracket_take_profit_price": null,
+      "paid_commission": "1.58692407",
+      "stop_price": null,
+      "bracket_stop_loss_price": null,
+      "referral_fee_discount": null,
+      "stop_order_type": null,
+      "commission": "0",
+      "size": 214,
+      "options_index_price": null,
+      "product": {
+        "id": 164954,
+        "symbol": "P-BTC-63200-201126",
+        "tick_size": "0.1",
+        "quoting_asset": {
+          "symbol": "USD",
+          "precision": 8,
+          "minimum_precision": 2
+        },
+        "underlying_asset": {
+          "symbol": "BTC",
+          "precision": 8,
+          "minimum_precision": 4
+        },
+        "contract_type": "put_options",
+        "contract_value": "0.001",
+        "notional_type": "vanilla",
+        "settling_asset": {
+          "symbol": "USD",
+          "precision": 8,
+          "minimum_precision": 2
+        },
+        "spot_index": {
+          "symbol": ".DEXBTUSD"
+        },
+        "contract_unit_currency": "BTC"
+      },
+      "options_premium_amount": null,
+      "id": 1696518400,
+      "bracket_trail_amount": null,
+      "mmp": "disabled",
+      "created_at": "2026-11-19T15:38:18.041034Z",
+      "quote_size": null
+    },
+    {
+      "actual_fee_rate": null,
+      "order_type": "limit_order",
+      "state": "cancelled",
+      "side": "sell",
+      "product_symbol": "P-BTC-63200-201126",
+      "updated_at": "2026-11-19T15:36:15.589045Z",
+      "limit_price": "700",
+      "gst_rate": null,
+      "scalper_size": null,
+      "stop_trigger_method": null,
+      "meta_data": {
+        "ip": "2404:bd00:3:dbc3:784c:a533:47e8:d158",
+        "net_pnl": "0",
+        "otc": false,
+        "source": "mobile_app"
+      },
+      "applied_fee_rate": null,
+      "fee_reason": null,
+      "bracket_stop_loss_limit_price": null,
+      "credits_used": "0",
+      "final_fee": null,
+      "fees_calculated": null,
+      "bracket_take_profit_limit_price": null,
+      "average_fill_price": null,
+      "client_order_id": null,
+      "unfilled_size": 214,
+      "margin_mode": "isolated",
+      "product_id": 164954,
+      "options_premium_cap": null,
+      "post_offers_fee_rate": null,
+      "bracket_order": null,
+      "time_in_force": "gtc",
+      "trail_amount": null,
+      "reduce_only": true,
+      "cancellation_reason": "cancelled_by_user",
+      "fee_by_voucher": null,
+      "user_id": 27404882,
+      "bracket_take_profit_price": null,
+      "paid_commission": "0",
+      "stop_price": null,
+      "bracket_stop_loss_price": null,
+      "referral_fee_discount": null,
+      "stop_order_type": null,
+      "commission": "0",
+      "size": 214,
+      "options_index_price": null,
+      "product": {
+        "id": 164954,
+        "symbol": "P-BTC-63200-201126",
+        "tick_size": "0.1",
+        "quoting_asset": {
+          "symbol": "USD",
+          "precision": 8,
+          "minimum_precision": 2
+        },
+        "underlying_asset": {
+          "symbol": "BTC",
+          "precision": 8,
+          "minimum_precision": 4
+        },
+        "contract_type": "put_options",
+        "contract_value": "0.001",
+        "notional_type": "vanilla",
+        "settling_asset": {
+          "symbol": "USD",
+          "precision": 8,
+          "minimum_precision": 2
+        },
+        "spot_index": {
+          "symbol": ".DEXBTUSD"
+        },
+        "contract_unit_currency": "BTC"
+      },
+      "options_premium_amount": null,
+      "id": 1696499010,
+      "bracket_trail_amount": null,
+      "mmp": "disabled",
+      "created_at": "2026-11-19T15:35:09.018601Z",
+      "quote_size": null
+    },
+    {
+      "actual_fee_rate": null,
+      "order_type": "limit_order",
+      "state": "closed",
+      "side": "buy",
+      "product_symbol": "P-BTC-63200-201126",
+      "updated_at": "2026-11-19T15:21:41.626102Z",
+      "limit_price": "525",
+      "gst_rate": null,
+      "scalper_size": null,
+      "stop_trigger_method": null,
+      "meta_data": {
+        "cashflow": "-112.35",
+        "ip": "2404:bd00:3:dbc3:784c:a533:47e8:d158",
+        "net_pnl": "-1.60026722",
+        "otc": false,
+        "pnl": "0",
+        "source": "mobile_app"
+      },
+      "applied_fee_rate": null,
+      "fee_reason": null,
+      "bracket_stop_loss_limit_price": null,
+      "credits_used": "0",
+      "final_fee": null,
+      "fees_calculated": null,
+      "bracket_take_profit_limit_price": null,
+      "average_fill_price": "525",
+      "client_order_id": null,
+      "unfilled_size": 0,
+      "margin_mode": "isolated",
+      "product_id": 164954,
+      "options_premium_cap": null,
+      "post_offers_fee_rate": null,
+      "bracket_order": null,
+      "time_in_force": "gtc",
+      "trail_amount": null,
+      "reduce_only": false,
+      "cancellation_reason": null,
+      "fee_by_voucher": null,
+      "user_id": 27404882,
+      "bracket_take_profit_price": null,
+      "paid_commission": "1.60026722",
+      "stop_price": null,
+      "bracket_stop_loss_price": null,
+      "referral_fee_discount": null,
+      "stop_order_type": null,
+      "commission": "0",
+      "size": 214,
+      "options_index_price": null,
+      "product": {
+        "id": 164954,
+        "symbol": "P-BTC-63200-201126",
+        "tick_size": "0.1",
+        "quoting_asset": {
+          "symbol": "USD",
+          "precision": 8,
+          "minimum_precision": 2
+        },
+        "underlying_asset": {
+          "symbol": "BTC",
+          "precision": 8,
+          "minimum_precision": 4
+        },
+        "contract_type": "put_options",
+        "contract_value": "0.001",
+        "notional_type": "vanilla",
+        "settling_asset": {
+          "symbol": "USD",
+          "precision": 8,
+          "minimum_precision": 2
+        },
+        "spot_index": {
+          "symbol": ".DEXBTUSD"
+        },
+        "contract_unit_currency": "BTC"
+      },
+      "options_premium_amount": null,
+      "id": 1696431004,
+      "bracket_trail_amount": null,
+      "mmp": "disabled",
+      "created_at": "2026-11-19T15:21:19.240210Z",
+      "quote_size": null
+    },
+    {
+      "actual_fee_rate": null,
+      "order_type": "limit_order",
+      "state": "cancelled",
+      "side": "buy",
+      "product_symbol": "P-BTC-63200-201126",
+      "updated_at": "2026-11-19T15:21:02.757176Z",
+      "limit_price": "525",
+      "gst_rate": null,
+      "scalper_size": null,
+      "stop_trigger_method": null,
+      "meta_data": {
+        "ip": "2404:bd00:3:dbc3:784c:a533:47e8:d158",
+        "net_pnl": "0",
+        "otc": false,
+        "source": "mobile_app"
+      },
+      "applied_fee_rate": null,
+      "fee_reason": null,
+      "bracket_stop_loss_limit_price": null,
+      "credits_used": "0",
+      "final_fee": null,
+      "fees_calculated": null,
+      "bracket_take_profit_limit_price": null,
+      "average_fill_price": null,
+      "client_order_id": null,
+      "unfilled_size": 214,
+      "margin_mode": "isolated",
+      "product_id": 164954,
+      "options_premium_cap": null,
+      "post_offers_fee_rate": null,
+      "bracket_order": null,
+      "time_in_force": "gtc",
+      "trail_amount": null,
+      "reduce_only": false,
+      "cancellation_reason": "cancelled_by_user",
+      "fee_by_voucher": null,
+      "user_id": 27404882,
+      "bracket_take_profit_price": null,
+      "paid_commission": "0",
+      "stop_price": null,
+      "bracket_stop_loss_price": null,
+      "referral_fee_discount": null,
+      "stop_order_type": null,
+      "commission": "0",
+      "size": 214,
+      "options_index_price": null,
+      "product": {
+        "id": 164954,
+        "symbol": "P-BTC-63200-201126",
+        "tick_size": "0.1",
+        "quoting_asset": {
+          "symbol": "USD",
+          "precision": 8,
+          "minimum_precision": 2
+        },
+        "underlying_asset": {
+          "symbol": "BTC",
+          "precision": 8,
+          "minimum_precision": 4
+        },
+        "contract_type": "put_options",
+        "contract_value": "0.001",
+        "notional_type": "vanilla",
+        "settling_asset": {
+          "symbol": "USD",
+          "precision": 8,
+          "minimum_precision": 2
+        },
+        "spot_index": {
+          "symbol": ".DEXBTUSD"
+        },
+        "contract_unit_currency": "BTC"
+      },
+      "options_premium_amount": null,
+      "id": 1696426272,
+      "bracket_trail_amount": null,
+      "mmp": "disabled",
+      "created_at": "2026-11-19T15:20:30.079232Z",
+      "quote_size": null
+    },
     {
       "state": "closed",
       "limit_price": "360",
