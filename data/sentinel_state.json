@@ -7,7 +7,7 @@
     "time": 1795099500,
     "entry": 63526,
     "tp": 62426,
-    "sl": 64129,
+    "sl": 63526,
     "rr": "1:1.8",
     "rsi": 38.6,
     "rvol": 2.84,
@@ -48,7 +48,8 @@
       "tp_bias": "Maximum DOEV Runner Potential"
     },
     "outcome": "ACTIVE",
-    "optionEntryLockedMark": 559.8
+    "optionEntryLockedMark": 559.8,
+    "reached_tp1": true
   },
   "last_alerted_catalyst_guid": null,
   "daily_counts": {
