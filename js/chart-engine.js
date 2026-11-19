@@ -3216,10 +3216,27 @@ Expected Profit: +50% Option Gross / +40% Net`;
       }
     });
 
-    // 2. Update Header Subtitle
+    // 2. Update Header Subtitle and Terminal Titles (both in chart.html and index.html AI Coach)
     const assetLabelEl = document.getElementById('currentAssetLabel');
     if (assetLabelEl) {
       assetLabelEl.innerHTML = `<i class="${cfg.icon} ${cfg.colorClass} mr-1"></i> ${cfg.deltaSymbol}`;
+    }
+    const coachTerminalAssetTitle = document.getElementById('coachTerminalAssetTitle');
+    if (coachTerminalAssetTitle) {
+      coachTerminalAssetTitle.innerText = `${cfg.asset}/USD Live Terminal`;
+    }
+    const coachAssetIcon = document.getElementById('coachAssetIcon');
+    if (coachAssetIcon) {
+      coachAssetIcon.className = cfg.icon;
+    }
+    const coachAssetIconBox = document.getElementById('coachAssetIconBox');
+    if (coachAssetIconBox) {
+      const boxThemes = {
+        BTC: 'bg-amber-500/10 border-amber-500/20 text-amber-400',
+        ETH: 'bg-indigo-500/10 border-indigo-500/20 text-indigo-400',
+        XAUT: 'bg-yellow-500/10 border-yellow-500/20 text-yellow-400'
+      };
+      coachAssetIconBox.className = `h-9 w-9 rounded-xl ${boxThemes[assetKey] || 'bg-indigo-500/10 border-indigo-500/20 text-indigo-400'} border flex items-center justify-center font-bold text-base`;
     }
 
     // 3. Update legend symbol text
