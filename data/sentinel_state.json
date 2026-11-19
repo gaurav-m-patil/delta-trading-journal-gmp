@@ -3,9 +3,9 @@
   "active_trade": null,
   "last_alerted_catalyst_guid": null,
   "daily_counts": {
-    "date": "2026-11-18",
-    "trades_given": 1,
-    "wins": 1,
+    "date": "2026-11-19",
+    "trades_given": 0,
+    "wins": 0,
     "losses": 0
   },
   "telegram_handshake_sent": true,
