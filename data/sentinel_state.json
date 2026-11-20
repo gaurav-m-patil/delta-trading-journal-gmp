@@ -8,7 +8,7 @@
     "time": 1795186800,
     "entry": 60894.0,
     "tp": 58624.0,
-    "sl": 62175.0,
+    "sl": 60894.0,
     "initial_sl": 62175.0,
     "slDist": 1281.0,
     "rr": "1:1.8",
@@ -51,13 +51,14 @@
       "tp_bias": "Maximum DOEV Runner Potential"
     },
     "outcome": "ACTIVE",
-    "optionEntryLockedMark": 635.9
+    "optionEntryLockedMark": 635.9,
+    "reached_tp1": true
   },
   "last_alerted_catalyst_guid": null,
   "daily_counts": {
     "date": "2026-11-20",
     "trades_given": 2,
-    "wins": 0,
+    "wins": 1,
     "losses": 0
   },
   "telegram_handshake_sent": true,
@@ -72,7 +73,7 @@
       "time": 1795186800,
       "entry": 60894.0,
       "tp": 58624.0,
-      "sl": 62175.0,
+      "sl": 60894.0,
       "initial_sl": 62175.0,
       "slDist": 1281.0,
       "rr": "1:1.8",
@@ -115,7 +116,8 @@
         "tp_bias": "Maximum DOEV Runner Potential"
       },
       "outcome": "ACTIVE",
-      "optionEntryLockedMark": 635.9
+      "optionEntryLockedMark": 635.9,
+      "reached_tp1": true
     },
     "ETH": {
       "id": "cloud_eth_bos_down_1795186800",
