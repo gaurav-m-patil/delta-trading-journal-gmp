@@ -8,7 +8,7 @@
     "time": 1795186800,
     "entry": 60894.0,
     "tp": 58624.0,
-    "sl": 60894.0,
+    "sl": 59170.0,
     "initial_sl": 62175.0,
     "slDist": 1281.0,
     "rr": "1:1.8",
@@ -52,7 +52,9 @@
     },
     "outcome": "ACTIVE",
     "optionEntryLockedMark": 635.9,
-    "reached_tp1": true
+    "reached_tp1": true,
+    "locked_tier2": true,
+    "trailed_stop": 59170.0
   },
   "last_alerted_catalyst_guid": null,
   "daily_counts": {
@@ -73,7 +75,7 @@
       "time": 1795186800,
       "entry": 60894.0,
       "tp": 58624.0,
-      "sl": 60894.0,
+      "sl": 59170.0,
       "initial_sl": 62175.0,
       "slDist": 1281.0,
       "rr": "1:1.8",
@@ -117,7 +119,9 @@
       },
       "outcome": "ACTIVE",
       "optionEntryLockedMark": 635.9,
-      "reached_tp1": true
+      "reached_tp1": true,
+      "locked_tier2": true,
+      "trailed_stop": 59170.0
     },
     "ETH": null
   },
