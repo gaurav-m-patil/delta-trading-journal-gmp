@@ -944,6 +944,12 @@ def evaluate_smc_setup(candles, htf_trend=None, asset="BTC"):
     if trade and "absorption" not in trade["rationale"]:
         trade["rationale"]["absorption"] = f"Institutional Flow ({trade['rvol']}x RVOL)"
 
+    if trade:
+        if not trade.get("slDist"):
+            trade["slDist"] = round(abs(trade["entry"] - trade["sl"]), 2 if asset in ["ETH", "XAUT"] else 0)
+        if not trade.get("initial_sl"):
+            trade["initial_sl"] = trade["sl"]
+
     return trade
 
 
@@ -1080,7 +1086,9 @@ def run_sentinel():
             is_be_win = False
             is_loss = False
 
-            sl_dist = active_trade.get("slDist") or abs(entry - sl) or (20 if asset == "ETH" else (10 if asset == "XAUT" else 400))
+            # Preserve initial sl_dist if trade["sl"] was moved to breakeven (entry)
+            initial_sl = active_trade.get("initial_sl") or sl
+            sl_dist = active_trade.get("slDist") or abs(entry - initial_sl) or (20 if asset == "ETH" else (10 if asset == "XAUT" else 400))
 
             # Check intra-candle high/low excursions and live candle price
             cur_high = candles[-1]["high"]
@@ -1095,7 +1103,7 @@ def run_sentinel():
                     is_tp1_derisk = True
                 elif reached_tp1:
                     retest_tolerance = entry - (sl_dist * 0.20)
-                    if current_price <= retest_tolerance or cur_low <= sl:
+                    if current_price <= retest_tolerance or cur_low <= initial_sl:
                         is_be_win = True
                 elif not reached_tp1 and (cur_low <= sl or current_price <= sl):
                     is_loss = True
@@ -1108,7 +1116,7 @@ def run_sentinel():
                     is_tp1_derisk = True
                 elif reached_tp1:
                     retest_tolerance = entry + (sl_dist * 0.20)
-                    if current_price >= retest_tolerance or cur_high >= sl:
+                    if current_price >= retest_tolerance or cur_high >= initial_sl:
                         is_be_win = True
                 elif not reached_tp1 and (cur_high >= sl or current_price >= sl):
                     is_loss = True
