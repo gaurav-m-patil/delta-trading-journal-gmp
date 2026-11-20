@@ -125,7 +125,15 @@ window.DeltaPaperFund = (function() {
         isResolved = true;
       } else {
         // ACTIVE
-        sellPrice = (opt && opt.markPrice > 0) ? opt.markPrice : buyPrice;
+        const isTp1Reached = !!(t.reachedTp1 || t.reached_tp1);
+        const tp1Price = (opt && opt.tp1Price > 0) ? opt.tp1Price : Math.round(buyPrice * 1.50 * 10) / 10;
+        const currentLive = (opt && opt.markPrice > 0) ? opt.markPrice : ((t.markPrice && t.markPrice > 0) ? t.markPrice : buyPrice);
+        if (isTp1Reached) {
+          // 50% booked at TP1, 50% active runner at current live mark
+          sellPrice = Math.round(((tp1Price * 0.5) + (currentLive * 0.5)) * 10) / 10;
+        } else {
+          sellPrice = currentLive;
+        }
         isResolved = false;
       }
 
@@ -547,7 +555,7 @@ window.DeltaPaperFund = (function() {
                       <div class="flex items-center justify-between text-[10px]">
                         <span class="text-slate-400">Net Return:</span>
                         ${isActive ? `
-                          <strong class="text-cyan-400 text-[10px]">LIVE</strong>
+                          <strong class="${pnlClass} text-[10px]">${pnlSign}₹${t.netPnlInr.toLocaleString('en-IN')} (Live)</strong>
                         ` : ((t.outcome === 'SKIPPED_CIRCUIT_BREAKER' || t.skipped || t.isEstimation) ? `
                           <strong class="text-amber-400 text-[10px]">₹0 (Est: ${t.estNetPnlInr >= 0 ? '+' : ''}₹${Math.abs(t.estNetPnlInr || 0).toLocaleString('en-IN')})</strong>
                         ` : `
@@ -653,7 +661,8 @@ window.DeltaPaperFund = (function() {
                       </td>
                       <td class="py-2.5 px-2 font-bold text-[11px] ${pnlClass}">
                         ${isActive ? `
-                          <span class="text-cyan-400 text-[10px]"><span class="h-1.5 w-1.5 rounded-full bg-cyan-400 animate-ping inline-block mr-1"></span>LIVE</span>
+                          <div><span class="h-1.5 w-1.5 rounded-full bg-cyan-400 animate-ping inline-block mr-1"></span>${pnlSign}₹${t.netPnlInr.toLocaleString('en-IN')}</div>
+                          <div class="text-[9px] text-cyan-400 font-normal">Floating Mark</div>
                         ` : ((t.outcome === 'SKIPPED_CIRCUIT_BREAKER' || t.skipped || t.isEstimation) ? `
                           <div class="text-amber-400 font-bold">₹0 <span class="text-[9px] font-normal text-slate-400">(Excluded)</span></div>
                           <div class="text-[9px] ${t.pnlPts >= 0 ? 'text-winGreen' : 'text-lossRed'} font-normal">Est: ${t.estNetPnlInr >= 0 ? '+' : ''}₹${Math.abs(t.estNetPnlInr || 0).toLocaleString('en-IN')} (${t.pnlPctStr})</div>

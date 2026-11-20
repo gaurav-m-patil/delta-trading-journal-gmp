@@ -249,6 +249,8 @@ ASSET_REGIME_CONFIGS = {
         "prefix_call": "C-BTC-",
         "prefix_put": "P-BTC-",
         "strike_step": 200,
+        "delta_contract_unit": 0.001,
+        "unit_name": "BTC",
         "fvg_min_usd": 180.0,
         "fvg_atr_mult": 0.75,
         "atr_buffer_mult": 0.10,
@@ -266,6 +268,8 @@ ASSET_REGIME_CONFIGS = {
         "prefix_call": "C-ETH-",
         "prefix_put": "P-ETH-",
         "strike_step": 50,
+        "delta_contract_unit": 0.01,
+        "unit_name": "ETH",
         "fvg_min_usd": 8.0,
         "fvg_atr_mult": 0.65,
         "atr_buffer_mult": 0.20,
@@ -283,6 +287,8 @@ ASSET_REGIME_CONFIGS = {
         "prefix_call": "C-XAUT-",
         "prefix_put": "P-XAUT-",
         "strike_step": 10,
+        "delta_contract_unit": 0.001,
+        "unit_name": "oz Gold",
         "fvg_min_usd": 6.0,
         "fvg_atr_mult": 0.60,
         "atr_buffer_mult": 0.08,
@@ -294,6 +300,42 @@ ASSET_REGIME_CONFIGS = {
         "icon": "🟡"
     }
 }
+
+
+def calculate_trade_allocation(asset, option_price_usd, allocated_inr=25000, inr_usd_rate=85.0):
+    """
+    Computes precise contract sizing and INR allocation based on Delta Exchange India specs.
+    Standard tranche: 25% of ₹100,000 = ₹25,000 INR (~$294 USD).
+    """
+    cfg = ASSET_REGIME_CONFIGS.get(asset, ASSET_REGIME_CONFIGS["BTC"])
+    contract_unit = cfg.get("delta_contract_unit", 0.001)
+    unit_name = cfg.get("unit_name", asset)
+
+    opt_p = max(0.1, float(option_price_usd or 1.0))
+    cost_per_contract_usd = opt_p * contract_unit
+    cost_per_contract_inr = cost_per_contract_usd * inr_usd_rate
+
+    contracts = max(1, int(allocated_inr / max(1.0, cost_per_contract_inr)))
+    total_asset_qty = round(contracts * contract_unit, 4)
+    total_allocated_inr = round(contracts * cost_per_contract_inr)
+
+    half_contracts = max(1, contracts // 2)
+    half_qty = round(half_contracts * contract_unit, 4)
+    runner_contracts = contracts - half_contracts
+    runner_qty = round(runner_contracts * contract_unit, 4)
+
+    return {
+        "contracts": contracts,
+        "contract_unit": contract_unit,
+        "unit_name": unit_name,
+        "total_asset_qty": total_asset_qty,
+        "allocated_inr": total_allocated_inr,
+        "half_contracts": half_contracts,
+        "half_qty": half_qty,
+        "runner_contracts": runner_contracts,
+        "runner_qty": runner_qty,
+        "cost_per_contract_inr": round(cost_per_contract_inr, 2)
+    }
 
 
 def format_asset_price(val, asset="BTC"):
@@ -1164,15 +1206,25 @@ def run_sentinel():
                 active_trade["trailed_stop"] = entry
                 tp1_pct_str = active_trade.get("option", {}).get("tp1_pct", "+50.0%")
                 est_prefix = "🛡️ <b>[ESTIMATION]</b> " if is_est else ""
+                alloc_info = calculate_trade_allocation(asset, buy_p)
+                
+                # Estimated profit booked in INR on 50% position
+                tp1_gross_profit_usd = (tp1_p - buy_p) * alloc_info["half_qty"]
+                tp1_booked_inr = round(tp1_gross_profit_usd * 85.0)
+
                 tp1_msg = f"""{est_prefix}🎯 <b>TARGET 1 HIT ({tp1_pct_str} DERISK) · {asset}</b>
 🏷️ <code>{contract}</code>
 
-💰 <b>DERISK EXECUTION</b>
-• Booked: <b>${tp1_p:.1f} ({tp1_pct_str} Profit on 50% Position)</b>
-• Initial Fill: ${buy_p:.1f}
+💰 <b>DERISK EXECUTION & BOOKED PROFIT</b>
+• Exited Quantity: <b>{alloc_info['half_contracts']} Contracts ({alloc_info['half_qty']} {alloc_info['unit_name']}) · 50% Position</b>
+• Fill Price: ${buy_p:.1f} ➔ <b>Exited At: ${tp1_p:.1f} ({tp1_pct_str})</b>
+• Booked Cash Gain: <b>+₹{tp1_booked_inr:,} INR</b> (Realized)
 • Stop Status: <b>Trailed to Breakeven ({entry_str})</b>
 
-⚡ <i>Zero downside risk remaining. Trailing remaining 50% runner to Target 2 ({tp_str})!</i>
+🏃 <b>RUNNER IN FLIGHT</b>
+• Remaining Position: <b>{alloc_info['runner_contracts']} Contracts ({alloc_info['runner_qty']} {alloc_info['unit_name']})</b>
+• Trailing to Target 2: <b>{tp_str}</b> (Zero downside risk remaining)
+
 ⏰ <i>{get_now_ist_str()}</i>
 🔗 <a href="https://delta-trading-journal-gmp.vercel.app/chart.html">Open Live Chart</a>"""
                 send_telegram_message(bot_token, chat_id, tp1_msg)
@@ -1234,6 +1286,9 @@ def run_sentinel():
                 tp2_exit = target_p
                 sell_p = round((tp1_exit * 0.5) + (tp2_exit * 0.5), 1)
                 blended_pct = round(((sell_p - buy_p) / buy_p) * 100, 1)
+                alloc_info = calculate_trade_allocation(asset, buy_p)
+                total_profit_usd = (sell_p - buy_p) * alloc_info["total_asset_qty"]
+                total_profit_inr = round(total_profit_usd * 85.0)
 
                 if is_est:
                     msg = f"""🛡️ <b>ESTIMATION TARGET HIT (+{blended_pct:.1f}%) · {asset}</b>
@@ -1252,9 +1307,11 @@ def run_sentinel():
                     msg = f"""🏆 <b>TRADE TARGET HIT (+{blended_pct:.1f}% NET GAIN) · {asset}</b>
 🏷️ <code>{contract}</code>
 
-💰 <b>REALIZED RETURN</b>
-• Entry: ${buy_p:.1f} ➔ <b>Blended Exit: ${sell_p:.1f} (+{blended_pct:.1f}%)</b>
-• 50% booked at TP1 + 50% at TP2 ({target_pct})
+💰 <b>REALIZED RETURN & CAPITAL IMPACT</b>
+• Exited Position: <b>100% Closed ({alloc_info['contracts']} Contracts / {alloc_info['total_asset_qty']} {alloc_info['unit_name']})</b>
+• Execution: ${buy_p:.1f} ➔ <b>Blended Exit: ${sell_p:.1f} (+{blended_pct:.1f}%)</b>
+• 50% booked at TP1 (${tp1_p:.1f}) + 50% at TP2 (${target_p:.1f} / {target_pct})
+• Booked Cash Gain: <b>+₹{total_profit_inr:,} INR</b> (Gross Realized)
 • {asset} Spot: {entry_str} ➔ <b>{cur_str}</b>
 
 📊 <b>TODAY'S SCORECARD</b>
@@ -1306,11 +1363,17 @@ def run_sentinel():
 ⏰ <i>{get_now_ist_str()}</i>
 🔗 <a href="https://delta-trading-journal-gmp.vercel.app/chart.html">Open Live Chart</a>"""
                 else:
+                    alloc_info = calculate_trade_allocation(asset, buy_p)
+                    profit_usd = (sell_p - buy_p) * alloc_info["total_asset_qty"]
+                    profit_inr = round(profit_usd * 85.0)
+
                     msg = f"""🛡️ <b>TRAILED STOP PROFIT HIT ({pnl_label}) · {asset}</b>
 🏷️ <code>{contract}</code>
 
-💰 <b>REALIZED RETURN</b>
-• Entry: ${buy_p:.1f} ➔ <b>Net Exit: ${sell_p:.1f} ({pnl_label})</b>
+💰 <b>REALIZED RETURN & POSITION CLOSED</b>
+• Exited Position: <b>100% Closed ({alloc_info['contracts']} Contracts / {alloc_info['total_asset_qty']} {alloc_info['unit_name']})</b>
+• Entry: ${buy_p:.1f} ➔ <b>Net Realized Exit: ${sell_p:.1f} ({pnl_label})</b>
+• Booked Cash Profit: <b>+₹{profit_inr:,} INR</b> (Realized)
 • Execution: {exit_reason_text}
 • {asset} Spot: Exited at {cur_str} (Entry: {entry_str})
 
@@ -1354,11 +1417,17 @@ def run_sentinel():
 ⏰ <i>{get_now_ist_str()}</i>
 🔗 <a href="https://delta-trading-journal-gmp.vercel.app/chart.html">Open Live Chart</a>"""
                 else:
+                    alloc_info = calculate_trade_allocation(asset, buy_p)
+                    loss_usd = (buy_p - sell_p) * alloc_info["total_asset_qty"]
+                    loss_inr = round(loss_usd * 85.0)
+
                     msg = f"""🛑 <b>STOP LOSS TRIGGERED (-30.0%) · {asset}</b>
 🏷️ <code>{contract}</code>
 
 💰 <b>CAPITAL PRESERVATION EXIT</b>
+• Position Exited: <b>100% Closed ({alloc_info['contracts']} Contracts / {alloc_info['total_asset_qty']} {alloc_info['unit_name']})</b>
 • Entry: ${buy_p:.1f} ➔ <b>Exit: ${sell_p:.1f} (-{pts_loss} pts / -30.0%)</b>
+• Realized Drawdown: <b>-₹{loss_inr:,} INR</b> (Capital Protected 70%)
 • {asset} Spot: {entry_str} ➔ <b>{cur_str} (Invalidation Hit)</b>
 
 📊 <b>TODAY'S SCORECARD</b>
@@ -1504,16 +1573,23 @@ def run_sentinel():
 
                     action_title = f"🟢 BUY {asset} CALL OPTION" if is_call else f"🔴 BUY {asset} PUT OPTION"
                     entry_p = opt.get("mark_price", 220)
+                    alloc_info = calculate_trade_allocation(asset, entry_p)
+
                     msg = f"""<b>{action_title}</b>
 🏷️ <code>{opt['symbol']}</code> · {session['flag']} <b>{session['name']}</b>
+
+💰 <b>CAPITAL & POSITION SIZING</b>
+• Capital Allocation: <b>₹{alloc_info['allocated_inr']:,} INR</b> (25% Fund Tranche)
+• Position Quantity: <b>{alloc_info['contracts']} Contracts ({alloc_info['total_asset_qty']} {alloc_info['unit_name']})</b>
+• Cost per Contract: ₹{alloc_info['cost_per_contract_inr']} (~${entry_p * alloc_info['contract_unit']:.2f})
 
 🎯 <b>EXECUTION PARAMETERS</b>
 • Buy Zone: <b>{opt['buy_zone']}</b> (Mark: ${entry_p:.1f})
 • Hard Stop (SL): <b>${opt['stop_price']:.1f}</b> (-30.0%)
 
-📈 <b>PROFIT TARGETS</b>
-• Target 1: <b>${opt['tp1_price']:.1f}</b> ({opt['tp1_pct']}) ➔ <i>Book 50%, Trail SL to BE</i>
-• Target 2: <b>${opt['target_price']:.1f}</b> ({opt['target_pct']} Runner)
+📈 <b>PROFIT TARGETS & ORDER PLAYBOOK</b>
+• Target 1: <b>${opt['tp1_price']:.1f}</b> ({opt['tp1_pct']}) ➔ <i>Sell {alloc_info['half_contracts']} Contracts ({alloc_info['half_qty']} {alloc_info['unit_name']}), Trail SL to BE</i>
+• Target 2: <b>${opt['target_price']:.1f}</b> ({opt['target_pct']}) ➔ <i>Sell {alloc_info['runner_contracts']} Contracts ({alloc_info['runner_qty']} {alloc_info['unit_name']} Runner)</i>
 • Net Blended Gain: <b>+{blended_target_pct:.1f}%</b>
 
 🔍 <b>SMC CONTEXT & SPOT REF</b>

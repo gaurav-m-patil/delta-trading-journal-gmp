@@ -884,25 +884,32 @@ window.DeltaDB = (function() {
     data.barsHeld = data.barsHeld || 1;
     data.time = Number(data.time) || Math.floor(Date.now() / 1000);
     data.outcome = data.outcome || "ACTIVE";
+    data.reachedTp1 = !!(data.reachedTp1 || (data.reached_tp1));
+    data.lockedTier2 = !!(data.lockedTier2 || (data.locked_tier2));
     data.optionEntryLockedMark = entryOpt;
     data.optionExitLockedMark = exitOpt;
 
+    // Read option object if present, else fallback
+    const optObj = data.option || {};
+    const optSymbol = data.optionSymbol || optObj.symbol || `${data.direction === 'LONG' ? 'C' : 'P'}-BTC-${data.optionStrike || 60800}`;
+    const liveMarkVal = (exitOpt !== null && data.outcome !== "ACTIVE") ? exitOpt : (Number(optObj.mark_price) || Number(data.markPrice) || entryOpt);
+
     data.realOption = data.realOption || {
-      symbol: data.optionSymbol || `${data.direction === 'LONG' ? 'C' : 'P'}-BTC-${data.optionStrike || 65000}`,
-      strike: Number(data.optionStrike) || Math.round(entrySpot / 200) * 200,
+      symbol: optSymbol,
+      strike: Number(data.optionStrike || optObj.strike) || Math.round(entrySpot / 200) * 200,
       entryPrice: entryOpt,
       lockedEntryMark: entryOpt,
       lockedExitMark: exitOpt,
-      markPrice: (exitOpt !== null && data.outcome !== "ACTIVE") ? exitOpt : entryOpt,
+      markPrice: liveMarkVal,
       sellPrice: exitOpt || (data.outcome === "WIN" ? targetPrice : (data.outcome === "LOSS" ? stopPrice : null)),
       targetPrice: targetPrice,
       tp1Price: tp1Price,
       stopPrice: stopPrice,
       targetGainPct: data.optionPnlPct || (data.outcome === "LOSS" ? "-30.0%" : "+50.0%"),
       stopLossPct: "-30.0%",
-      buyZone: data.buyZone || `$${(entryOpt * 0.98).toFixed(1)} - $${(entryOpt * 1.02).toFixed(1)}`,
-      ivBadge: data.ivBadge || "🟡 FAIR",
-      ivRating: data.ivRating || "FAIR",
+      buyZone: data.buyZone || optObj.buy_zone || `$${(entryOpt * 0.98).toFixed(1)} - $${(entryOpt * 1.02).toFixed(1)}`,
+      ivBadge: data.ivBadge || optObj.iv_badge || "🟡 FAIR",
+      ivRating: data.ivRating || optObj.iv_rating || "FAIR",
       isLive: data.outcome === "ACTIVE"
     };
 

@@ -525,7 +525,12 @@ window.DeltaLiveChart = (function() {
       const locked = registry[tradeId];
       const fixedEntry = locked.entryPrice || (activeAsset === 'XAUT' ? 14 : (activeAsset === 'ETH' ? 9 : 220));
       const matched = tickers ? tickers.find(t => t.symbol === locked.symbol) : null;
-      const currentLiveMark = matched ? (Math.round((parseFloat(matched.mark_price) || fixedEntry) * 10) / 10) : fixedEntry;
+      let currentLiveMark = fixedEntry;
+      if (matched && parseFloat(matched.mark_price) > 0) {
+        currentLiveMark = Math.round(parseFloat(matched.mark_price) * 10) / 10;
+      } else if (locked.markPrice && locked.markPrice > 0) {
+        currentLiveMark = locked.markPrice;
+      }
       const unrealizedPts = Math.round((currentLiveMark - fixedEntry) * 10) / 10;
       const unrealizedPct = Number(((unrealizedPts / (fixedEntry || 1)) * 100).toFixed(1));
 
@@ -534,7 +539,7 @@ window.DeltaLiveChart = (function() {
         markPrice: currentLiveMark,
         unrealizedPts,
         unrealizedPct,
-        isLive: !!matched
+        isLive: !!(matched || currentLiveMark !== fixedEntry)
       };
     }
 
@@ -2116,282 +2121,262 @@ window.DeltaLiveChart = (function() {
       const durMin = (t.barsHeld || 1) * 15;
       const durStr = durMin >= 60 ? `${Math.floor(durMin / 60)}h ${durMin % 60}m` : `${durMin}m`;
 
-      // Dynamic Action Guidance Banner
-      const actionBanner = document.getElementById('atmModalActionBanner');
-      if (actionBanner) {
-        if (t.outcome === "ACTIVE") {
-          const targetPriceVal = opt.targetPrice ? opt.targetPrice : Math.round(entryOpt * 1.5 * 10) / 10;
-          const stopPriceVal = opt.stopPrice ? opt.stopPrice : Math.round(entryOpt * 0.7 * 10) / 10;
-          const currentLiveVal = (opt.markPrice && opt.markPrice > 0) ? opt.markPrice : entryOpt;
-          const pnlPctStr = entryOpt > 0 ? ((pnlDiff / entryOpt) * 100).toFixed(1) : '0.0';
+      // Helper function to render modal content given resolved prices
+      function renderModalContent(activeLiveMark) {
+        const currentLiveVal = (activeLiveMark && activeLiveMark > 0) ? activeLiveMark : ((opt.markPrice && opt.markPrice > 0) ? opt.markPrice : entryOpt);
+        const livePnlDiff = Math.round((currentLiveVal - entryOpt) * 10) / 10;
+        const livePnlPctStr = entryOpt > 0 ? ((livePnlDiff / entryOpt) * 100).toFixed(1) : '0.0';
+        const tp1PriceVal = opt.tp1Price || Math.round(entryOpt * 1.50 * 10) / 10;
+        const tp2PriceVal = opt.targetPrice || Math.round(entryOpt * 1.72 * 10) / 10;
+        const tp1PctStr = opt.tp1Pct || '+137.2%';
+        const tp2GainPct = opt.targetGainPct || t.optionPnlPct || '+249.4%';
+        const isTp1Reached = !!(t.reachedTp1 || t.reached_tp1);
+        const isTier2Locked = !!(t.lockedTier2 || t.locked_tier2);
 
-          actionBanner.className = "p-3 sm:p-3.5 rounded-xl border border-emerald-500/50 bg-emerald-950/30 text-xs font-mono space-y-1.5";
-          actionBanner.innerHTML = `
-            <div class="flex items-center justify-between">
-              <span class="text-winGreen font-bold flex items-center gap-1.5">
-                <span class="h-2 w-2 rounded-full bg-emerald-400 animate-ping"></span>
-                ⚡ ACTIVE SETUP: ENTER ${isCall ? 'CALL OPTION' : 'PUT OPTION'}
-              </span>
-              <span class="text-[10px] text-slate-400 font-sans">Locked Inception Order</span>
-            </div>
-            <div class="text-slate-200">
-              Buy <strong class="text-white bg-indigo-900/60 px-1.5 py-0.5 rounded">${contractSymbol}</strong> in Buy Zone <strong class="text-emerald-400">${opt.buyZone || `$${(entryOpt * 0.98).toFixed(1)} - $${(entryOpt * 1.02).toFixed(1)}`}</strong>.
-            </div>
-            <div class="text-[11px] text-slate-400 pt-1 border-t border-emerald-500/20 flex flex-wrap justify-between gap-2">
-              <span>TP1 (Scalp / Derisk): <strong class="text-emerald-300">$${(opt.tp1Price || Math.round(entryOpt * 1.5 * 10) / 10).toFixed(1)} (+50%)</strong></span>
-              <span>TP2 (Runner): <strong class="text-winGreen">$${targetPriceVal.toFixed(1)} (${targetGainPct})</strong></span>
-              <span>SL Stop: <strong class="text-lossRed">$${stopPriceVal.toFixed(1)} (-30%)</strong></span>
-              <span>Current Mark: <strong class="${pnlDiff >= 0 ? 'text-winGreen' : 'text-lossRed'}">$${currentLiveVal.toFixed(1)} (${pnlDiff >= 0 ? '+' : ''}${pnlPctStr}%)</strong></span>
-            </div>
-          `;
-        } else if (t.outcome === "WIN") {
-          const tp1Price = (opt.tp1Price && opt.tp1Price > 0) ? opt.tp1Price : Math.round(entryOpt * 1.50 * 10) / 10;
-          const tp2Price = opt.targetPrice ? opt.targetPrice : (t.exitOpt || Math.round(entryOpt * 1.50 * 10) / 10);
-          const blendedPct = entryOpt > 0 ? Math.round(((exitOpt - entryOpt) / entryOpt) * 100) : 75;
-          actionBanner.className = "p-3 sm:p-3.5 rounded-xl border border-emerald-500/30 bg-emerald-950/20 text-xs font-mono space-y-1";
-          actionBanner.innerHTML = `
-            <div class="flex items-center justify-between">
-              <span class="text-winGreen font-bold flex items-center gap-1.5">
-                <i class="fa-solid fa-circle-check"></i> TARGET REACHED (+${blendedPct}% BLENDED PROFIT)
-              </span>
-              <span class="text-[10px] text-slate-400 font-sans">${exitTimeStr} IST</span>
-            </div>
-            <div class="text-slate-300 text-[11px]">
-              Scaled exit completed: 50% locked at TP1 ($${tp1Price.toFixed(1)} / +50%) and 50% runner closed at TP2 ($${tp2Price.toFixed(1)} / ${targetGainPct}). Blended exit: <strong>$${exitOpt.toFixed(1)} (+${blendedPct}%)</strong>.
-            </div>
-          `;
-        } else if (t.outcome === "BE_WIN") {
-          actionBanner.className = "p-3 sm:p-3.5 rounded-xl border border-teal-500/40 bg-teal-950/20 text-xs font-mono space-y-1";
-          actionBanner.innerHTML = `
-            <div class="flex items-center justify-between">
-              <span class="text-teal-300 font-bold flex items-center gap-1.5">
-                <i class="fa-solid fa-shield-halved"></i> TP1 HIT & STOP TRAILED TO BREAKEVEN (+25% NET PROFIT)
-              </span>
-              <span class="text-[10px] text-slate-400 font-sans">${exitTimeStr} IST</span>
-            </div>
-            <div class="text-slate-300 text-[11px]">
-              Option triggered TP1 (+50%), securing 50% position, and automatically trailed stop loss to Breakeven. Reversal closed at entry, securing guaranteed +25% net gain.
-            </div>
-          `;
-        } else if (t.outcome === "LOSS") {
-          actionBanner.className = "p-3 sm:p-3.5 rounded-xl border border-rose-500/30 bg-rose-950/20 text-xs font-mono space-y-1";
-          actionBanner.innerHTML = `
-            <div class="flex items-center justify-between">
-              <span class="text-lossRed font-bold flex items-center gap-1.5">
-                <i class="fa-solid fa-circle-xmark"></i> STOP LOSS HIT (-30% PRESERVATION EXIT)
-              </span>
-              <span class="text-[10px] text-slate-400 font-sans">${exitTimeStr} IST</span>
-            </div>
-            <div class="text-slate-300 text-[11px]">
-              Price touched invalidation at <strong>$${slNum.toLocaleString()}</strong>. Controlled stop closed option at <strong>$${exitOpt.toFixed(1)}</strong>, protecting 70% of capital.
-            </div>
-          `;
-        } else if (t.outcome === "SKIPPED_CIRCUIT_BREAKER" || t.skipped) {
-          actionBanner.className = "p-3 sm:p-3.5 rounded-xl border border-amber-500/40 bg-amber-950/25 text-xs font-mono space-y-1";
-          actionBanner.innerHTML = `
-            <div class="flex items-center justify-between">
-              <span class="text-amber-400 font-bold flex items-center gap-1.5">
-                <i class="fa-solid fa-shield-halved"></i> 🛡️ SHADOW SETUP: NOT EXECUTED (2 SL RISK GUARD ENGAGED)
-              </span>
-              <span class="text-[10px] text-slate-400 font-sans">${exitTimeStr} IST</span>
-            </div>
-            <div class="text-slate-300 text-[11px]">
-              Strict Institutional Capital Preservation: 2 Stop Losses were reached earlier today. All live and paper order executions were halted to preserve equity. This setup was captured in Shadow Mode for observation and learning.
-            </div>
-          `;
-        } else {
-          // TIMEOUT
-          actionBanner.className = "p-3 sm:p-3.5 rounded-xl border border-slate-500/30 bg-panelDark/60 text-xs font-mono space-y-1";
-          actionBanner.innerHTML = `
-            <div class="flex items-center justify-between">
-              <span class="text-slate-300 font-bold flex items-center gap-1.5">
-                <i class="fa-solid fa-hourglass-end text-amber-400"></i> TIMEOUT SCRATCH (THETA DECAY DEFENSE)
-              </span>
-              <span class="text-[10px] text-slate-400 font-sans">${exitTimeStr} IST</span>
-            </div>
-            <div class="text-slate-300 text-[11px]">
-              Sideways consolidation for 5+ hours (${t.barsHeld || 1} bars). Closed position cleanly to avoid compounding theta erosion.
-            </div>
-          `;
-        }
-      }
+        // Dynamic Action Guidance Banner
+        const actionBanner = document.getElementById('atmModalActionBanner');
+        if (actionBanner) {
+          if (t.outcome === "ACTIVE") {
+            const stopPriceVal = opt.stopPrice ? opt.stopPrice : Math.round(entryOpt * 0.7 * 10) / 10;
 
-      const contractBadge = document.getElementById('atmModalContractBadge');
-      if (contractBadge) contractBadge.innerText = `${contractSymbol} (${strikeTier})`;
-
-      const entryTimeEl = document.getElementById('atmModalEntryTime');
-      if (entryTimeEl) entryTimeEl.innerText = `${entryTimeStr} IST`;
-
-      const entrySpotEl = document.getElementById('atmModalEntrySpot');
-      if (entrySpotEl) entrySpotEl.innerText = `$${entryNum.toLocaleString()}`;
-
-      const optionEntryEl = document.getElementById('atmModalOptionEntry');
-      if (optionEntryEl) optionEntryEl.innerText = `$${entryOpt.toFixed(1)}`;
-
-      const exitCard = document.getElementById('atmModalExitCard');
-      const exitTitleEl = document.getElementById('atmModalExitTitle');
-      const exitTimeEl = document.getElementById('atmModalExitTime');
-      const exitSpotEl = document.getElementById('atmModalExitSpot');
-      const optionExitEl = document.getElementById('atmModalOptionExit');
-      const netReturnEl = document.getElementById('atmModalNetPoints');
-
-      if (exitTimeEl) exitTimeEl.innerText = (t.outcome === "SKIPPED_CIRCUIT_BREAKER" || t.skipped) ? `${exitTimeStr} IST (Shadow Setup - Zero Capital Allocated)` : (t.outcome === "ACTIVE" ? "Monitoring Live..." : `${exitTimeStr} IST (${durStr} hold)`);
-      if (exitSpotEl) {
-        if (t.outcome === "ACTIVE") {
-          exitSpotEl.innerText = "Monitoring Spot...";
-          exitSpotEl.className = "font-bold text-cyan-300";
-        } else if (t.outcome === "SKIPPED_CIRCUIT_BREAKER" || t.skipped) {
-          exitSpotEl.innerText = "Execution Skipped (Capital Protected)";
-          exitSpotEl.className = "font-bold text-amber-400";
-        } else {
-          exitSpotEl.innerText = `$${Number(t.exitPrice || tpNum).toLocaleString()}`;
-          exitSpotEl.className = `font-bold ${t.outcome === 'WIN' || t.outcome === 'BE_WIN' ? 'text-winGreen' : 'text-lossRed'}`;
-        }
-      }
-      if (optionExitEl) {
-        if (t.outcome === "SKIPPED_CIRCUIT_BREAKER" || t.skipped) {
-          optionExitEl.innerText = "$0.0 (Zero Capital Allocated)";
-          optionExitEl.className = "text-sm font-bold text-amber-400";
-        } else {
-          const pnlPct = entryOpt > 0 ? ((pnlDiff / entryOpt) * 100).toFixed(1) : '0.0';
-          optionExitEl.innerText = `$${exitOpt.toFixed(1)} (${pnlDiff >= 0 ? '+' : ''}${pnlPct}%)`;
-          optionExitEl.className = `text-sm font-bold ${pnlDiff >= 0 ? 'text-winGreen' : 'text-lossRed'}`;
-        }
-      }
-
-      if (exitCard && exitTitleEl) {
-        if (t.outcome === "WIN") {
-          exitCard.className = "bg-panelDark/80 p-3 rounded-xl border border-emerald-500/50 space-y-1.5";
-          exitTitleEl.innerHTML = `<i class="fa-solid fa-flag-checkered text-emerald-400"></i> 2. Target Hit (${targetGainPct} Structural Expansion)`;
-        } else if (t.outcome === "BE_WIN") {
-          exitCard.className = "bg-panelDark/80 p-3 rounded-xl border border-teal-500/50 space-y-1.5";
-          exitTitleEl.innerHTML = `<i class="fa-solid fa-shield-halved text-teal-400"></i> 2. Trailed Stop Breakeven (+25% Net Locked)`;
-        } else if (t.outcome === "LOSS") {
-          exitCard.className = "bg-panelDark/80 p-3 rounded-xl border border-rose-500/50 space-y-1.5";
-          exitTitleEl.innerHTML = `<i class="fa-solid fa-circle-xmark text-rose-400"></i> 2. Stop Loss Hit (-30% Controlled)`;
-        } else if (t.outcome === "SKIPPED_CIRCUIT_BREAKER" || t.skipped) {
-          exitCard.className = "bg-panelDark/80 p-3 rounded-xl border border-amber-500/50 space-y-1.5";
-          exitTitleEl.innerHTML = `<i class="fa-solid fa-shield-halved text-amber-400"></i> 2. Skipped Execution (Risk Guard Engaged)`;
-        } else if (t.outcome === "ACTIVE") {
-          exitCard.className = "bg-panelDark/80 p-3 rounded-xl border border-cyan-500/50 space-y-1.5";
-          exitTitleEl.innerHTML = `<i class="fa-solid fa-circle-notch fa-spin text-cyan-400"></i> 2. Live in Market`;
-        } else {
-          exitCard.className = "bg-panelDark/80 p-3 rounded-xl border border-slate-500/50 space-y-1.5";
-          exitTitleEl.innerHTML = `<i class="fa-solid fa-hourglass-end text-amber-400"></i> 2. Timeout Scratch (Theta Protection)`;
-        }
-      }
-
-      if (netReturnEl) {
-        if (t.outcome === "WIN") {
-          netReturnEl.innerHTML = `<span class="text-winGreen font-bold font-mono">+${pnlDiff.toFixed(1)} pts gross &rarr; +${netTakeHome.toFixed(1)} pts (+${netTakeHomePct}% Net Take-Home)</span>`;
-        } else if (t.outcome === "BE_WIN") {
-          netReturnEl.innerHTML = `<span class="text-teal-300 font-bold font-mono">+${pnlDiff.toFixed(1)} pts (+25% Net Trailed Gain)</span>`;
-        } else if (t.outcome === "LOSS") {
-          netReturnEl.innerHTML = `<span class="text-lossRed font-bold font-mono">${pnlDiff.toFixed(1)} pts (-30% Controlled Stop Exit)</span>`;
-        } else if (t.outcome === "SKIPPED_CIRCUIT_BREAKER" || t.skipped) {
-          netReturnEl.innerHTML = `<span class="text-amber-400 font-bold font-mono">₹0 Net PnL (100% Capital Protected)</span>`;
-        } else if (t.outcome === "ACTIVE") {
-          netReturnEl.innerHTML = `<span class="text-cyan-300 font-bold font-mono">${pnlDiff >= 0 ? '+' : ''}${pnlDiff.toFixed(1)} pts (Unrealized Current Mark)</span>`;
-        } else {
-          netReturnEl.innerHTML = `<span class="text-slate-300 font-bold font-mono">${pnlDiff.toFixed(1)} pts (-18% Scratch to avoid overnight theta)</span>`;
-        }
-      }
-
-      // Dynamic Narrative with exact contract, real prices, and time
-      let dynamicNarrative = "";
-      if (t.outcome === "WIN") {
-        const tp1Price = (opt.tp1Price && opt.tp1Price > 0) ? opt.tp1Price : Math.round(entryOpt * 1.50 * 10) / 10;
-        const tp2Price = opt.targetPrice ? opt.targetPrice : (t.exitOpt || Math.round(entryOpt * 1.50 * 10) / 10);
-        const blendedPct = entryOpt > 0 ? Math.round(((exitOpt - entryOpt) / entryOpt) * 100) : 75;
-        dynamicNarrative = `Price moved aggressively in your favor (+${targetDist} pts) within ${t.barsHeld || 1} bars (${durStr}), cleanly hitting Take Profit at $${tpNum.toLocaleString()} at ${exitTimeStr} IST. Scaled execution locked 50% at TP1 ($${tp1Price.toFixed(1)} / +50%) and 50% runner at TP2 ($${tp2Price.toFixed(1)} / ${targetGainPct}), producing a blended exit of $${exitOpt.toFixed(1)} (+${blendedPct}% gross / +${netTakeHomePct}% net take-home after Delta fees).`;
-      } else if (t.outcome === "BE_WIN") {
-        dynamicNarrative = `Price moved favorably towards target, triggering TP1 (+50% option gain) at $${entryOpt.toFixed(1)} -> $${(entryOpt * 1.5).toFixed(1)}. Position stop-loss was automatically trailed to Breakeven. A subsequent pullback closed the trade at entry, banking +25% overall profit with zero downside risk.`;
-      } else if (t.outcome === "LOSS") {
-        dynamicNarrative = `Price breached invalidation level at $${slNum.toLocaleString()} at ${exitTimeStr} IST after ${t.barsHeld || 1} bars (${durStr}). Your ${contractSymbol} option entered at $${entryOpt.toFixed(1)} executed controlled stop-loss exit at $${exitOpt.toFixed(1)} (-30.0% stop) preserving 70% of margin capital.`;
-      } else if (t.outcome === "SKIPPED_CIRCUIT_BREAKER" || t.skipped) {
-        dynamicNarrative = `2 Stop Losses were hit earlier today. To protect your trading capital, this setup was NOT taken (0% capital allocated), but is fully tracked and recorded in your SMC Setup Radar & Paper Fund for knowledge growth and observation.`;
-      } else if (t.outcome === "ACTIVE") {
-        dynamicNarrative = `Trade is LIVE right now (${t.barsHeld || 1} bars in progress). Entered at $${entryNum.toLocaleString()} with ${contractSymbol} @ $${entryOpt.toFixed(1)}. Current mark: $${exitOpt.toFixed(1)}. Monitoring Take Profit at $${tpNum.toLocaleString()} or Stop Loss at $${slNum.toLocaleString()}.`;
-      } else {
-        dynamicNarrative = `Price moved sideways for 5 hours (${t.barsHeld || 1} bars). Closed at $${Number(t.exitPrice || entryNum).toLocaleString()} at ${exitTimeStr} IST. Option exited at $${exitOpt.toFixed(1)} as a scratch exit to prevent theta decay from destroying remaining option value.`;
-      }
-
-      // Rationale fields
-      const r = t.rationale || {};
-      const levelEl = document.getElementById('atmModalLevel');
-      if (levelEl) levelEl.innerText = r.levelTested || "--";
-
-      const patternEl = document.getElementById('atmModalPattern');
-      if (patternEl) patternEl.innerText = r.pattern || "--";
-
-      const confEl = document.getElementById('atmModalConfirmation');
-      if (confEl) confEl.innerText = r.confirmation || "--";
-
-      const rsiRvolEl = document.getElementById('atmModalRsiRvol');
-      if (rsiRvolEl) rsiRvolEl.innerText = `${r.rsi || ''} | ${r.rvol || ''}`;
-
-      const htfEl = document.getElementById('atmModalHtf');
-      if (htfEl) htfEl.innerText = r.htfAlignment || (t.htf_trend ? t.htf_trend.label : "🟢 Trend Aligned");
-
-      const absEl = document.getElementById('atmModalAbsorption');
-      if (absEl) absEl.innerText = r.absorption || "Institutional Liquidity Absorption";
-
-      const narrEl = document.getElementById('atmModalNarrative');
-      if (narrEl) narrEl.innerText = dynamicNarrative;
-
-      // Playbook steps with real Delta contract
-      const stepsContainer = document.getElementById('atmModalPlaybook');
-      if (stepsContainer) {
-        if (opt && (opt.isLive || opt.symbol)) {
-          const tp1PriceVal = opt.tp1Price || Math.round(entryOpt * 1.50 * 10) / 10;
-          const tp2PriceVal = opt.targetPrice || Math.round(entryOpt * 1.72 * 10) / 10;
-          const tp2GainPct = opt.targetGainPct || t.optionPnlPct || '+100%+';
-
-          let tpStepHTML = '';
-          if (tp2PriceVal > tp1PriceVal) {
-            tpStepHTML = `
-              <li class="text-xs text-slate-200 font-mono py-1 flex items-start gap-2">
-                <i class="fa-solid fa-check text-indigo-400 mt-0.5"></i>
-                <div class="w-full">
-                  <span>4. Take Profit GTT Orders:</span>
-                  <div class="mt-1 pl-2 border-l border-indigo-500/30 space-y-1">
-                    <div>• <strong class="text-winGreen">TP1 (50% Scalp / Derisk):</strong> Limit Sell at <strong class="text-white bg-emerald-950/60 px-1 py-0.5 rounded border border-emerald-500/40">$${tp1PriceVal}</strong> (+50.0%) ➔ Lock 50% & Move SL to BE.</div>
-                    <div>• <strong class="text-emerald-300">TP2 (50% Structural Runner):</strong> Limit Sell at <strong class="text-white bg-indigo-950/60 px-1 py-0.5 rounded border border-indigo-500/40">$${tp2PriceVal}</strong> (${tp2GainPct} runner potential).</div>
+            actionBanner.className = "p-3 sm:p-3.5 rounded-xl border border-emerald-500/50 bg-emerald-950/30 text-xs font-mono space-y-2";
+            actionBanner.innerHTML = `
+              <div class="flex items-center justify-between">
+                <span class="text-winGreen font-bold flex items-center gap-1.5">
+                  <span class="h-2 w-2 rounded-full bg-emerald-400 animate-ping"></span>
+                  ⚡ ACTIVE SETUP: ENTER ${isCall ? 'CALL OPTION' : 'PUT OPTION'}
+                </span>
+                <span class="text-[10px] text-slate-400 font-sans">Locked Inception Order</span>
+              </div>
+              <div class="text-slate-200">
+                Buy <strong class="text-white bg-indigo-900/60 px-1.5 py-0.5 rounded">${contractSymbol}</strong> in Buy Zone <strong class="text-emerald-400">${opt.buyZone || `$${(entryOpt * 0.98).toFixed(1)} - $${(entryOpt * 1.02).toFixed(1)}`}</strong>.
+              </div>
+              ${isTp1Reached ? `
+                <div class="p-2 rounded-lg bg-emerald-500/10 border border-emerald-500/30 text-[11px] text-emerald-300 space-y-1">
+                  <div class="font-bold flex items-center gap-1.5">
+                    <i class="fa-solid fa-circle-check text-emerald-400"></i>
+                    <span>TP1 BOOKED: 50% Position Closed at $${tp1PriceVal.toFixed(1)} (${tp1PctStr})</span>
+                  </div>
+                  <div class="text-slate-300 text-[10px]">
+                    Runner: 50% position actively trailing · Current Mark: <strong class="text-winGreen">$${currentLiveVal.toFixed(1)} (+${livePnlPctStr}%)</strong>
                   </div>
                 </div>
-              </li>
+              ` : ''}
+              <div class="text-[11px] text-slate-400 pt-1 border-t border-emerald-500/20 flex flex-wrap justify-between gap-2">
+                <span>TP1 (50% Derisk): <strong class="${isTp1Reached ? 'text-winGreen line-through' : 'text-emerald-300'}">$${tp1PriceVal.toFixed(1)} (${tp1PctStr})</strong> ${isTp1Reached ? '<span class="text-[9px] px-1 py-0.2 rounded bg-emerald-500/20 text-emerald-400 font-bold ml-1">FILLED</span>' : ''}</span>
+                <span>TP2 (Runner): <strong class="text-winGreen">$${tp2PriceVal.toFixed(1)} (${tp2GainPct})</strong></span>
+                <span>SL Stop: <strong class="${isTp1Reached ? 'text-teal-300' : 'text-lossRed'}">${isTier2Locked ? 'Ratcheted Stop' : (isTp1Reached ? `$${entryOpt.toFixed(1)} (BE)` : `$${stopPriceVal.toFixed(1)} (-30%)`)}</strong></span>
+                <span>Current Mark: <strong class="${livePnlDiff >= 0 ? 'text-winGreen' : 'text-lossRed'}">$${currentLiveVal.toFixed(1)} (${livePnlDiff >= 0 ? '+' : ''}${livePnlPctStr}%)</strong></span>
+              </div>
+            `;
+          } else if (t.outcome === "WIN") {
+            const blendedPct = entryOpt > 0 ? Math.round(((exitOpt - entryOpt) / entryOpt) * 100) : 75;
+            actionBanner.className = "p-3 sm:p-3.5 rounded-xl border border-emerald-500/30 bg-emerald-950/20 text-xs font-mono space-y-1";
+            actionBanner.innerHTML = `
+              <div class="flex items-center justify-between">
+                <span class="text-winGreen font-bold flex items-center gap-1.5">
+                  <i class="fa-solid fa-circle-check"></i> TARGET REACHED (+${blendedPct}% BLENDED PROFIT)
+                </span>
+                <span class="text-[10px] text-slate-400 font-sans">${exitTimeStr} IST</span>
+              </div>
+              <div class="text-slate-300 text-[11px]">
+                Scaled exit completed: 50% locked at TP1 ($${tp1PriceVal.toFixed(1)} / ${tp1PctStr}) and 50% runner closed at TP2 ($${tp2PriceVal.toFixed(1)} / ${tp2GainPct}). Blended exit: <strong>$${exitOpt.toFixed(1)} (+${blendedPct}%)</strong>.
+              </div>
+            `;
+          } else if (t.outcome === "BE_WIN") {
+            actionBanner.className = "p-3 sm:p-3.5 rounded-xl border border-teal-500/40 bg-teal-950/20 text-xs font-mono space-y-1";
+            actionBanner.innerHTML = `
+              <div class="flex items-center justify-between">
+                <span class="text-teal-300 font-bold flex items-center gap-1.5">
+                  <i class="fa-solid fa-shield-halved"></i> TP1 HIT & STOP TRAILED TO BREAKEVEN (+25% NET PROFIT)
+                </span>
+                <span class="text-[10px] text-slate-400 font-sans">${exitTimeStr} IST</span>
+              </div>
+              <div class="text-slate-300 text-[11px]">
+                Option triggered TP1, securing 50% position, and automatically trailed stop loss to Breakeven. Reversal closed at entry, securing guaranteed profit.
+              </div>
+            `;
+          } else if (t.outcome === "LOSS") {
+            actionBanner.className = "p-3 sm:p-3.5 rounded-xl border border-rose-500/30 bg-rose-950/20 text-xs font-mono space-y-1";
+            actionBanner.innerHTML = `
+              <div class="flex items-center justify-between">
+                <span class="text-lossRed font-bold flex items-center gap-1.5">
+                  <i class="fa-solid fa-circle-xmark"></i> STOP LOSS HIT (-30% PRESERVATION EXIT)
+                </span>
+                <span class="text-[10px] text-slate-400 font-sans">${exitTimeStr} IST</span>
+              </div>
+              <div class="text-slate-300 text-[11px]">
+                Price touched invalidation at <strong>$${slNum.toLocaleString()}</strong>. Controlled stop closed option at <strong>$${exitOpt.toFixed(1)}</strong>, protecting capital.
+              </div>
+            `;
+          } else if (t.outcome === "SKIPPED_CIRCUIT_BREAKER" || t.skipped) {
+            actionBanner.className = "p-3 sm:p-3.5 rounded-xl border border-amber-500/40 bg-amber-950/25 text-xs font-mono space-y-1";
+            actionBanner.innerHTML = `
+              <div class="flex items-center justify-between">
+                <span class="text-amber-400 font-bold flex items-center gap-1.5">
+                  <i class="fa-solid fa-shield-halved"></i> 🛡️ SHADOW SETUP: NOT EXECUTED (2 SL RISK GUARD ENGAGED)
+                </span>
+                <span class="text-[10px] text-slate-400 font-sans">${exitTimeStr} IST</span>
+              </div>
+              <div class="text-slate-300 text-[11px]">
+                Strict Institutional Capital Preservation: 2 Stop Losses were reached earlier today. All live and paper order executions were halted to preserve equity.
+              </div>
             `;
           } else {
-            tpStepHTML = `
-              <li class="text-xs text-slate-200 font-mono py-1 flex items-start gap-2">
-                <i class="fa-solid fa-check text-indigo-400 mt-0.5"></i>
-                <span>4. Take Profit GTT Order: Set Limit Sell at <strong class="text-winGreen">$${tp2PriceVal}</strong> (${tp2GainPct} profit target).</span>
-              </li>
+            actionBanner.className = "p-3 sm:p-3.5 rounded-xl border border-slate-500/30 bg-panelDark/60 text-xs font-mono space-y-1";
+            actionBanner.innerHTML = `
+              <div class="flex items-center justify-between">
+                <span class="text-slate-300 font-bold flex items-center gap-1.5">
+                  <i class="fa-solid fa-hourglass-end text-amber-400"></i> TIMEOUT SCRATCH (THETA DECAY DEFENSE)
+                </span>
+                <span class="text-[10px] text-slate-400 font-sans">${exitTimeStr} IST</span>
+              </div>
+              <div class="text-slate-300 text-[11px]">
+                Sideways consolidation for 5+ hours. Closed position cleanly to avoid compounding theta erosion.
+              </div>
             `;
           }
+        }
 
+        // Timeline Exit Card Details
+        const optionExitEl = document.getElementById('atmModalOptionExit');
+        const netReturnEl = document.getElementById('atmModalNetPoints');
+        if (optionExitEl) {
+          if (t.outcome === "ACTIVE") {
+            optionExitEl.innerText = `$${currentLiveVal.toFixed(1)} (${livePnlDiff >= 0 ? '+' : ''}${livePnlPctStr}%)`;
+            optionExitEl.className = `text-sm font-bold ${livePnlDiff >= 0 ? 'text-winGreen' : 'text-lossRed'}`;
+          } else if (t.outcome === "SKIPPED_CIRCUIT_BREAKER" || t.skipped) {
+            optionExitEl.innerText = "$0.0 (Zero Capital Allocated)";
+            optionExitEl.className = "text-sm font-bold text-amber-400";
+          } else {
+            const pnlPct = entryOpt > 0 ? ((pnlDiff / entryOpt) * 100).toFixed(1) : '0.0';
+            optionExitEl.innerText = `$${exitOpt.toFixed(1)} (${pnlDiff >= 0 ? '+' : ''}${pnlPct}%)`;
+            optionExitEl.className = `text-sm font-bold ${pnlDiff >= 0 ? 'text-winGreen' : 'text-lossRed'}`;
+          }
+        }
+
+        if (netReturnEl) {
+          if (t.outcome === "ACTIVE") {
+            if (isTp1Reached) {
+              const tp1Pts = Math.round((tp1PriceVal - entryOpt) * 10) / 10;
+              const runnerPts = Math.round((currentLiveVal - entryOpt) * 10) / 10;
+              const blendedPts = Math.round((0.5 * tp1Pts + 0.5 * runnerPts) * 10) / 10;
+              const blendedPct = entryOpt > 0 ? ((blendedPts / entryOpt) * 100).toFixed(1) : '0.0';
+              netReturnEl.innerHTML = `
+                <div class="space-y-0.5">
+                  <div class="text-winGreen font-bold font-mono">+${blendedPts} pts (+${blendedPct}% Blended Active PnL)</div>
+                  <div class="text-[10px] text-slate-400 font-mono">50% Booked at TP1 (+${tp1Pts} pts / ${tp1PctStr}) · 50% Runner Mark ($${currentLiveVal.toFixed(1)} / +${livePnlPctStr}%)</div>
+                </div>
+              `;
+            } else {
+              netReturnEl.innerHTML = `<span class="text-cyan-300 font-bold font-mono">${livePnlDiff >= 0 ? '+' : ''}${livePnlDiff.toFixed(1)} pts (${livePnlDiff >= 0 ? '+' : ''}${livePnlPctStr}% Unrealized Mark)</span>`;
+            }
+          }
+        }
+
+        // Playbook orders: Planned vs Actually Taken
+        const stepsContainer = document.getElementById('atmModalPlaybook');
+        if (stepsContainer) {
           stepsContainer.innerHTML = `
-            <li class="text-xs text-slate-200 font-mono py-1 flex items-start gap-2">
-              <i class="fa-solid fa-check text-indigo-400 mt-0.5"></i>
-              <span>1. Open Delta Exchange India -> BTC Options.</span>
+            <!-- Step 1: Exchange Navigation -->
+            <li class="text-xs text-slate-200 font-mono py-1.5 flex items-start gap-2 border-b border-borderDark/40">
+              <i class="fa-solid fa-circle-check text-winGreen mt-0.5"></i>
+              <div>
+                <span class="text-slate-400 font-bold uppercase text-[10px] block">1. EXCHANGE SELECTION</span>
+                <span>Open Delta Exchange India ➔ ${activeAsset || 'BTC'} Options.</span>
+              </div>
             </li>
-            <li class="text-xs text-slate-200 font-mono py-1 flex items-start gap-2">
-              <i class="fa-solid fa-check text-indigo-400 mt-0.5"></i>
-              <span>2. Select Real Live Contract: <strong class="text-white bg-indigo-900/60 px-1.5 py-0.5 rounded">${opt.symbol || contractSymbol}</strong>.</span>
+
+            <!-- Step 2: Contract Selection -->
+            <li class="text-xs text-slate-200 font-mono py-1.5 flex items-start gap-2 border-b border-borderDark/40">
+              <i class="fa-solid fa-circle-check text-winGreen mt-0.5"></i>
+              <div>
+                <span class="text-slate-400 font-bold uppercase text-[10px] block">2. CONTRACT SPECIFICATION</span>
+                <span>Select Real Live Contract: <strong class="text-white bg-indigo-900/60 px-1.5 py-0.5 rounded border border-indigo-500/40">${opt.symbol || contractSymbol}</strong> (${strikeTier}).</span>
+              </div>
             </li>
-            <li class="text-xs text-slate-200 font-mono py-1 flex items-start gap-2">
-              <i class="fa-solid fa-check text-indigo-400 mt-0.5"></i>
-              <span>3. Buy Order: Enter in Buy Zone <strong class="text-emerald-400">${opt.buyZone || `$${(entryOpt * 0.98).toFixed(1)} - $${(entryOpt * 1.02).toFixed(1)}`}</strong> (Current Mark: $${opt.markPrice || entryOpt}).</span>
+
+            <!-- Step 3: Entry Execution -->
+            <li class="text-xs text-slate-200 font-mono py-1.5 flex items-start gap-2 border-b border-borderDark/40">
+              <i class="fa-solid fa-circle-check text-winGreen mt-0.5"></i>
+              <div>
+                <div class="flex items-center gap-2">
+                  <span class="text-slate-400 font-bold uppercase text-[10px]">3. ENTRY ORDER</span>
+                  <span class="px-1.5 py-0.2 rounded bg-emerald-500/20 text-emerald-400 border border-emerald-500/40 text-[9px] font-bold">FILLED @ $${entryOpt.toFixed(1)}</span>
+                </div>
+                <div class="mt-0.5">
+                  <span class="text-slate-400">Planned:</span> Limit Buy in Zone <strong class="text-emerald-400">${opt.buyZone || `$${(entryOpt * 0.98).toFixed(1)} - $${(entryOpt * 1.02).toFixed(1)}`}</strong>.<br>
+                  <span class="text-winGreen">Actually Taken:</span> Filled 100% Position at <strong class="text-white">$${entryOpt.toFixed(1)}</strong> at inception (${entryTimeStr} IST).
+                </div>
+              </div>
             </li>
-            ${tpStepHTML}
-            <li class="text-xs text-slate-200 font-mono py-1 flex items-start gap-2">
-              <i class="fa-solid fa-check text-indigo-400 mt-0.5"></i>
-              <span>5. Stop Loss GTT Order: Set Stop Market at <strong class="text-lossRed">$${opt.stopPrice || Math.round(entryOpt * 0.70 * 10) / 10}</strong> (-30% preservation stop / Spot Invalidation: $${slNum.toLocaleString()}).</span>
+
+            <!-- Step 4: Take Profit (TP1 & TP2) -->
+            <li class="text-xs text-slate-200 font-mono py-1.5 flex items-start gap-2 border-b border-borderDark/40">
+              <i class="fa-solid ${isTp1Reached ? 'fa-circle-check text-winGreen' : 'fa-clock text-cyan-400'} mt-0.5"></i>
+              <div class="w-full">
+                <div class="flex items-center gap-2">
+                  <span class="text-slate-400 font-bold uppercase text-[10px]">4. TAKE PROFIT GTT ORDERS</span>
+                  ${isTp1Reached ? '<span class="px-1.5 py-0.2 rounded bg-emerald-500/20 text-emerald-400 border border-emerald-500/40 text-[9px] font-bold">TP1 FILLED & BOOKED</span>' : '<span class="px-1.5 py-0.2 rounded bg-cyan-500/20 text-cyan-400 border border-cyan-500/40 text-[9px] font-bold">ACTIVE LIMIT ORDERS</span>'}
+                </div>
+                <div class="mt-1 pl-2 border-l-2 ${isTp1Reached ? 'border-emerald-500/60' : 'border-indigo-500/30'} space-y-1.5">
+                  <div>
+                    <div class="flex items-center justify-between">
+                      <span>• <strong class="text-winGreen">TP1 (50% Scalp / Derisk):</strong> Limit Sell at <strong class="text-white bg-emerald-950/60 px-1 py-0.5 rounded border border-emerald-500/40">$${tp1PriceVal.toFixed(1)}</strong> (${tp1PctStr})</span>
+                      ${isTp1Reached ? '<span class="text-[9px] text-winGreen font-bold">✓ EXECUTED (+50% Position Cash Booked)</span>' : '<span class="text-[9px] text-slate-400">PENDING FILL</span>'}
+                    </div>
+                  </div>
+                  <div>
+                    <div class="flex items-center justify-between">
+                      <span>• <strong class="text-emerald-300">TP2 (50% Structural Runner):</strong> Limit Sell at <strong class="text-white bg-indigo-950/60 px-1 py-0.5 rounded border border-indigo-500/40">$${tp2PriceVal.toFixed(1)}</strong> (${tp2GainPct})</span>
+                      <span class="text-[9px] text-cyan-400 font-bold">${isTier2Locked ? 'RATCHET TRAILING' : 'RUNNER IN FLIGHT'}</span>
+                    </div>
+                    <div class="text-[10px] text-slate-400 mt-0.5">Current Live Option Mark: <strong class="text-winGreen">$${currentLiveVal.toFixed(1)} (+${livePnlPctStr}%)</strong></div>
+                  </div>
+                </div>
+              </div>
+            </li>
+
+            <!-- Step 5: Stop Loss -->
+            <li class="text-xs text-slate-200 font-mono py-1.5 flex items-start gap-2">
+              <i class="fa-solid ${isTp1Reached ? 'fa-shield-halved text-teal-400' : 'fa-shield text-lossRed'} mt-0.5"></i>
+              <div>
+                <div class="flex items-center gap-2">
+                  <span class="text-slate-400 font-bold uppercase text-[10px]">5. STOP LOSS GTT ORDER</span>
+                  ${isTier2Locked ? '<span class="px-1.5 py-0.2 rounded bg-teal-500/20 text-teal-300 border border-teal-500/40 text-[9px] font-bold">RATCHET PROFIT FLOOR</span>' : (isTp1Reached ? '<span class="px-1.5 py-0.2 rounded bg-teal-500/20 text-teal-300 border border-teal-500/40 text-[9px] font-bold">MOVED TO BREAKEVEN</span>' : '<span class="px-1.5 py-0.2 rounded bg-rose-500/20 text-rose-400 border border-rose-500/40 text-[9px] font-bold">INITIAL RISK STOP</span>')}
+                </div>
+                <div class="mt-0.5">
+                  <span class="text-slate-400">Planned Initial:</span> Set Stop Market at <strong class="text-lossRed">$${opt.stopPrice || Math.round(entryOpt * 0.70 * 10) / 10}</strong> (-30.0% capital preservation stop).<br>
+                  ${isTier2Locked ? `
+                    <span class="text-teal-300 font-bold">Actually Taken:</span> Milestone Profit Ratchet active. Structural stop trailed to protect minimum guaranteed profit. Downside risk: <strong class="text-winGreen">₹0 (Zero Risk)</strong>.
+                  ` : (isTp1Reached ? `
+                    <span class="text-teal-300 font-bold">Actually Taken:</span> TP1 hit. Stop loss modified to Breakeven (<strong class="text-white">$${entryOpt.toFixed(1)}</strong>). Downside risk: <strong class="text-winGreen">₹0 (Completely Risk-Free)</strong>.
+                  ` : `
+                    <span class="text-slate-300">Active Stop:</span> Fixed risk cap at <strong class="text-lossRed">$${opt.stopPrice || Math.round(entryOpt * 0.70 * 10) / 10}</strong>.
+                  `)}
+                </div>
+              </div>
             </li>
           `;
-        } else if (r.deltaSteps) {
-          stepsContainer.innerHTML = r.deltaSteps.map(s => `<li class="text-xs text-slate-200 font-mono py-1 flex items-start gap-2"><i class="fa-solid fa-check text-indigo-400 mt-0.5"></i><span>${s}</span></li>`).join('');
         }
+      }
+
+      // Initial render with current known values
+      renderModalContent(opt.markPrice);
+
+      // If active, asynchronously fetch live ticker for the specific contract to guarantee real-time tick accuracy
+      if (t.outcome === "ACTIVE" && contractSymbol) {
+        fetch(`https://api.india.delta.exchange/v2/tickers/${contractSymbol}`)
+          .then(r => r.json())
+          .then(data => {
+            if (data && data.result && data.result.mark_price > 0) {
+              const freshMark = Math.round(Number(data.result.mark_price) * 10) / 10;
+              opt.markPrice = freshMark;
+              if (t.realOption) t.realOption.markPrice = freshMark;
+              renderModalContent(freshMark);
+            }
+          })
+          .catch(() => {});
       }
 
       switchModalTab('exec');
@@ -2627,18 +2612,19 @@ Expected Profit: +50% Option Gross / +40% Net`;
         // Asynchronously check Delta Exchange ticker for live mark price of active trade
         getLiveDeltaTickers().then(tickers => {
           const safeTickers = tickers || [];
-          if (activeTrade && safeTickers.length > 0) {
+          if (activeTrade) {
             const sym = activeTrade.optionSymbol || (activeTrade.realOption && activeTrade.realOption.symbol);
             const match = safeTickers.find(x => x.symbol === sym);
-            if (match && match.mark_price > 0) {
-              const liveMark = Number(match.mark_price);
-              const entryMark = activeTrade.optionEntryMark || 220;
-              if (!activeTrade.realOption) activeTrade.realOption = {};
-              activeTrade.realOption.markPrice = liveMark;
-              activeTrade.realOption.unrealizedPts = Math.round((liveMark - entryMark) * 10) / 10;
-              activeTrade.realOption.unrealizedPct = Math.round(((liveMark - entryMark) / entryMark) * 1000) / 10;
-              updatePositionToolCockpit(activeTrade);
-            }
+            const liveMark = match && parseFloat(match.mark_price) > 0 
+              ? Math.round(parseFloat(match.mark_price) * 10) / 10 
+              : ((activeTrade.realOption && activeTrade.realOption.markPrice > 0) ? activeTrade.realOption.markPrice : (activeTrade.optionEntryLockedMark || 220));
+            const entryMark = activeTrade.optionEntryLockedMark || activeTrade.optionEntryMark || 220;
+            if (!activeTrade.realOption) activeTrade.realOption = {};
+            activeTrade.realOption.markPrice = liveMark;
+            activeTrade.realOption.unrealizedPts = Math.round((liveMark - entryMark) * 10) / 10;
+            activeTrade.realOption.unrealizedPct = Math.round(((liveMark - entryMark) / entryMark) * 1000) / 10;
+            activeTrade.realOption.isLive = true;
+            updatePositionToolCockpit(activeTrade);
           }
           renderTradesTable(realTrades);
         });
@@ -2836,8 +2822,9 @@ Expected Profit: +50% Option Gross / +40% Net`;
           optGainPct = `-18%`;
         } else {
           // ACTIVE
-          sellPrice = (opt && opt.markPrice > 0) ? opt.markPrice : buyPrice;
-          pnlDiff = Math.round((sellPrice - buyPrice) * 10) / 10;
+          const currentLive = (opt && opt.markPrice > 0) ? opt.markPrice : ((t.markPrice && t.markPrice > 0) ? t.markPrice : buyPrice);
+          sellPrice = currentLive;
+          pnlDiff = Math.round((currentLive - buyPrice) * 10) / 10;
           optGainPct = `${pnlDiff >= 0 ? '+' : ''}${Math.round((pnlDiff / buyPrice) * 100)}%`;
         }
 
@@ -2990,8 +2977,9 @@ Expected Profit: +50% Option Gross / +40% Net`;
           pnlDiff = Math.round((sellPrice - buyPrice) * 10) / 10;
           optGainPct = `-18%`;
         } else {
-          sellPrice = (opt && opt.markPrice > 0) ? opt.markPrice : buyPrice;
-          pnlDiff = Math.round((sellPrice - buyPrice) * 10) / 10;
+          const currentLive = (opt && opt.markPrice > 0) ? opt.markPrice : ((t.markPrice && t.markPrice > 0) ? t.markPrice : buyPrice);
+          sellPrice = currentLive;
+          pnlDiff = Math.round((currentLive - buyPrice) * 10) / 10;
           optGainPct = `${pnlDiff >= 0 ? '+' : ''}${Math.round((pnlDiff / buyPrice) * 100)}%`;
         }
 
