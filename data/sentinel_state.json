@@ -8,7 +8,7 @@
     "time": 1795186800,
     "entry": 60894.0,
     "tp": 58624.0,
-    "sl": 62175.0,
+    "sl": 60894.0,
     "rr": "1:1.8",
     "rsi": 36.7,
     "rvol": 2.75,
@@ -16,12 +16,12 @@
       "pattern": "Trend Continuation Breakdown",
       "levelTested": "Key Structure Floor ($61,284)",
       "confirmation": "Aggressive institutional selling breaking prior structure with 2.75x RVOL",
-      "htfAlignment": "🔴 BEARISH CONFLUENCE (1H BTC Macro Downtrend)",
+      "htfAlignment": "\ud83d\udd34 BEARISH CONFLUENCE (1H BTC Macro Downtrend)",
       "absorption": "Institutional Flow (2.75x RVOL)"
     },
     "htf_trend": {
       "trend": "BEARISH",
-      "label": "🔴 BEARISH CONFLUENCE (1H BTC Macro Downtrend)",
+      "label": "\ud83d\udd34 BEARISH CONFLUENCE (1H BTC Macro Downtrend)",
       "cur_price": 60762.0,
       "ema20": 61912.83,
       "ema50": 62589.79
@@ -39,17 +39,18 @@
       "stop_price": 445.1,
       "eff_delta": 0.7,
       "iv_rating": "ELEVATED (High IV - Scalp Focus)",
-      "iv_badge": "🔴 ELEVATED"
+      "iv_badge": "\ud83d\udd34 ELEVATED"
     },
     "session": {
       "name": "New York Session (19:00 - 02:30 IST)",
       "code": "NEW_YORK",
-      "flag": "🔥",
+      "flag": "\ud83d\udd25",
       "volatility": "Peak Liquidity (Gamma Spikes & Momentum)",
       "tp_bias": "Maximum DOEV Runner Potential"
     },
     "outcome": "ACTIVE",
-    "optionEntryLockedMark": 635.9
+    "optionEntryLockedMark": 635.9,
+    "reached_tp1": true
   },
   "last_alerted_catalyst_guid": null,
   "daily_counts": {
@@ -70,7 +71,7 @@
       "time": 1795186800,
       "entry": 60894.0,
       "tp": 58624.0,
-      "sl": 62175.0,
+      "sl": 60894.0,
       "rr": "1:1.8",
       "rsi": 36.7,
       "rvol": 2.75,
@@ -78,12 +79,12 @@
         "pattern": "Trend Continuation Breakdown",
         "levelTested": "Key Structure Floor ($61,284)",
         "confirmation": "Aggressive institutional selling breaking prior structure with 2.75x RVOL",
-        "htfAlignment": "🔴 BEARISH CONFLUENCE (1H BTC Macro Downtrend)",
+        "htfAlignment": "\ud83d\udd34 BEARISH CONFLUENCE (1H BTC Macro Downtrend)",
         "absorption": "Institutional Flow (2.75x RVOL)"
       },
       "htf_trend": {
         "trend": "BEARISH",
-        "label": "🔴 BEARISH CONFLUENCE (1H BTC Macro Downtrend)",
+        "label": "\ud83d\udd34 BEARISH CONFLUENCE (1H BTC Macro Downtrend)",
         "cur_price": 60762.0,
         "ema20": 61912.83,
         "ema50": 62589.79
@@ -101,17 +102,18 @@
         "stop_price": 445.1,
         "eff_delta": 0.7,
         "iv_rating": "ELEVATED (High IV - Scalp Focus)",
-        "iv_badge": "🔴 ELEVATED"
+        "iv_badge": "\ud83d\udd34 ELEVATED"
       },
       "session": {
         "name": "New York Session (19:00 - 02:30 IST)",
         "code": "NEW_YORK",
-        "flag": "🔥",
+        "flag": "\ud83d\udd25",
         "volatility": "Peak Liquidity (Gamma Spikes & Momentum)",
         "tp_bias": "Maximum DOEV Runner Potential"
       },
       "outcome": "ACTIVE",
-      "optionEntryLockedMark": 635.9
+      "optionEntryLockedMark": 635.9,
+      "reached_tp1": true
     },
     "ETH": null
   },
