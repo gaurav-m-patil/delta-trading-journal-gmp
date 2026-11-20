@@ -13,6 +13,12 @@ window.DeltaPaperFund = (function() {
     return localStorage.getItem(STORAGE_KEY_RISK_MODEL) || 'BALANCED'; // BALANCED (25%), MODERATE (50%), COMPOUND (100%)
   }
 
+  function getAllocPct(riskModel) {
+    if (riskModel === 'COMPOUND') return 1.0;
+    if (riskModel === 'MODERATE') return 0.50;
+    return 0.25; // BALANCED default 25% tranche
+  }
+
   function setRiskModel(model) {
     localStorage.setItem(STORAGE_KEY_RISK_MODEL, model);
     if (window.DeltaLiveChart && typeof DeltaLiveChart.refreshPaperUI === 'function') {
@@ -63,7 +69,13 @@ window.DeltaPaperFund = (function() {
     }
 
     // Sort chronologically (oldest to newest) to model realistic sequential capital progression
-    const chronoTrades = [...trades].sort((a, b) => a.time - b.time);
+    // If two trades trigger on the exact same 15m candle bar, sort BTC before ETH
+    const chronoTrades = [...trades].sort((a, b) => {
+      if (a.time !== b.time) return a.time - b.time;
+      if (a.asset === 'BTC') return -1;
+      if (b.asset === 'BTC') return 1;
+      return 0;
+    });
 
     let currentBalance = startingCapital;
     let peakEquity = startingCapital;
