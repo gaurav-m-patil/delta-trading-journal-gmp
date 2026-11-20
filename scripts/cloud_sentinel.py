@@ -1082,29 +1082,35 @@ def run_sentinel():
 
             sl_dist = active_trade.get("slDist") or abs(entry - sl) or (20 if asset == "ETH" else (10 if asset == "XAUT" else 400))
 
+            # Check intra-candle high/low excursions and live candle price
+            cur_high = candles[-1]["high"]
+            cur_low = candles[-1]["low"]
+
             if direction == "LONG":
-                favorable = current_price - entry
-                if favorable >= spot_dist or current_price >= tp:
+                favorable = max(cur_high - entry, current_price - entry)
+                adverse = max(entry - cur_low, entry - current_price)
+                if favorable >= spot_dist or cur_high >= tp:
                     is_win = True
                 elif not reached_tp1 and favorable >= tp1_dist:
                     is_tp1_derisk = True
                 elif reached_tp1:
                     retest_tolerance = entry - (sl_dist * 0.20)
-                    if current_price <= retest_tolerance or current_price <= sl:
+                    if current_price <= retest_tolerance or cur_low <= sl:
                         is_be_win = True
-                elif not reached_tp1 and current_price <= sl:
+                elif not reached_tp1 and (cur_low <= sl or current_price <= sl):
                     is_loss = True
             else: # SHORT
-                favorable = entry - current_price
-                if favorable >= spot_dist or current_price <= tp:
+                favorable = max(entry - cur_low, entry - current_price)
+                adverse = max(cur_high - entry, current_price - entry)
+                if favorable >= spot_dist or cur_low <= tp:
                     is_win = True
                 elif not reached_tp1 and favorable >= tp1_dist:
                     is_tp1_derisk = True
                 elif reached_tp1:
                     retest_tolerance = entry + (sl_dist * 0.20)
-                    if current_price >= retest_tolerance or current_price <= sl:
+                    if current_price >= retest_tolerance or cur_high >= sl:
                         is_be_win = True
-                elif not reached_tp1 and current_price <= sl:
+                elif not reached_tp1 and (cur_high >= sl or current_price >= sl):
                     is_loss = True
 
             entry_str = f"${entry:,.2f}" if asset in ["ETH", "XAUT"] else f"${entry:,.0f}"
