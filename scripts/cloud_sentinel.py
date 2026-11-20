@@ -296,6 +296,15 @@ ASSET_REGIME_CONFIGS = {
 }
 
 
+def format_asset_price(val, asset="BTC"):
+    """Formats numeric prices with appropriate decimals per asset (2 decimals for ETH/XAUT, 0 for BTC)."""
+    if val is None:
+        return "$0"
+    if asset in ["ETH", "XAUT"]:
+        return f"${val:,.2f}"
+    return f"${val:,.0f}"
+
+
 def fetch_asset_candles(asset="BTC"):
     """
     Fetches recent 15m candles from Delta Exchange India (Primary),
@@ -783,7 +792,7 @@ def evaluate_smc_setup(candles, htf_trend=None, asset="BTC"):
                 "rvol": rvol,
                 "rationale": {
                     "pattern": "Bullish Lower Wick Absorption",
-                    "levelTested": f"Support Liquidity Sweep (${sl_price:,.2f if asset in ['ETH', 'XAUT'] else sl_price:,.0f})",
+                    "levelTested": f"Support Liquidity Sweep ({format_asset_price(sl_price, asset)})",
                     "confirmation": f"Strong green close back above swing floor with {rvol}x RVOL",
                     "absorption": abs_desc
                 }
@@ -816,7 +825,7 @@ def evaluate_smc_setup(candles, htf_trend=None, asset="BTC"):
                     "rvol": rvol,
                     "rationale": {
                         "pattern": "Bearish Upper Wick Rejection",
-                        "levelTested": f"Resistance Liquidity Sweep (${sh_price:,.2f if asset in ['ETH', 'XAUT'] else sh_price:,.0f})",
+                        "levelTested": f"Resistance Liquidity Sweep ({format_asset_price(sh_price, asset)})",
                         "confirmation": f"Sellers rejecting highs with {rvol}x RVOL absorption",
                         "absorption": abs_desc
                     }
@@ -853,7 +862,7 @@ def evaluate_smc_setup(candles, htf_trend=None, asset="BTC"):
                         "rvol": rvol,
                         "rationale": {
                             "pattern": "Imbalance Void Mitigation",
-                            "levelTested": f"FVG Equilibrium (${fvg_mid:,.2f if asset in ['ETH', 'XAUT'] else fvg_mid:,.0f})",
+                            "levelTested": f"FVG Equilibrium ({format_asset_price(fvg_mid, asset)})",
                             "confirmation": f"Price tapped institutional imbalance and bounced with {rvol}x RVOL"
                         }
                     }
@@ -881,7 +890,7 @@ def evaluate_smc_setup(candles, htf_trend=None, asset="BTC"):
                         "rvol": rvol,
                         "rationale": {
                             "pattern": "Imbalance Void Mitigation",
-                            "levelTested": f"FVG Equilibrium (${fvg_mid:,.2f if asset in ['ETH', 'XAUT'] else fvg_mid:,.0f})",
+                            "levelTested": f"FVG Equilibrium ({format_asset_price(fvg_mid, asset)})",
                             "confirmation": f"Price filled institutional imbalance and rejected with {rvol}x RVOL"
                         }
                     }
@@ -910,7 +919,7 @@ def evaluate_smc_setup(candles, htf_trend=None, asset="BTC"):
                 "rvol": rvol,
                 "rationale": {
                     "pattern": "Trend Continuation Breakdown",
-                    "levelTested": f"Key Structure Floor (${key_low:,.2f if asset in ['ETH', 'XAUT'] else key_low:,.0f})",
+                    "levelTested": f"Key Structure Floor ({format_asset_price(key_low, asset)})",
                     "confirmation": f"Aggressive institutional selling breaking prior structure with {rvol}x RVOL"
                 }
             }
