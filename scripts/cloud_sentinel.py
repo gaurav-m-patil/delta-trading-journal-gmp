@@ -1078,10 +1078,12 @@ def run_sentinel():
             is_est = bool(active_trade.get("skipped") or active_trade.get("isEstimation"))
 
             reached_tp1 = active_trade.get("reached_tp1", False)
+            locked_tier2 = active_trade.get("locked_tier2", False)
             spot_dist = abs(tp - entry)
             tp1_dist = round(spot_dist * 0.45, 2 if asset in ["ETH", "XAUT"] else 0)
 
             is_tp1_derisk = False
+            is_tier2_lock = False
             is_win = False
             is_be_win = False
             is_loss = False
@@ -1090,6 +1092,9 @@ def run_sentinel():
             initial_sl = active_trade.get("initial_sl") or sl
             sl_dist = active_trade.get("slDist") or abs(entry - initial_sl) or (20 if asset == "ETH" else (10 if asset == "XAUT" else 400))
 
+            # Current active trailing stop level (defaults to breakeven entry if TP1 reached)
+            trailed_stop = active_trade.get("trailed_stop", entry if reached_tp1 else sl)
+
             # Check intra-candle high/low excursions and live candle price
             cur_high = candles[-1]["high"]
             cur_low = candles[-1]["low"]
@@ -1097,29 +1102,57 @@ def run_sentinel():
             if direction == "LONG":
                 favorable = max(cur_high - entry, current_price - entry)
                 adverse = max(entry - cur_low, entry - current_price)
-                if favorable >= spot_dist or cur_high >= tp:
-                    is_win = True
-                elif not reached_tp1 and favorable >= tp1_dist:
-                    is_tp1_derisk = True
-                elif reached_tp1:
-                    retest_tolerance = entry - (sl_dist * 0.20)
-                    if current_price <= retest_tolerance or cur_low <= initial_sl:
-                        is_be_win = True
-                elif not reached_tp1 and (cur_low <= sl or current_price <= sl):
-                    is_loss = True
             else: # SHORT
                 favorable = max(entry - cur_low, entry - current_price)
                 adverse = max(cur_high - entry, current_price - entry)
-                if favorable >= spot_dist or cur_low <= tp:
-                    is_win = True
-                elif not reached_tp1 and favorable >= tp1_dist:
-                    is_tp1_derisk = True
-                elif reached_tp1:
-                    retest_tolerance = entry + (sl_dist * 0.20)
-                    if current_price >= retest_tolerance or cur_high >= initial_sl:
-                        is_be_win = True
-                elif not reached_tp1 and (cur_high >= sl or current_price >= sl):
-                    is_loss = True
+
+            progress_pct = favorable / max(1.0, spot_dist)
+
+            # 1. Full TP2 Win Evaluation
+            if favorable >= spot_dist or (cur_high >= tp if direction == "LONG" else cur_low <= tp):
+                is_win = True
+
+            # 2. TP1 Derisk Evaluation (45% expansion)
+            elif not reached_tp1 and favorable >= tp1_dist:
+                is_tp1_derisk = True
+
+            # 3. Method 3: Milestone Tier 2 Profit Lock (>= 70% expansion reached)
+            elif reached_tp1 and progress_pct >= 0.70 and not locked_tier2:
+                is_tier2_lock = True
+
+            # 4. Trailing Stop Management & Invalidation Check
+            if not is_win and not is_tp1_derisk:
+                if not reached_tp1:
+                    # Pre-TP1: Invalidation strictly at hard structural SL
+                    if direction == "LONG" and (cur_low <= sl or current_price <= sl):
+                        is_loss = True
+                    elif direction == "SHORT" and (cur_high >= sl or current_price >= sl):
+                        is_loss = True
+                else:
+                    # Post-TP1: Dynamic Structure Trailing Stop
+                    if locked_tier2 and len(candles) >= 3:
+                        if direction == "LONG":
+                            # Trail behind structural low of previous 2 closed candles
+                            prev_structural_low = min(candles[-2]["low"], candles[-3]["low"])
+                            if prev_structural_low > trailed_stop:
+                                trailed_stop = round(prev_structural_low, 2 if asset in ["ETH", "XAUT"] else 0)
+                                active_trade["trailed_stop"] = trailed_stop
+                        else:
+                            # Trail above structural high of previous 2 closed candles
+                            prev_structural_high = max(candles[-2]["high"], candles[-3]["high"])
+                            if prev_structural_high < trailed_stop:
+                                trailed_stop = round(prev_structural_high, 2 if asset in ["ETH", "XAUT"] else 0)
+                                active_trade["trailed_stop"] = trailed_stop
+
+                    # Post-TP1 Trailing Exit Evaluation
+                    if direction == "LONG":
+                        retest_tolerance = trailed_stop - (sl_dist * 0.10)
+                        if current_price <= retest_tolerance or cur_low <= initial_sl:
+                            is_be_win = True
+                    else:
+                        retest_tolerance = trailed_stop + (sl_dist * 0.10)
+                        if current_price >= retest_tolerance or cur_high >= initial_sl:
+                            is_be_win = True
 
             entry_str = f"${entry:,.2f}" if asset in ["ETH", "XAUT"] else f"${entry:,.0f}"
             cur_str = f"${current_price:,.2f}" if asset in ["ETH", "XAUT"] else f"${current_price:,.0f}"
@@ -1128,6 +1161,7 @@ def run_sentinel():
             if is_tp1_derisk:
                 active_trade["reached_tp1"] = True
                 active_trade["sl"] = entry # Breakeven
+                active_trade["trailed_stop"] = entry
                 tp1_pct_str = active_trade.get("option", {}).get("tp1_pct", "+50.0%")
                 est_prefix = "🛡️ <b>[ESTIMATION]</b> " if is_est else ""
                 tp1_msg = f"""{est_prefix}🎯 <b>TARGET 1 HIT ({tp1_pct_str} DERISK) · {asset}</b>
@@ -1142,6 +1176,50 @@ def run_sentinel():
 ⏰ <i>{get_now_ist_str()}</i>
 🔗 <a href="https://delta-trading-journal-gmp.vercel.app/chart.html">Open Live Chart</a>"""
                 send_telegram_message(bot_token, chat_id, tp1_msg)
+                sync_trade_to_firestore(active_trade)
+                active_trades[asset] = active_trade
+                state["active_trades"] = active_trades
+                if asset == "BTC":
+                    state["active_trade"] = active_trade
+                save_sentinel_state(state)
+
+            elif is_tier2_lock:
+                active_trade["locked_tier2"] = True
+                # Minimum guaranteed profit floor on spot
+                if direction == "LONG":
+                    profit_floor = round(entry + tp1_dist, 2 if asset in ["ETH", "XAUT"] else 0)
+                    trailed_stop = max(active_trade.get("trailed_stop", entry), profit_floor)
+                else:
+                    profit_floor = round(entry - tp1_dist, 2 if asset in ["ETH", "XAUT"] else 0)
+                    trailed_stop = min(active_trade.get("trailed_stop", entry), profit_floor)
+
+                # If candle structure allows even tighter trail
+                if len(candles) >= 3:
+                    if direction == "LONG":
+                        prev_low = min(candles[-2]["low"], candles[-3]["low"])
+                        if prev_low > trailed_stop:
+                            trailed_stop = round(prev_low, 2 if asset in ["ETH", "XAUT"] else 0)
+                    else:
+                        prev_high = max(candles[-2]["high"], candles[-3]["high"])
+                        if prev_high < trailed_stop:
+                            trailed_stop = round(prev_high, 2 if asset in ["ETH", "XAUT"] else 0)
+
+                active_trade["trailed_stop"] = trailed_stop
+                active_trade["sl"] = trailed_stop
+                stop_str = f"${trailed_stop:,.2f}" if asset in ["ETH", "XAUT"] else f"${trailed_stop:,.0f}"
+
+                tier2_msg = f"""🔒 <b>PROFIT RATCHET ACTIVATED (75% TARGET REACHED) · {asset}</b>
+🏷️ <code>{contract}</code>
+
+💎 <b>CAPITAL & GAIN PRESERVATION LOCK</b>
+• Position Expansion: <b>{progress_pct * 100:.1f}% to Full Target</b>
+• Live Spot: <b>{cur_str}</b> (Entry: {entry_str})
+• Runner Stop Locked: <b>{stop_str} (+100.0% Minimum Floor)</b>
+
+🛡️ <i>Runner will NEVER exit at breakeven. Dynamic structure trailing behind 15m candles to capture maximum expansion!</i>
+⏰ <i>{get_now_ist_str()}</i>
+🔗 <a href="https://delta-trading-journal-gmp.vercel.app/chart.html">Open Live Chart</a>"""
+                send_telegram_message(bot_token, chat_id, tier2_msg)
                 sync_trade_to_firestore(active_trade)
                 active_trades[asset] = active_trade
                 state["active_trades"] = active_trades
@@ -1205,26 +1283,36 @@ def run_sentinel():
             elif is_be_win:
                 if not is_est:
                     daily_counts["wins"] += 1
-                sell_p = round(buy_p * 1.25, 1)
+                
+                # If Tier 2 profit lock was engaged, realized return is at least +75% blended (+50% TP1 + +100% runner)
+                if locked_tier2:
+                    sell_p = round(buy_p * 1.75, 1) # 50% at 1.5x + 50% at 2.0x = 1.75x (+75% Net)
+                    pnl_label = "+75.0% NET PROFIT"
+                    exit_reason_text = "50% booked at TP1 (+50%); remaining 50% exited at Tier-2 Ratchet Stop (+100%)"
+                else:
+                    sell_p = round(buy_p * 1.25, 1) # 50% at 1.5x + 50% at BE = 1.25x (+25% Net)
+                    pnl_label = "+25.0% NET PROFIT"
+                    exit_reason_text = "Scalp booked at TP1; remaining position exited at Breakeven"
 
                 if is_est:
-                    msg = f"""🛡️ <b>ESTIMATION TRAILED STOP BREAKEVEN (+25.0%) · {asset}</b>
+                    msg = f"""🛡️ <b>ESTIMATION TRAILED STOP EXIT ({pnl_label}) · {asset}</b>
 🏷️ <code>{contract}</code>
 
 💰 <b>THEORETICAL RETURN</b>
-• Net Realization: <b>+25.0% Net Profit</b> (50% booked at TP1, 50% at BE)
-• {asset} Spot: Returned to entry {entry_str} after TP1
+• Net Realization: <b>{pnl_label}</b>
+• Execution: {exit_reason_text}
+• {asset} Spot: Exited at {cur_str}
 
 ⏰ <i>{get_now_ist_str()}</i>
 🔗 <a href="https://delta-trading-journal-gmp.vercel.app/chart.html">Open Live Chart</a>"""
                 else:
-                    msg = f"""🛡️ <b>TRAILED STOP BREAKEVEN HIT (+25.0% NET PROFIT) · {asset}</b>
+                    msg = f"""🛡️ <b>TRAILED STOP PROFIT HIT ({pnl_label}) · {asset}</b>
 🏷️ <code>{contract}</code>
 
 💰 <b>REALIZED RETURN</b>
-• Entry: ${buy_p:.1f} ➔ <b>Net Exit: ${sell_p:.1f} (+25.0%)</b>
-• Scalp booked at TP1; remaining position exited at Breakeven
-• {asset} Spot: Returned to entry {entry_str} after booking TP1
+• Entry: ${buy_p:.1f} ➔ <b>Net Exit: ${sell_p:.1f} ({pnl_label})</b>
+• Execution: {exit_reason_text}
+• {asset} Spot: Exited at {cur_str} (Entry: {entry_str})
 
 📊 <b>TODAY'S SCORECARD</b>
 • Record: <b>{daily_counts['wins']}W - {daily_counts['losses']}L</b>
