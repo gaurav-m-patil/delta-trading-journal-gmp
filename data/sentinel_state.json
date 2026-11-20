@@ -5,7 +5,7 @@
   "daily_counts": {
     "date": "2026-11-20",
     "trades_given": 2,
-    "wins": 0,
+    "wins": 1,
     "losses": 1
   },
   "telegram_handshake_sent": true,
@@ -13,63 +13,12 @@
   "last_trade_direction": "SHORT",
   "active_trades": {
     "BTC": null,
-    "ETH": {
-      "id": "cloud_eth_bos_down_1795186800",
-      "name": "ETH Bearish Break of Structure (BOS)",
-      "asset": "ETH",
-      "direction": "SHORT",
-      "time": 1795186800,
-      "entry": 1715.2,
-      "tp": 1643.04,
-      "sl": 1715.2,
-      "rr": "1:1.7",
-      "rsi": 36.6,
-      "rvol": 2.5,
-      "rationale": {
-        "pattern": "Trend Continuation Breakdown",
-        "levelTested": "Key Structure Floor ($1,727.00)",
-        "confirmation": "Aggressive institutional selling breaking prior structure with 2.5x RVOL",
-        "htfAlignment": "\ud83d\udd34 BEARISH CONFLUENCE (1H ETH Macro Downtrend)",
-        "absorption": "Institutional Flow (2.5x RVOL)"
-      },
-      "htf_trend": {
-        "trend": "BEARISH",
-        "label": "\ud83d\udd34 BEARISH CONFLUENCE (1H ETH Macro Downtrend)",
-        "cur_price": 1705.2,
-        "ema20": 1748.54,
-        "ema50": 1766.06
-      },
-      "option": {
-        "symbol": "P-ETH-1710-211126",
-        "strike": 1710.0,
-        "strike_tier": "Exact ATM (Delta ~0.50)",
-        "mark_price": 21.8,
-        "buy_zone": "$21.8 - $21.8",
-        "tp1_price": 46.7,
-        "tp1_pct": "+114.0%",
-        "target_price": 67.0,
-        "target_pct": "+207.3%",
-        "stop_price": 15.3,
-        "eff_delta": 0.63,
-        "iv_rating": "ELEVATED (High IV - Scalp Focus)",
-        "iv_badge": "\ud83d\udd34 ELEVATED"
-      },
-      "session": {
-        "name": "New York Session (19:00 - 02:30 IST)",
-        "code": "NEW_YORK",
-        "flag": "\ud83d\udd25",
-        "volatility": "Peak Liquidity (Gamma Spikes & Momentum)",
-        "tp_bias": "Maximum DOEV Runner Potential"
-      },
-      "outcome": "ACTIVE",
-      "optionEntryLockedMark": 21.8,
-      "reached_tp1": true
-    }
+    "ETH": null
   },
   "last_alerted_trade_id_BTC": "cloud_btc_bos_down_1795186800",
   "last_trade_time_BTC": 1795188033,
   "last_trade_direction_BTC": "SHORT",
   "last_alerted_trade_id_ETH": "cloud_eth_bos_down_1795186800",
-  "last_trade_time_ETH": 1795187737,
+  "last_trade_time_ETH": 1795188327,
   "last_trade_direction_ETH": "SHORT"
 }
