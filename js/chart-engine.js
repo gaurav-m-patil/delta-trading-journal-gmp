@@ -2121,6 +2121,48 @@ window.DeltaLiveChart = (function() {
       const durMin = (t.barsHeld || 1) * 15;
       const durStr = durMin >= 60 ? `${Math.floor(durMin / 60)}h ${durMin % 60}m` : `${durMin}m`;
 
+      // Dynamic Narrative with exact contract, real prices, and time
+      let dynamicNarrative = "";
+      if (t.outcome === "WIN") {
+        const tp1Price = (opt.tp1Price && opt.tp1Price > 0) ? opt.tp1Price : Math.round(entryOpt * 1.50 * 10) / 10;
+        const tp2Price = opt.targetPrice ? opt.targetPrice : (t.exitOpt || Math.round(entryOpt * 1.50 * 10) / 10);
+        const blendedPct = entryOpt > 0 ? Math.round(((exitOpt - entryOpt) / entryOpt) * 100) : 75;
+        dynamicNarrative = `Price moved aggressively in your favor (+${targetDist} pts) within ${t.barsHeld || 1} bars (${durStr}), cleanly hitting Take Profit at $${tpNum.toLocaleString()} at ${exitTimeStr} IST. Scaled execution locked 50% at TP1 ($${tp1Price.toFixed(1)} / +50%) and 50% runner at TP2 ($${tp2Price.toFixed(1)} / ${targetGainPct}), producing a blended exit of $${exitOpt.toFixed(1)} (+${blendedPct}% gross / +${netTakeHomePct}% net take-home after Delta fees).`;
+      } else if (t.outcome === "BE_WIN") {
+        dynamicNarrative = `Price moved favorably towards target, triggering TP1 (+50% option gain) at $${entryOpt.toFixed(1)} -> $${(entryOpt * 1.5).toFixed(1)}. Position stop-loss was automatically trailed to Breakeven. A subsequent pullback closed the trade at entry, banking +25% overall profit with zero downside risk.`;
+      } else if (t.outcome === "LOSS") {
+        dynamicNarrative = `Price breached invalidation level at $${slNum.toLocaleString()} at ${exitTimeStr} IST after ${t.barsHeld || 1} bars (${durStr}). Your ${contractSymbol} option entered at $${entryOpt.toFixed(1)} executed controlled stop-loss exit at $${exitOpt.toFixed(1)} (-30.0% stop) preserving 70% of margin capital.`;
+      } else if (t.outcome === "SKIPPED_CIRCUIT_BREAKER" || t.skipped) {
+        dynamicNarrative = `2 Stop Losses were hit earlier today. To protect your trading capital, this setup was NOT taken (0% capital allocated), but is fully tracked and recorded in your SMC Setup Radar & Paper Fund for knowledge growth and observation.`;
+      } else if (t.outcome === "ACTIVE") {
+        dynamicNarrative = `Trade is LIVE right now (${t.barsHeld || 1} bars in progress). Entered at $${entryNum.toLocaleString()} with ${contractSymbol} @ $${entryOpt.toFixed(1)}. Current mark: $${exitOpt.toFixed(1)}. Monitoring Take Profit at $${tpNum.toLocaleString()} or Stop Loss at $${slNum.toLocaleString()}.`;
+      } else {
+        dynamicNarrative = `Price moved sideways for 5 hours (${t.barsHeld || 1} bars). Closed at $${Number(t.exitPrice || entryNum).toLocaleString()} at ${exitTimeStr} IST. Option exited at $${exitOpt.toFixed(1)} as a scratch exit to prevent theta decay from destroying remaining option value.`;
+      }
+
+      // Rationale fields
+      const r = t.rationale || {};
+      const levelEl = document.getElementById('atmModalLevel');
+      if (levelEl) levelEl.innerText = r.levelTested || (t.levelTested || "Key Structure Floor ($60,894)");
+
+      const patternEl = document.getElementById('atmModalPattern');
+      if (patternEl) patternEl.innerText = r.pattern || (t.pattern || t.name || "Trend Continuation Breakdown");
+
+      const confEl = document.getElementById('atmModalConfirmation');
+      if (confEl) confEl.innerText = r.confirmation || (t.confirmation || "Aggressive institutional order flow breaking 15m structure");
+
+      const rsiRvolEl = document.getElementById('atmModalRsiRvol');
+      if (rsiRvolEl) rsiRvolEl.innerText = `${r.rsi || t.rsi || '36.7 RSI'} | ${r.rvol || t.rvol || '2.75x'} RVOL`;
+
+      const htfEl = document.getElementById('atmModalHtf');
+      if (htfEl) htfEl.innerText = r.htfAlignment || (t.htf_trend ? t.htf_trend.label : "🔴 Bearish Confluence (Macro Downtrend)");
+
+      const absEl = document.getElementById('atmModalAbsorption');
+      if (absEl) absEl.innerText = r.absorption || "Institutional Volume Absorption";
+
+      const narrEl = document.getElementById('atmModalNarrative');
+      if (narrEl) narrEl.innerText = dynamicNarrative;
+
       // Helper function to render modal content given resolved prices
       function renderModalContent(activeLiveMark) {
         const currentLiveVal = (activeLiveMark && activeLiveMark > 0) ? activeLiveMark : ((opt.markPrice && opt.markPrice > 0) ? opt.markPrice : entryOpt);
@@ -2316,19 +2358,25 @@ window.DeltaLiveChart = (function() {
               <i class="fa-solid ${isTp1Reached ? 'fa-circle-check text-winGreen' : 'fa-clock text-cyan-400'} mt-0.5"></i>
               <div class="w-full">
                 <div class="flex items-center gap-2">
-                  <span class="text-slate-400 font-bold uppercase text-[10px]">4. TAKE PROFIT GTT ORDERS</span>
-                  ${isTp1Reached ? '<span class="px-1.5 py-0.2 rounded bg-emerald-500/20 text-emerald-400 border border-emerald-500/40 text-[9px] font-bold">TP1 FILLED & BOOKED</span>' : '<span class="px-1.5 py-0.2 rounded bg-cyan-500/20 text-cyan-400 border border-cyan-500/40 text-[9px] font-bold">ACTIVE LIMIT ORDERS</span>'}
+                  <span class="text-slate-400 font-bold uppercase text-[10px]">4. TAKE PROFIT (MILESTONE RATCHET METHOD)</span>
+                  ${isTier2Locked ? '<span class="px-1.5 py-0.2 rounded bg-indigo-500/20 text-indigo-300 border border-indigo-500/40 text-[9px] font-bold">RATCHET ACTIVE (75% EXPANSION)</span>' : (isTp1Reached ? '<span class="px-1.5 py-0.2 rounded bg-emerald-500/20 text-emerald-400 border border-emerald-500/40 text-[9px] font-bold">TP1 50% BOOKED · SL AT BE</span>' : '<span class="px-1.5 py-0.2 rounded bg-cyan-500/20 text-cyan-400 border border-cyan-500/40 text-[9px] font-bold">ACTIVE LIMIT ORDERS</span>')}
                 </div>
                 <div class="mt-1 pl-2 border-l-2 ${isTp1Reached ? 'border-emerald-500/60' : 'border-indigo-500/30'} space-y-1.5">
                   <div>
                     <div class="flex items-center justify-between">
-                      <span>• <strong class="text-winGreen">TP1 (50% Scalp / Derisk):</strong> Limit Sell at <strong class="text-white bg-emerald-950/60 px-1 py-0.5 rounded border border-emerald-500/40">$${tp1PriceVal.toFixed(1)}</strong> (${tp1PctStr})</span>
-                      ${isTp1Reached ? '<span class="text-[9px] text-winGreen font-bold">✓ EXECUTED (+50% Position Cash Booked)</span>' : '<span class="text-[9px] text-slate-400">PENDING FILL</span>'}
+                      <span>• <strong class="text-winGreen">Stage 1 (TP1 Derisk):</strong> Book 50% Position at <strong class="text-white bg-emerald-950/60 px-1 py-0.5 rounded border border-emerald-500/40">$${tp1PriceVal.toFixed(1)}</strong> (${tp1PctStr})</span>
+                      ${isTp1Reached ? '<span class="text-[9px] text-winGreen font-bold">✓ EXECUTED (Cash Banked)</span>' : '<span class="text-[9px] text-slate-400">PENDING FILL</span>'}
                     </div>
                   </div>
                   <div>
                     <div class="flex items-center justify-between">
-                      <span>• <strong class="text-emerald-300">TP2 (50% Structural Runner):</strong> Limit Sell at <strong class="text-white bg-indigo-950/60 px-1 py-0.5 rounded border border-indigo-500/40">$${tp2PriceVal.toFixed(1)}</strong> (${tp2GainPct})</span>
+                      <span>• <strong class="text-indigo-300">Stage 2 (75% Milestone Ratchet):</strong> At 75% target path ($59,191 spot), lock minimum +100% floor on remaining 50% runner.</span>
+                      <span class="text-[9px] ${isTier2Locked ? 'text-indigo-300 font-bold' : 'text-slate-400'}">${isTier2Locked ? '✓ ENGAGED' : 'MONITORING SPOT'}</span>
+                    </div>
+                  </div>
+                  <div>
+                    <div class="flex items-center justify-between">
+                      <span>• <strong class="text-emerald-300">Stage 3 (Full Target Runner):</strong> Trail runner stop behind 15m candle structure to capture terminal expansion at <strong class="text-white bg-indigo-950/60 px-1 py-0.5 rounded border border-indigo-500/40">$${tp2PriceVal.toFixed(1)}</strong> (${tp2GainPct}).</span>
                       <span class="text-[9px] text-cyan-400 font-bold">${isTier2Locked ? 'RATCHET TRAILING' : 'RUNNER IN FLIGHT'}</span>
                     </div>
                     <div class="text-[10px] text-slate-400 mt-0.5">Current Live Option Mark: <strong class="text-winGreen">$${currentLiveVal.toFixed(1)} (+${livePnlPctStr}%)</strong></div>

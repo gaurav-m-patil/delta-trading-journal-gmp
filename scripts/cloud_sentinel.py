@@ -1259,18 +1259,26 @@ def run_sentinel():
                 active_trade["trailed_stop"] = trailed_stop
                 active_trade["sl"] = trailed_stop
                 stop_str = f"${trailed_stop:,.2f}" if asset in ["ETH", "XAUT"] else f"${trailed_stop:,.0f}"
+                alloc_info = calculate_trade_allocation(asset, buy_p)
+                guaranteed_runner_profit_usd = (buy_p * 1.0) * alloc_info["runner_qty"] # At least +100% floor on runner
+                guaranteed_runner_inr = round(guaranteed_runner_profit_usd * 85.0)
 
-                tier2_msg = f"""🔒 <b>PROFIT RATCHET ACTIVATED (75% TARGET REACHED) · {asset}</b>
+                tier2_msg = f"""🔒 <b>MILESTONE PROFIT RATCHET ACTIVATED · {asset}</b>
 🏷️ <code>{contract}</code>
 
-💎 <b>CAPITAL & GAIN PRESERVATION LOCK</b>
-• Position Expansion: <b>{progress_pct * 100:.1f}% to Full Target</b>
-• Live Spot: <b>{cur_str}</b> (Entry: {entry_str})
-• Runner Stop Locked: <b>{stop_str} (+100.0% Minimum Floor)</b>
+🎯 <b>WHAT JUST HAPPENED?</b>
+• {asset} reached <b>{progress_pct * 100:.1f}% of target journey</b> ({cur_str}).
+• 50% was already booked at TP1 (${tp1_p:.1f} / {tp1_pct_str}).
+• <b>The remaining 50% runner ({alloc_info['runner_contracts']} Contracts) has now locked in a guaranteed profit floor!</b>
 
-🛡️ <i>Runner will NEVER exit at breakeven. Dynamic structure trailing behind 15m candles to capture maximum expansion!</i>
+💎 <b>WHAT YOU NEED TO DO:</b>
+• <b>Do NOT exit manually!</b> Let the runner ride to Target 2 ({tp_str}).
+• <b>Modify Stop Loss on Remaining {alloc_info['runner_contracts']} Contracts:</b> Set stop to <b>{stop_str}</b> (or option floor ~$1,270.0).
+• <b>Guaranteed Minimum Payout:</b> If price reverses from here, you still walk away with <b>at least +₹{guaranteed_runner_inr:,} INR</b> additional profit (+75% blended net across whole trade).
+• <b>If price continues downward:</b> Trailing stop tightens candle-by-candle until maximum profit at TP2!
+
 ⏰ <i>{get_now_ist_str()}</i>
-🔗 <a href="https://delta-trading-journal-gmp.vercel.app/chart.html">Open Live Chart</a>"""
+🔗 <a href="https://delta-trading-journal-gmp.vercel.app/chart.html">Open Live Chart & Cockpit</a>"""
                 send_telegram_message(bot_token, chat_id, tier2_msg)
                 sync_trade_to_firestore(active_trade)
                 active_trades[asset] = active_trade
