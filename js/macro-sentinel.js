@@ -263,13 +263,14 @@ ${catalyst.optionsAdvisory}
       if (!el) return;
 
       if (!active) {
+        // In standby/normal flow, render an ultra-compact single line banner
         el.innerHTML = `
-          <div class="px-3.5 py-2 rounded-xl bg-cardDark border border-borderDark/60 flex items-center justify-between text-xs font-mono text-slate-400">
-            <span class="flex items-center gap-2">
-              <span class="h-2 w-2 rounded-full bg-emerald-400"></span>
-              <span>Macro Sentinel: <strong>Normal Market Flow</strong> (No black swans or emergency CPI/Fed disruptions in last 18h)</span>
+          <div class="px-2.5 py-1 sm:px-3 sm:py-1.5 rounded-xl bg-cardDark/60 border border-borderDark/40 flex items-center justify-between text-[10px] sm:text-xs font-mono text-slate-400">
+            <span class="flex items-center gap-1.5 sm:gap-2 truncate">
+              <span class="h-1.5 w-1.5 rounded-full bg-emerald-400 shrink-0"></span>
+              <span class="truncate">Macro: <strong class="text-slate-300">Normal Flow</strong> (No black swan / emergency Fed disruptions)</span>
             </span>
-            <span class="text-[10px] text-slate-500 font-sans hidden sm:inline">Scanner Active</span>
+            <span class="text-[9px] text-slate-500 font-sans hidden sm:inline shrink-0">18h Clear</span>
           </div>
         `;
         return;

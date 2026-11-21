@@ -1600,17 +1600,22 @@ window.DeltaLiveChart = (function() {
 
     if (!trade) {
       cockpit.classList.add('opacity-90');
+      // Collapse body when in standby so chart remains visible
+      const bodyEl = document.getElementById('ptCockpitBody');
+      if (bodyEl && !bodyEl.dataset.userOpened) {
+        bodyEl.classList.add('hidden');
+      }
       const dirBadge = document.getElementById('ptDirectionBadge');
       if (dirBadge) {
-        dirBadge.className = "h-8 w-8 sm:h-9 sm:w-9 rounded-xl bg-indigo-500/20 text-indigo-400 flex items-center justify-center font-bold text-sm sm:text-base shrink-0";
+        dirBadge.className = "h-6 w-6 sm:h-8 sm:w-8 rounded-lg bg-indigo-500/20 text-indigo-400 flex items-center justify-center font-bold text-xs sm:text-sm shrink-0";
         dirBadge.innerHTML = `<i class="fa-solid fa-radar animate-pulse"></i>`;
       }
       const nameEl = document.getElementById('ptSetupName');
       if (nameEl) nameEl.innerText = "24/7 Cloud Sentinel Radar";
       const outcomeEl = document.getElementById('ptOutcomeBadge');
       if (outcomeEl) {
-        outcomeEl.className = "text-[10px] font-bold font-mono px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 flex items-center gap-1.5";
-        outcomeEl.innerHTML = `<span class="h-2 w-2 rounded-full bg-emerald-400 animate-ping"></span> STANDBY · SCANNING 15M ORDER FLOW`;
+        outcomeEl.className = "text-[9px] sm:text-[10px] font-bold font-mono px-1.5 py-0.2 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 shrink-0";
+        outcomeEl.innerHTML = `<span class="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-ping inline-block mr-0.5"></span> SCANNING 15M`;
       }
       const latestC = (candleData && candleData.length > 0) ? candleData[candleData.length - 1] : null;
       const spotStr = latestC ? `$${latestC.close.toLocaleString()} (Spot)` : "Awaiting Setup";
@@ -1647,6 +1652,11 @@ window.DeltaLiveChart = (function() {
       return;
     }
     cockpit.classList.remove('opacity-70');
+    // Auto-expand cockpit body when an active/historical trade is selected
+    const bodyEl = document.getElementById('ptCockpitBody');
+    if (bodyEl) {
+      bodyEl.classList.remove('hidden');
+    }
 
     const isCall = trade.direction === "LONG";
     const isWin = trade.outcome === "WIN";
@@ -2679,11 +2689,11 @@ Expected Profit: +50% Option Gross / +40% Net`;
             `;
           } else {
             signalBanner.innerHTML = `
-              <div class="p-2.5 rounded-xl bg-brandDark/40 border border-borderDark/60 flex items-center justify-between text-xs text-slate-400 font-mono">
-                <span class="flex items-center gap-2">
-                  <i class="fa-solid fa-radar text-indigo-400 animate-spin"></i> Scanner Active: Waiting for High-Conviction S/R Reversal Confirmation on ${activeTimeframe}...
+              <div class="px-2.5 py-1 sm:p-2 rounded-xl bg-brandDark/30 border border-borderDark/40 flex items-center justify-between text-[10px] sm:text-xs text-slate-400 font-mono">
+                <span class="flex items-center gap-1.5 truncate">
+                  <i class="fa-solid fa-radar text-indigo-400 animate-spin shrink-0"></i> <span class="truncate">Scanner Active: Waiting for 15m SMC S/R confirmation...</span>
                 </span>
-                <span class="text-[10px] text-emerald-400 font-bold hidden sm:inline">Calibrated: Real Delta India Options (DOEV Uncapped Potential)</span>
+                <span class="text-[9px] text-emerald-400 font-bold hidden sm:inline shrink-0">Delta India DOEV Calibrated</span>
               </div>
             `;
           }

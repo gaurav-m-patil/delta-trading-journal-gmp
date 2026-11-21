@@ -803,66 +803,73 @@
       </div>
 
       <!-- TradingView Position Tool Cockpit Box (Draws Target, SL, Entry & Real Delta Option) -->
-      <div id="tvPositionToolCockpit" class="p-2.5 sm:p-4 rounded-xl sm:rounded-2xl glass-cockpit shadow-2xl space-y-2 sm:space-y-3">
-        <!-- Top Row: Setup Name, Status Badge, and Playbook Trigger -->
-        <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-1.5 sm:gap-2 pb-2 sm:pb-2.5 border-b border-borderDark/60">
-          <div class="flex items-center gap-2 sm:gap-2.5">
-            <div id="ptDirectionBadge" class="h-7 w-7 sm:h-9 sm:w-9 rounded-lg sm:rounded-xl bg-indigo-500/20 text-indigo-400 flex items-center justify-center font-bold text-xs sm:text-base shrink-0">
+      <div id="tvPositionToolCockpit" class="p-2 sm:p-3.5 rounded-xl sm:rounded-2xl glass-cockpit shadow-lg space-y-2">
+        <!-- Top Row: Setup Name, Status Badge, Toggle Button & Playbook Trigger -->
+        <div class="flex items-center justify-between gap-1.5 pb-1.5 sm:pb-2 border-b border-borderDark/50">
+          <div class="flex items-center gap-1.5 sm:gap-2.5 min-w-0">
+            <div id="ptDirectionBadge" class="h-6 w-6 sm:h-8 sm:w-8 rounded-lg bg-indigo-500/20 text-indigo-400 flex items-center justify-center font-bold text-xs sm:text-sm shrink-0">
               <i class="fa-solid fa-radar animate-pulse"></i>
             </div>
-            <div>
-              <div class="flex flex-wrap items-center gap-1 sm:gap-2">
-                <span id="ptSetupName" class="text-xs sm:text-sm font-bold text-white">24/7 Cloud Sentinel Radar</span>
-                <span id="ptOutcomeBadge" class="text-[9px] sm:text-[10px] font-bold font-mono px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 flex items-center gap-1">
-                  <span class="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-ping"></span> SCANNING 15M
+            <div class="min-w-0">
+              <div class="flex items-center gap-1.5 truncate">
+                <span id="ptSetupName" class="text-xs sm:text-sm font-bold text-white truncate">24/7 Cloud Sentinel Radar</span>
+                <span id="ptOutcomeBadge" class="text-[9px] sm:text-[10px] font-bold font-mono px-1.5 py-0.2 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 shrink-0">
+                  <span class="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-ping inline-block mr-0.5"></span> SCANNING 15M
                 </span>
               </div>
             </div>
           </div>
-          <button onclick="DeltaLiveChart.openTradeDetailsModal()" class="w-full sm:w-auto text-[10px] sm:text-[11px] px-2.5 py-1 sm:px-3 sm:py-1.5 rounded-lg sm:rounded-xl bg-indigo-600/30 hover:bg-indigo-600 text-indigo-200 hover:text-white border border-indigo-500/40 font-mono font-bold transition-all flex items-center justify-center gap-1.5 shadow-sm">
-            <i class="fa-solid fa-brain text-indigo-400"></i> Trade Logic & Playbook <i class="fa-solid fa-chevron-right text-[9px] ml-0.5"></i>
-          </button>
+          
+          <div class="flex items-center gap-1 shrink-0">
+            <!-- Standby Collapse Toggle (Desktop & Mobile) -->
+            <button id="ptCockpitToggleBtn" onclick="const b = document.getElementById('ptCockpitBody'); b.classList.toggle('hidden'); this.querySelector('i').classList.toggle('rotate-180')" class="text-[10px] sm:text-[11px] px-2 py-1 rounded-lg bg-panelDark text-slate-300 border border-borderDark font-mono flex items-center gap-1 hover:text-white transition-all" title="Toggle Trigger Plan details">
+              <span class="hidden sm:inline">Plan</span> <i class="fa-solid fa-chevron-down transition-transform text-[9px]"></i>
+            </button>
+            <button onclick="DeltaLiveChart.openTradeDetailsModal()" class="text-[10px] sm:text-[11px] px-2.5 py-1 rounded-lg bg-indigo-600/30 hover:bg-indigo-600 text-indigo-200 hover:text-white border border-indigo-500/40 font-mono font-bold transition-all flex items-center gap-1">
+              <i class="fa-solid fa-brain text-indigo-400"></i> <span class="hidden sm:inline">Playbook</span> <i class="fa-solid fa-chevron-right text-[8px]"></i>
+            </button>
+          </div>
         </div>
 
-        <!-- 2-Column Responsive Execution Cards -->
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-2 sm:gap-3">
+        <!-- 2-Column Responsive Execution Cards (Hidden on Standby, Auto-Expanded when Trade Active) -->
+        <div id="ptCockpitBody" class="hidden sm:grid grid-cols-1 md:grid-cols-2 gap-2">
           <!-- Card 1: Underlying Spot Trigger Plan -->
-          <div class="bg-panelDark/60 border border-borderDark/70 rounded-lg sm:rounded-xl p-2 sm:p-3 space-y-1.5 sm:space-y-2">
+          <div class="bg-panelDark/60 border border-borderDark/70 rounded-lg p-2 space-y-1.5">
             <div class="flex justify-between items-center text-[9px] sm:text-[10px] uppercase tracking-wider text-slate-400 font-bold">
               <span class="flex items-center gap-1"><i class="fa-solid fa-crosshairs text-amber-400"></i> Spot Trigger Plan</span>
               <span class="font-mono text-slate-400">R:R <strong id="ptRR" class="text-indigo-300">1:2.0+</strong></span>
             </div>
-            <div class="grid grid-cols-3 gap-1.5 sm:gap-2 font-mono text-xs">
-              <div class="bg-brandDark/70 p-1.5 sm:p-2 rounded-md sm:rounded-lg border border-borderDark/50">
-                <span class="text-[8px] sm:text-[9px] uppercase tracking-wider text-slate-400 block font-sans">Entry</span>
+            <div class="grid grid-cols-3 gap-1.5 font-mono text-xs">
+              <div class="bg-brandDark/70 p-1.5 rounded-md border border-borderDark/50">
+                <span class="text-[8px] uppercase tracking-wider text-slate-400 block font-sans">Entry</span>
                 <span id="ptEntry" class="font-bold text-white text-[10px] sm:text-xs">Awaiting</span>
               </div>
-              <div class="bg-brandDark/70 p-1.5 sm:p-2 rounded-md sm:rounded-lg border border-borderDark/50">
-                <span class="text-[8px] sm:text-[9px] uppercase tracking-wider text-slate-400 block font-sans">Target (TP)</span>
+              <div class="bg-brandDark/70 p-1.5 rounded-md border border-borderDark/50">
+                <span class="text-[8px] uppercase tracking-wider text-slate-400 block font-sans">Target (TP)</span>
                 <span id="ptTp" class="font-bold text-winGreen text-[10px] sm:text-xs">Auto-TP</span>
               </div>
-              <div class="bg-brandDark/70 p-1.5 sm:p-2 rounded-md sm:rounded-lg border border-borderDark/50">
-                <span class="text-[8px] sm:text-[9px] uppercase tracking-wider text-slate-400 block font-sans">Stop (SL)</span>
+              <div class="bg-brandDark/70 p-1.5 rounded-md border border-borderDark/50">
+                <span class="text-[8px] uppercase tracking-wider text-slate-400 block font-sans">Stop (SL)</span>
                 <span id="ptSl" class="font-bold text-lossRed text-[10px] sm:text-xs">-30% Risk</span>
               </div>
             </div>
           </div>
 
           <!-- Card 2: Real Delta Exchange India Option Recommendation -->
-          <div class="bg-indigo-950/20 border border-indigo-500/30 rounded-lg sm:rounded-xl p-2 sm:p-3 space-y-1.5 sm:space-y-2">
+          <div class="bg-indigo-950/20 border border-indigo-500/30 rounded-lg p-2 space-y-1.5">
             <div class="flex justify-between items-center">
               <span class="text-[9px] sm:text-[10px] uppercase tracking-wider text-indigo-300 font-bold flex items-center gap-1">
                 <i class="fa-solid fa-bolt text-indigo-400"></i> Delta India Option
               </span>
-              <span id="ptDeltaLiveTag" class="text-[8px] sm:text-[9px] font-mono px-1.5 py-0.5 rounded bg-indigo-500/10 text-indigo-300 border border-indigo-500/30 font-bold">Sentinel Standby</span>
+              <span id="ptDeltaLiveTag" class="text-[8px] font-mono px-1.5 py-0.2 rounded bg-indigo-500/10 text-indigo-300 border border-indigo-500/30 font-bold">Sentinel Standby</span>
             </div>
             <div class="flex flex-row justify-between items-center gap-2 font-mono">
               <div class="truncate">
-                <span id="ptContractSymbol" class="text-[11px] sm:text-sm font-bold text-white tracking-wide block truncate">Daily ATM Contract (0-DTE)</span>
-                <span class="text-[9px] sm:text-[10px] text-slate-400 font-sans block truncate">Zone: <strong id="ptDeltaBuyZone" class="text-indigo-200 font-mono">Calculated on trigger</strong></span>
+                <span id="ptContractSymbol" class="text-[11px] sm:text-xs font-bold text-white tracking-wide block truncate">Daily ATM Contract (0-DTE)</span>
+                <span class="text-[9px] text-slate-400 font-sans block truncate">Zone: <strong id="ptDeltaBuyZone" class="text-indigo-200 font-mono">Calculated on trigger</strong></span>
               </div>
               <div class="flex flex-col items-end text-right shrink-0">
-                <div class="text-[9px] sm:text-[10px] text-slate-400">Mark: <strong id="ptDeltaMark" class="text-white font-mono">~$215</strong></div>
+                <div class="text-[9px] text-slate-400">Mark: <strong id="ptDeltaMark" class="text-white font-mono">~$215</strong></div>
                 <div class="text-[10px] sm:text-xs font-bold text-winGreen font-mono">Target: <strong id="ptDeltaTarget" class="text-winGreen">+65% to +150%</strong></div>
               </div>
             </div>
