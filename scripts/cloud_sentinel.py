@@ -780,6 +780,26 @@ def evaluate_smc_setup(candles, htf_trend=None, asset="BTC"):
         if is_sl_5 or is_sl_3:
             swing_lows.append({"index": i, "price": l, "time": candles[i]["time"], "is_major": is_sl_5})
 
+    # Compute Prior Day High (PDH) and Prior Day Low (PDL) aligned with Delta India's 05:30 IST session (00:00 UTC)
+    daily_sessions = {}
+    for c in candles:
+        sess_key = datetime.datetime.fromtimestamp(c["time"], tz=datetime.timezone.utc).strftime("%Y-%m-%d")
+        if sess_key not in daily_sessions:
+            daily_sessions[sess_key] = {"high": c["high"], "low": c["low"]}
+        else:
+            daily_sessions[sess_key]["high"] = max(daily_sessions[sess_key]["high"], c["high"])
+            daily_sessions[sess_key]["low"] = min(daily_sessions[sess_key]["low"], c["low"])
+    
+    sorted_sess_keys = sorted(daily_sessions.keys())
+    prior_day_levels = None
+    if len(sorted_sess_keys) >= 2:
+        prev_sess = daily_sessions[sorted_sess_keys[-2]]
+        prior_day_levels = {
+            "pdh": prev_sess["high"],
+            "pdl": prev_sess["low"],
+            "date": sorted_sess_keys[-2]
+        }
+
     last_closed = candles[-2] # Most recently completed closed candle
     cur_vol = last_closed["volume"]
     rvol = round(cur_vol / vol_sma, 2) if vol_sma > 0 else 1.0
@@ -975,6 +995,63 @@ def evaluate_smc_setup(candles, htf_trend=None, asset="BTC"):
                     "pattern": "Trend Continuation Breakdown",
                     "levelTested": f"Key Structure Floor ({format_asset_price(key_low, asset)})",
                     "confirmation": f"Aggressive institutional selling breaking prior structure with {rvol}x RVOL"
+                }
+            }
+
+    # Setup 5: Additive Prior Day Low (PDL) & Prior Day High (PDH) Liquidity Sweeps
+    if not trade and prior_day_levels:
+        pdl_val = prior_day_levels["pdl"]
+        pdh_val = prior_day_levels["pdh"]
+
+        # 5A. Bullish PDL Liquidity Sweep (CALL)
+        if low < pdl_val and close_p > pdl_val and (lower_wick / rng) >= 0.25 and close_p >= open_p and rvol >= (rvol_gate * 0.85):
+            risk = max(min_risk_pts, (close_p - low) + (atr14 * (atr_buffer_mult * 1.5)))
+            tp = round(close_p + (risk * 2.2), 2 if asset in ["ETH", "XAUT"] else 0)
+            sl = round(low - (atr14 * atr_buffer_mult), 2 if asset in ["ETH", "XAUT"] else 0)
+            rr = round((tp - close_p) / max(0.01, close_p - sl), 1)
+            trade = {
+                "id": f"cloud_{asset.lower()}_pdl_sweep_{last_closed['time']}",
+                "name": f"{asset} Prior Day Low (PDL) Liquidity Sweep",
+                "asset": asset,
+                "direction": "LONG",
+                "time": last_closed["time"],
+                "entry": round(close_p, 2 if asset in ["ETH", "XAUT"] else 0),
+                "tp": tp,
+                "sl": sl,
+                "rr": f"1:{rr}",
+                "rsi": rsi,
+                "rvol": rvol,
+                "rationale": {
+                    "pattern": "Prior Day Low Liquidity Sweep",
+                    "levelTested": f"PDL Floor ({format_asset_price(pdl_val, asset)})",
+                    "confirmation": f"Price swept yesterday's low ({prior_day_levels['date']}) and was absorbed with {rvol}x RVOL",
+                    "absorption": f"Institutional Absorption ({round((lower_wick/rng)*100)}% wick + {rvol}x RVOL)"
+                }
+            }
+
+        # 5B. Bearish PDH Liquidity Sweep (PUT)
+        elif high > pdh_val and close_p < pdh_val and (upper_wick / rng) >= 0.25 and close_p <= open_p and rvol >= (rvol_gate * 0.85):
+            risk = max(min_risk_pts, (high - close_p) + (atr14 * (atr_buffer_mult * 1.5)))
+            tp = round(close_p - (risk * 2.2), 2 if asset in ["ETH", "XAUT"] else 0)
+            sl = round(high + (atr14 * atr_buffer_mult), 2 if asset in ["ETH", "XAUT"] else 0)
+            rr = round((close_p - tp) / max(0.01, sl - close_p), 1)
+            trade = {
+                "id": f"cloud_{asset.lower()}_pdh_sweep_{last_closed['time']}",
+                "name": f"{asset} Prior Day High (PDH) Liquidity Sweep",
+                "asset": asset,
+                "direction": "SHORT",
+                "time": last_closed["time"],
+                "entry": round(close_p, 2 if asset in ["ETH", "XAUT"] else 0),
+                "tp": tp,
+                "sl": sl,
+                "rr": f"1:{rr}",
+                "rsi": rsi,
+                "rvol": rvol,
+                "rationale": {
+                    "pattern": "Prior Day High Liquidity Sweep",
+                    "levelTested": f"PDH Roof ({format_asset_price(pdh_val, asset)})",
+                    "confirmation": f"Price swept yesterday's high ({prior_day_levels['date']}) and rejected with {rvol}x RVOL",
+                    "absorption": f"Institutional Rejection ({round((upper_wick/rng)*100)}% wick + {rvol}x RVOL)"
                 }
             }
 

@@ -202,6 +202,49 @@ window.DeltaSMCStrategy = (function() {
   }
 
   /**
+   * Computes Prior Day High (PDH) and Prior Day Low (PDL) aligned with Delta India's 05:30 IST daily cycle.
+   * In IST (+05:30 UTC), 05:30 AM IST corresponds directly to 00:00:00 UTC midnight.
+   * Hence, the UTC calendar day (00:00 UTC to 23:59 UTC) is precisely the 05:30 IST -> 05:30 IST trading day!
+   */
+  function extractPriorDayLevels(candles) {
+    if (!candles || candles.length === 0) return null;
+    const dailySessions = {};
+    candles.forEach(c => {
+      // 00:00 UTC is exactly 05:30 AM IST (Delta India daily settlement/reset)
+      const sessKey = new Date(c.time * 1000).toISOString().split('T')[0];
+
+      if (!dailySessions[sessKey]) {
+        dailySessions[sessKey] = {
+          date: sessKey,
+          startTime: c.time,
+          endTime: c.time,
+          high: c.high,
+          low: c.low
+        };
+      } else {
+        dailySessions[sessKey].high = Math.max(dailySessions[sessKey].high, c.high);
+        dailySessions[sessKey].low = Math.min(dailySessions[sessKey].low, c.low);
+        dailySessions[sessKey].endTime = c.time;
+      }
+    });
+
+    const sessionKeys = Object.keys(dailySessions).sort();
+    if (sessionKeys.length < 2) return null;
+
+    // The completed prior day session is the second to last
+    const priorDaySession = dailySessions[sessionKeys[sessionKeys.length - 2]];
+    const currentSession = dailySessions[sessionKeys[sessionKeys.length - 1]];
+
+    return {
+      pdh: priorDaySession.high,
+      pdl: priorDaySession.low,
+      date: priorDaySession.date,
+      currentStartTime: currentSession.startTime,
+      currentEndTime: currentSession.endTime
+    };
+  }
+
+  /**
    * Extracts Fair Value Gaps (3-candle imbalance voids) across historical price action
    */
   function extractFVGZones(candles) {
@@ -372,6 +415,30 @@ window.DeltaSMCStrategy = (function() {
     if (cat && (cat.impactScore || 0) >= 7) {
       macroBias = cat.bias || "NEUTRAL";
       macroCatalystInfo = cat;
+    }
+
+    // Precompute Prior Day Levels (PDH / PDL) per candle timestamp to eliminate future leakage
+    const sessionMap = new Map();
+    let currentPriorDayLevel = null;
+    const priorDayLevelsByTime = new Map();
+    for (let k = 0; k < candles.length; k++) {
+      const c = candles[k];
+      const sessKey = new Date(c.time * 1000).toISOString().split('T')[0];
+      let sess = sessionMap.get(sessKey);
+      if (!sess) {
+        const keys = Array.from(sessionMap.keys());
+        if (keys.length >= 1) {
+          const lastKey = keys[keys.length - 1];
+          const pSess = sessionMap.get(lastKey);
+          currentPriorDayLevel = { pdh: pSess.high, pdl: pSess.low, date: lastKey };
+        }
+        sess = { date: sessKey, high: c.high, low: c.low };
+        sessionMap.set(sessKey, sess);
+      } else {
+        sess.high = Math.max(sess.high, c.high);
+        sess.low = Math.min(sess.low, c.low);
+      }
+      priorDayLevelsByTime.set(c.time, currentPriorDayLevel);
     }
 
     const trades = [];
@@ -682,6 +749,100 @@ window.DeltaSMCStrategy = (function() {
               };
               break;
             }
+          }
+        }
+        // 3C. Additive A+ Confluence: Prior Day Low (PDL) Liquidity Sweep (CALL)
+        // Price wicks below yesterday's session low, triggers institutional absorption, and closes green above PDL
+        const activePdlInfo = priorDayLevelsByTime.get(cur.time);
+        if (!setup && activePdlInfo && activePdlInfo.pdl && (macroBias !== "BEARISH" && !isBearTrend)) {
+          const pdlLevel = activePdlInfo.pdl;
+          if (cur.low < pdlLevel && cur.close > pdlLevel && (curLowerWick / curRng) >= 0.25 && cur.close >= cur.open && curRvol >= 1.1) {
+            const risk = Math.max(180, cur.close - (cur.low * 0.998));
+            const tp = Math.round(cur.close + (risk * 2.2));
+            const sl = Math.round(cur.low - (risk * 0.1));
+            const slDist = cur.close - sl;
+            const targetDist = tp - cur.close;
+            const atmStrike = Math.round(cur.close / 200) * 200;
+            const entryOptEst = Math.round((cur.close * 0.003) * 10) / 10;
+            const dynTarget = calcDynamicOptionTarget(entryOptEst, targetDist);
+
+            setup = {
+              id: `pdl_sweep_call_${cur.time}`,
+              strategyId: "PDL_LIQUIDITY_SWEEP_CALL",
+              name: "A+ Confluence: Prior Day Low (PDL) Liquidity Sweep",
+              direction: "LONG",
+              type: "LIQUIDITY_SWEEP",
+              index: i,
+              time: cur.time,
+              entry: Math.round(cur.close),
+              sl,
+              tp,
+              targetDist,
+              slDist: Math.round(slDist * 10) / 10,
+              rrRatio: Number((targetDist / Math.max(1, slDist)).toFixed(2)),
+              rvol: curRvol,
+              rsi: curRsi,
+              atr: Math.round(curAtr),
+              atrRatio,
+              regime,
+              macroBias,
+              optionStrike: atmStrike,
+              entryOptEst,
+              targetOptEst: dynTarget.targetPrice,
+              targetGainPct: dynTarget.gainPctStr,
+              tp1Price: dynTarget.tp1Price,
+              tp1GainPct: dynTarget.tp1PctStr,
+              optionRecommendation: `Buy C-BTC-${atmStrike} (ATM Call) @ ~$${entryOptEst.toFixed(1)} -> Target $${dynTarget.targetPrice.toFixed(1)} (${dynTarget.gainPctStr} Profit)`,
+              invalidationReason: `Price breaks below Prior Day Low sweep wick at $${sl.toLocaleString()}`,
+              meta: { sHigh, sLow, pdlLevel, sessionDate: activePdlInfo.date }
+            };
+          }
+        }
+
+        // 3D. Additive A+ Confluence: Prior Day High (PDH) Liquidity Sweep (PUT)
+        // Price wicks above yesterday's session high, traps breakout buyers, and closes red below PDH
+        if (!setup && activePdlInfo && activePdlInfo.pdh && macroBias !== "BULLISH") {
+          const pdhLevel = activePdlInfo.pdh;
+          if (cur.high > pdhLevel && cur.close < pdhLevel && (curUpperWick / curRng) >= 0.25 && cur.close <= cur.open && curRvol >= 1.1) {
+            const risk = Math.max(180, (cur.high * 1.002) - cur.close);
+            const tp = Math.round(cur.close - (risk * 2.2));
+            const sl = Math.round(cur.high + (risk * 0.1));
+            const slDist = sl - cur.close;
+            const targetDist = cur.close - tp;
+            const atmStrike = Math.round(cur.close / 200) * 200;
+            const entryOptEst = Math.round((cur.close * 0.003) * 10) / 10;
+            const dynTarget = calcDynamicOptionTarget(entryOptEst, targetDist);
+
+            setup = {
+              id: `pdh_sweep_put_${cur.time}`,
+              strategyId: "PDH_LIQUIDITY_SWEEP_PUT",
+              name: "A+ Confluence: Prior Day High (PDH) Liquidity Sweep",
+              direction: "SHORT",
+              type: "LIQUIDITY_SWEEP",
+              index: i,
+              time: cur.time,
+              entry: Math.round(cur.close),
+              sl,
+              tp,
+              targetDist,
+              slDist: Math.round(slDist * 10) / 10,
+              rrRatio: Number((targetDist / Math.max(1, slDist)).toFixed(2)),
+              rvol: curRvol,
+              rsi: curRsi,
+              atr: Math.round(curAtr),
+              atrRatio,
+              regime,
+              macroBias,
+              optionStrike: atmStrike,
+              entryOptEst,
+              targetOptEst: dynTarget.targetPrice,
+              targetGainPct: dynTarget.gainPctStr,
+              tp1Price: dynTarget.tp1Price,
+              tp1GainPct: dynTarget.tp1PctStr,
+              optionRecommendation: `Buy P-BTC-${atmStrike} (ATM Put) @ ~$${entryOptEst.toFixed(1)} -> Target $${dynTarget.targetPrice.toFixed(1)} (${dynTarget.gainPctStr} Profit)`,
+              invalidationReason: `Price breaks above Prior Day High sweep wick at $${sl.toLocaleString()}`,
+              meta: { sHigh, sLow, pdhLevel, sessionDate: activePdlInfo.date }
+            };
           }
         }
       }
@@ -1162,6 +1323,7 @@ window.DeltaSMCStrategy = (function() {
     const fvgZones = extractFVGZones(candles);
     const asianRanges = extractAsianRanges(candles);
     const orderBlocks = extractOrderBlocks(candles);
+    const priorDayLevels = extractPriorDayLevels(candles);
 
     return {
       trades,
@@ -1171,7 +1333,8 @@ window.DeltaSMCStrategy = (function() {
       overlays: {
         fvgZones,
         asianRanges,
-        orderBlocks
+        orderBlocks,
+        priorDayLevels
       },
       stats: {
         totalTrades,
@@ -1198,6 +1361,7 @@ window.DeltaSMCStrategy = (function() {
     getTradingSession,
     extractAsianRanges,
     extractFVGZones,
-    extractOrderBlocks
+    extractOrderBlocks,
+    extractPriorDayLevels
   };
 })();

@@ -417,21 +417,23 @@ window.DeltaLiveChart = (function() {
   }
 
   // Institutional SMC Overlay Preferences: Strictly OFF by default (Clean Trades-Only Chart)
-  // Overlays only activate when user explicitly clicks the FVG, OB, or Asia toggle buttons.
+  // Overlays only activate when user explicitly clicks the FVG, OB, Asia, or Levels toggle buttons.
   const activeOverlays = {
     fvg: localStorage.getItem('dtj_overlay_fvg_v2') === 'true',
     ob: localStorage.getItem('dtj_overlay_ob_v2') === 'true',
-    asia: localStorage.getItem('dtj_overlay_asia_v2') === 'true'
+    asia: localStorage.getItem('dtj_overlay_asia_v2') === 'true',
+    levels: localStorage.getItem('dtj_overlay_levels_v2') === 'true'
   };
 
   function updateOverlayButtons() {
     const config = {
       fvg: { activeBg: 'bg-cyan-500/25', activeText: 'text-cyan-300', activeBorder: 'border-cyan-500/50', dotColor: 'bg-cyan-400' },
       ob: { activeBg: 'bg-amber-500/25', activeText: 'text-amber-300', activeBorder: 'border-amber-500/50', dotColor: 'bg-amber-400' },
-      asia: { activeBg: 'bg-sky-500/25', activeText: 'text-sky-300', activeBorder: 'border-sky-500/50', dotColor: 'bg-sky-400' }
+      asia: { activeBg: 'bg-sky-500/25', activeText: 'text-sky-300', activeBorder: 'border-sky-500/50', dotColor: 'bg-sky-400' },
+      levels: { activeBg: 'bg-emerald-500/25', activeText: 'text-emerald-300', activeBorder: 'border-emerald-500/50', dotColor: 'bg-emerald-400' }
     };
 
-    ['fvg', 'ob', 'asia'].forEach(name => {
+    ['fvg', 'ob', 'asia', 'levels'].forEach(name => {
       const btns = document.querySelectorAll(`[id^="btnToggle${name.charAt(0).toUpperCase() + name.slice(1)}"]`);
       const active = Boolean(activeOverlays[name]);
       const cfg = config[name] || { activeBg: 'bg-indigo-600', activeText: 'text-white', activeBorder: 'border-indigo-500', dotColor: 'bg-indigo-400' };
@@ -1458,7 +1460,10 @@ window.DeltaLiveChart = (function() {
     let fvgSvgHTML = '';
     let asiaSvgHTML = '';
     let obSvgHTML = '';
+    let levelsSvgHTML = '';
     let positionBoxHTML = '';
+
+    const containerW = svg.clientWidth || 800;
 
     // 1. Render Fair Value Gaps (Volumetric Translucent Imbalance Zones)
     if (activeOverlays.fvg && currentAnalysis && currentAnalysis.overlays && currentAnalysis.overlays.fvgZones) {
@@ -1551,7 +1556,39 @@ window.DeltaLiveChart = (function() {
       });
     }
 
-    // 4. Render Selected Trade Position Box
+    // 4. Render Prior Day High (PDH) and Prior Day Low (PDL) Institutional Levels
+    if (activeOverlays.levels && currentAnalysis && currentAnalysis.overlays && currentAnalysis.overlays.priorDayLevels) {
+      const pd = currentAnalysis.overlays.priorDayLevels;
+      const yPdh = candleSeries.priceToCoordinate(pd.pdh);
+      const yPdl = candleSeries.priceToCoordinate(pd.pdl);
+      const prec = (activeAsset === 'BTC') ? 1 : 2;
+
+      if (yPdh !== null) {
+        const pdhText = `PDH: $${Number(pd.pdh).toLocaleString(undefined, { minimumFractionDigits: prec, maximumFractionDigits: prec })}`;
+        levelsSvgHTML += `
+          <g opacity="0.9">
+            <line x1="0" y1="${yPdh}" x2="${containerW}" y2="${yPdh}"
+                  stroke="rgba(16, 185, 129, 0.75)" stroke-width="1.2" stroke-dasharray="5,4" />
+            <rect x="${Math.max(10, containerW - 135)}" y="${yPdh - 9}" width="128" height="18" fill="rgba(6, 15, 25, 0.92)" rx="3" stroke="rgba(16, 185, 129, 0.8)" stroke-width="1" />
+            <text x="${Math.max(10, containerW - 135) + 6}" y="${yPdh + 3.5}" font-family="monospace" font-size="9" font-weight="bold" fill="#10b981">${pdhText}</text>
+          </g>
+        `;
+      }
+
+      if (yPdl !== null) {
+        const pdlText = `PDL: $${Number(pd.pdl).toLocaleString(undefined, { minimumFractionDigits: prec, maximumFractionDigits: prec })}`;
+        levelsSvgHTML += `
+          <g opacity="0.9">
+            <line x1="0" y1="${yPdl}" x2="${containerW}" y2="${yPdl}"
+                  stroke="rgba(244, 63, 94, 0.75)" stroke-width="1.2" stroke-dasharray="5,4" />
+            <rect x="${Math.max(10, containerW - 135)}" y="${yPdl - 9}" width="128" height="18" fill="rgba(6, 15, 25, 0.92)" rx="3" stroke="rgba(244, 63, 94, 0.8)" stroke-width="1" />
+            <text x="${Math.max(10, containerW - 135) + 6}" y="${yPdl + 3.5}" font-family="monospace" font-size="9" font-weight="bold" fill="#f43f5e">${pdlText}</text>
+          </g>
+        `;
+      }
+    }
+
+    // 5. Render Selected Trade Position Box
     if (trade) {
       const x1 = chart.timeScale().timeToCoordinate(trade.time);
       let exitTime = trade.exitTime;
@@ -1654,7 +1691,7 @@ window.DeltaLiveChart = (function() {
       }
     }
 
-    svg.innerHTML = fvgSvgHTML + asiaSvgHTML + obSvgHTML + positionBoxHTML;
+    svg.innerHTML = fvgSvgHTML + asiaSvgHTML + obSvgHTML + levelsSvgHTML + positionBoxHTML;
   }
 
   /**
