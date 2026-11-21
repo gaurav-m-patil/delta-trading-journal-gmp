@@ -545,6 +545,26 @@ window.DeltaApp = (function() {
     }
   }
 
+  function filterBySpecificMonth(mKey) {
+    const parts = mKey.split('-');
+    const year = parseInt(parts[0]);
+    const month = parseInt(parts[1]);
+    const lastDay = new Date(year, month, 0).getDate();
+    const startDate = `${mKey}-01`;
+    const endDate = `${mKey}-${String(lastDay).padStart(2, '0')}`;
+
+    const sInput = document.getElementById('customStartDate');
+    const eInput = document.getElementById('customEndDate');
+    if (sInput && eInput) {
+      sInput.value = startDate;
+      eInput.value = endDate;
+      setPreset('CUSTOM');
+      hidePeek();
+      const table = document.getElementById('tradeTableContainer');
+      if (table) table.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+  }
+
   function resolveFilterBounds() {
     const allTrades = DeltaDB.getTrades();
     let refYear = new Date().getFullYear();
@@ -2139,10 +2159,10 @@ window.DeltaApp = (function() {
       </div>
 
       <div class="flex gap-2">
-        <button onclick="DeltaApp.setPreset('custom', '${mKey}-01', '${mKey}-31', '${displayMonth}'); DeltaApp.hidePeek();" class="flex-1 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs transition-colors flex items-center justify-center gap-1.5 shadow-md">
+        <button onclick="DeltaApp.filterBySpecificMonth('${mKey}')" class="flex-1 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs transition-colors flex items-center justify-center gap-1.5 shadow-md cursor-pointer active:scale-95">
           <i class="fa-solid fa-filter"></i> Isolate & View Trades
         </button>
-        <button onclick="DeltaApp.hidePeek()" class="px-4 py-2.5 rounded-xl bg-panelDark hover:bg-slate-800 text-slate-300 hover:text-white border border-borderDark text-xs font-semibold transition-colors">
+        <button onclick="DeltaApp.hidePeek()" class="px-4 py-2.5 rounded-xl bg-panelDark hover:bg-slate-800 text-slate-300 hover:text-white border border-borderDark text-xs font-semibold transition-colors cursor-pointer active:scale-95">
           Close
         </button>
       </div>`;
@@ -2273,6 +2293,7 @@ window.DeltaApp = (function() {
     saveSentinelConfig,
     acknowledgeSentinel,
     filterBySpecificDay,
+    filterBySpecificMonth,
     switchInsightsSubTab,
     switchCoachSubTab,
     populateSelfImprovingEngineUI,
