@@ -1008,21 +1008,22 @@ window.DeltaApp = (function() {
     // If NO trades were taken today: clean slate, 100% risk budget available, zero warnings!
     if (todayTrades.length === 0) {
       container.innerHTML = `
-        <div class="rounded-2xl border border-emerald-500/30 bg-gradient-to-r from-cardDark via-brandDark to-cardDark p-4 sm:p-5 shadow-lg shadow-black/40">
-          <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 pb-3 border-b border-borderDark/60">
-            <div class="flex items-center gap-2.5">
-              <span class="inline-block w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse shrink-0"></span>
-              <div>
-                <h3 class="text-sm sm:text-base font-bold text-white font-sans flex items-center gap-2">
+        <div class="rounded-2xl border border-emerald-500/30 bg-gradient-to-r from-cardDark via-brandDark to-cardDark p-3 sm:p-5 shadow-lg shadow-black/40">
+          <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 pb-2 sm:pb-3 border-b border-borderDark/60">
+            <div class="flex items-center justify-between w-full sm:w-auto gap-2.5">
+              <div class="flex items-center gap-2">
+                <span class="inline-block w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse shrink-0"></span>
+                <h3 class="text-xs sm:text-base font-bold text-white font-sans flex items-center gap-1.5">
                   <i class="fa-solid fa-shield-halved text-emerald-400"></i>
-                  Capital Defense Sentinel: <span class="text-emerald-400 font-bold">READY (Zero Trades Today)</span>
+                  <span>Capital Defense:</span> <span class="text-emerald-400 font-bold">READY</span>
                 </h3>
-                <p class="text-[11px] text-slate-400 font-mono">
-                  Today (${todayIst}): Clean slate. Full daily risk budget intact.
-                </p>
               </div>
+              <!-- Mobile Dropdown Toggle Button -->
+              <button onclick="document.getElementById('sentinelDetailsGrid').classList.toggle('hidden'); this.querySelector('i').classList.toggle('rotate-180')" class="sm:hidden px-2 py-1 text-[10px] rounded-lg bg-panelDark text-slate-300 font-mono flex items-center gap-1">
+                <span>Details</span> <i class="fa-solid fa-chevron-down transition-transform"></i>
+              </button>
             </div>
-            <div class="flex items-center gap-2 self-end sm:self-auto">
+            <div class="hidden sm:flex items-center gap-2 self-end sm:self-auto">
               <span class="text-[10px] font-mono text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-2 py-0.5 rounded font-bold">
                 Daily Loss Limit: $${savedMaxLoss} | Stop-Outs: ${savedMaxConsec}
               </span>
@@ -1032,27 +1033,27 @@ window.DeltaApp = (function() {
             </div>
           </div>
 
-          <!-- Standby Metrics Grid -->
-          <div class="grid grid-cols-2 sm:grid-cols-4 gap-2.5 mt-3 font-mono">
-            <div class="bg-panelDark/50 border border-borderDark/60 p-2.5 rounded-xl">
+          <!-- Standby Metrics Grid (Collapsible on Mobile, Visible on Desktop) -->
+          <div id="sentinelDetailsGrid" class="hidden sm:grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-2.5 mt-2.5 sm:mt-3 font-mono">
+            <div class="bg-panelDark/50 border border-borderDark/60 p-2 sm:p-2.5 rounded-xl">
               <span class="text-[9px] uppercase tracking-wider text-slate-400 block font-sans">Today's Realized</span>
-              <span class="text-sm sm:text-base font-bold text-white">$0.00</span>
-              <span class="text-[9px] text-slate-500 block mt-0.5">0 closed positions</span>
+              <span class="text-xs sm:text-base font-bold text-white">$0.00</span>
+              <span class="text-[8px] sm:text-[9px] text-slate-500 block mt-0.5">0 closed positions</span>
             </div>
-            <div class="bg-panelDark/50 border border-borderDark/60 p-2.5 rounded-xl">
+            <div class="bg-panelDark/50 border border-borderDark/60 p-2 sm:p-2.5 rounded-xl">
               <span class="text-[9px] uppercase tracking-wider text-slate-400 block font-sans">Available Risk Budget</span>
-              <span class="text-sm sm:text-base font-bold text-emerald-300">$${savedMaxLoss}.00</span>
-              <span class="text-[9px] text-slate-500 block mt-0.5">100% budget intact</span>
+              <span class="text-xs sm:text-base font-bold text-emerald-300">$${savedMaxLoss}.00</span>
+              <span class="text-[8px] sm:text-[9px] text-slate-500 block mt-0.5">100% budget intact</span>
             </div>
-            <div class="bg-panelDark/50 border border-borderDark/60 p-2.5 rounded-xl">
+            <div class="bg-panelDark/50 border border-borderDark/60 p-2 sm:p-2.5 rounded-xl">
               <span class="text-[9px] uppercase tracking-wider text-slate-400 block font-sans">Consecutive Losses</span>
-              <span class="text-sm sm:text-base font-bold text-slate-300">0 / ${savedMaxConsec}</span>
-              <span class="text-[9px] text-slate-500 block mt-0.5">${savedMaxConsec} stop-outs allowed</span>
+              <span class="text-xs sm:text-base font-bold text-slate-300">0 / ${savedMaxConsec}</span>
+              <span class="text-[8px] sm:text-[9px] text-slate-500 block mt-0.5">${savedMaxConsec} stop-outs allowed</span>
             </div>
-            <div class="bg-panelDark/50 border border-borderDark/60 p-2.5 rounded-xl">
+            <div class="bg-panelDark/50 border border-borderDark/60 p-2 sm:p-2.5 rounded-xl">
               <span class="text-[9px] uppercase tracking-wider text-slate-400 block font-sans">Desk Status</span>
-              <span class="text-sm sm:text-base font-bold text-emerald-400">CLEAN SLATE</span>
-              <span class="text-[9px] text-slate-500 block mt-0.5">Wait for A+ 15m S/R confirmation</span>
+              <span class="text-xs sm:text-base font-bold text-emerald-400">CLEAN SLATE</span>
+              <span class="text-[8px] sm:text-[9px] text-slate-500 block mt-0.5">Wait for S/R confirmation</span>
             </div>
           </div>
         </div>

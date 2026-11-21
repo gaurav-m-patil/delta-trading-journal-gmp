@@ -792,77 +792,78 @@
       <!-- BREAKING HIGH-IMPACT MACRO & CATALYST SENTINEL -->
       <div id="macroCatalystCoachContainer"></div>
 
-      <!-- Live Signal Radar Banner -->
+      <!-- Live Signal Radar Banner (Ultra-compact on Mobile) -->
       <div id="liveSignalBanner">
-        <div class="p-3 rounded-xl bg-brandDark/40 border border-borderDark/60 flex items-center justify-between text-xs text-slate-400 font-mono">
-          <span class="flex items-center gap-2">
-            <i class="fa-solid fa-radar text-indigo-400"></i> Scanning BTC candles for High-Conviction Reversal Setups...
+        <div class="px-2.5 py-1.5 sm:p-3 rounded-xl bg-brandDark/40 border border-borderDark/60 flex items-center justify-between text-[11px] sm:text-xs text-slate-400 font-mono">
+          <span class="flex items-center gap-1.5 sm:gap-2 truncate">
+            <i class="fa-solid fa-radar text-indigo-400 shrink-0"></i> <span class="truncate">Scanning candles for High-Conviction Reversal Setups...</span>
           </span>
+          <span class="hidden sm:inline-block text-[10px] text-emerald-400 font-bold shrink-0">15m Engine</span>
         </div>
       </div>
 
       <!-- TradingView Position Tool Cockpit Box (Draws Target, SL, Entry & Real Delta Option) -->
-      <div id="tvPositionToolCockpit" class="p-3.5 sm:p-4 rounded-2xl glass-cockpit shadow-2xl space-y-3">
+      <div id="tvPositionToolCockpit" class="p-2.5 sm:p-4 rounded-xl sm:rounded-2xl glass-cockpit shadow-2xl space-y-2 sm:space-y-3">
         <!-- Top Row: Setup Name, Status Badge, and Playbook Trigger -->
-        <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 pb-2.5 border-b border-borderDark/60">
-          <div class="flex items-center gap-2.5">
-            <div id="ptDirectionBadge" class="h-8 w-8 sm:h-9 sm:w-9 rounded-xl bg-indigo-500/20 text-indigo-400 flex items-center justify-center font-bold text-sm sm:text-base shrink-0">
+        <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-1.5 sm:gap-2 pb-2 sm:pb-2.5 border-b border-borderDark/60">
+          <div class="flex items-center gap-2 sm:gap-2.5">
+            <div id="ptDirectionBadge" class="h-7 w-7 sm:h-9 sm:w-9 rounded-lg sm:rounded-xl bg-indigo-500/20 text-indigo-400 flex items-center justify-center font-bold text-xs sm:text-base shrink-0">
               <i class="fa-solid fa-radar animate-pulse"></i>
             </div>
             <div>
-              <div class="flex flex-wrap items-center gap-1.5 sm:gap-2">
+              <div class="flex flex-wrap items-center gap-1 sm:gap-2">
                 <span id="ptSetupName" class="text-xs sm:text-sm font-bold text-white">24/7 Cloud Sentinel Radar</span>
-                <span id="ptOutcomeBadge" class="text-[10px] font-bold font-mono px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 flex items-center gap-1.5">
-                  <span class="h-2 w-2 rounded-full bg-emerald-400 animate-ping"></span> STANDBY · SCANNING 15M ORDER FLOW
+                <span id="ptOutcomeBadge" class="text-[9px] sm:text-[10px] font-bold font-mono px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 flex items-center gap-1">
+                  <span class="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-ping"></span> SCANNING 15M
                 </span>
               </div>
             </div>
           </div>
-          <button onclick="DeltaLiveChart.openTradeDetailsModal()" class="w-full sm:w-auto text-[11px] px-3 py-1.5 rounded-xl bg-indigo-600/30 hover:bg-indigo-600 text-indigo-200 hover:text-white border border-indigo-500/40 font-mono font-bold transition-all flex items-center justify-center gap-1.5 shadow-sm">
+          <button onclick="DeltaLiveChart.openTradeDetailsModal()" class="w-full sm:w-auto text-[10px] sm:text-[11px] px-2.5 py-1 sm:px-3 sm:py-1.5 rounded-lg sm:rounded-xl bg-indigo-600/30 hover:bg-indigo-600 text-indigo-200 hover:text-white border border-indigo-500/40 font-mono font-bold transition-all flex items-center justify-center gap-1.5 shadow-sm">
             <i class="fa-solid fa-brain text-indigo-400"></i> Trade Logic & Playbook <i class="fa-solid fa-chevron-right text-[9px] ml-0.5"></i>
           </button>
         </div>
 
         <!-- 2-Column Responsive Execution Cards -->
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
-          <!-- Card 1: Underlying BTC Spot Trigger Plan -->
-          <div class="bg-panelDark/60 border border-borderDark/70 rounded-xl p-3 space-y-2">
-            <div class="flex justify-between items-center text-[10px] uppercase tracking-wider text-slate-400 font-bold">
-              <span class="flex items-center gap-1.5"><i class="fa-brands fa-bitcoin text-amber-400"></i> BTC Spot Trigger Plan</span>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-2 sm:gap-3">
+          <!-- Card 1: Underlying Spot Trigger Plan -->
+          <div class="bg-panelDark/60 border border-borderDark/70 rounded-lg sm:rounded-xl p-2 sm:p-3 space-y-1.5 sm:space-y-2">
+            <div class="flex justify-between items-center text-[9px] sm:text-[10px] uppercase tracking-wider text-slate-400 font-bold">
+              <span class="flex items-center gap-1"><i class="fa-solid fa-crosshairs text-amber-400"></i> Spot Trigger Plan</span>
               <span class="font-mono text-slate-400">R:R <strong id="ptRR" class="text-indigo-300">1:2.0+</strong></span>
             </div>
-            <div class="grid grid-cols-3 gap-2 font-mono text-xs">
-              <div class="bg-brandDark/70 p-2 rounded-lg border border-borderDark/50">
-                <span class="text-[9px] uppercase tracking-wider text-slate-400 block font-sans">Entry</span>
-                <span id="ptEntry" class="font-bold text-white text-[11px] sm:text-xs">Awaiting Setup</span>
+            <div class="grid grid-cols-3 gap-1.5 sm:gap-2 font-mono text-xs">
+              <div class="bg-brandDark/70 p-1.5 sm:p-2 rounded-md sm:rounded-lg border border-borderDark/50">
+                <span class="text-[8px] sm:text-[9px] uppercase tracking-wider text-slate-400 block font-sans">Entry</span>
+                <span id="ptEntry" class="font-bold text-white text-[10px] sm:text-xs">Awaiting</span>
               </div>
-              <div class="bg-brandDark/70 p-2 rounded-lg border border-borderDark/50">
-                <span class="text-[9px] uppercase tracking-wider text-slate-400 block font-sans">Target (TP)</span>
-                <span id="ptTp" class="font-bold text-winGreen text-[11px] sm:text-xs">Auto-Target</span>
+              <div class="bg-brandDark/70 p-1.5 sm:p-2 rounded-md sm:rounded-lg border border-borderDark/50">
+                <span class="text-[8px] sm:text-[9px] uppercase tracking-wider text-slate-400 block font-sans">Target (TP)</span>
+                <span id="ptTp" class="font-bold text-winGreen text-[10px] sm:text-xs">Auto-TP</span>
               </div>
-              <div class="bg-brandDark/70 p-2 rounded-lg border border-borderDark/50">
-                <span class="text-[9px] uppercase tracking-wider text-slate-400 block font-sans">Stop (SL)</span>
-                <span id="ptSl" class="font-bold text-lossRed text-[11px] sm:text-xs">-30% Risk Cap</span>
+              <div class="bg-brandDark/70 p-1.5 sm:p-2 rounded-md sm:rounded-lg border border-borderDark/50">
+                <span class="text-[8px] sm:text-[9px] uppercase tracking-wider text-slate-400 block font-sans">Stop (SL)</span>
+                <span id="ptSl" class="font-bold text-lossRed text-[10px] sm:text-xs">-30% Risk</span>
               </div>
             </div>
           </div>
 
           <!-- Card 2: Real Delta Exchange India Option Recommendation -->
-          <div class="bg-indigo-950/20 border border-indigo-500/30 rounded-xl p-3 space-y-2">
+          <div class="bg-indigo-950/20 border border-indigo-500/30 rounded-lg sm:rounded-xl p-2 sm:p-3 space-y-1.5 sm:space-y-2">
             <div class="flex justify-between items-center">
-              <span class="text-[10px] uppercase tracking-wider text-indigo-300 font-bold flex items-center gap-1.5">
-                <i class="fa-solid fa-bolt text-indigo-400"></i> Delta India Option Contract
+              <span class="text-[9px] sm:text-[10px] uppercase tracking-wider text-indigo-300 font-bold flex items-center gap-1">
+                <i class="fa-solid fa-bolt text-indigo-400"></i> Delta India Option
               </span>
-              <span id="ptDeltaLiveTag" class="text-[9px] font-mono px-1.5 py-0.5 rounded bg-indigo-500/10 text-indigo-300 border border-indigo-500/30 font-bold">Sentinel Standby</span>
+              <span id="ptDeltaLiveTag" class="text-[8px] sm:text-[9px] font-mono px-1.5 py-0.5 rounded bg-indigo-500/10 text-indigo-300 border border-indigo-500/30 font-bold">Sentinel Standby</span>
             </div>
-            <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 font-mono">
-              <div>
-                <span id="ptContractSymbol" class="text-xs sm:text-sm font-bold text-white tracking-wide block">Daily ATM Contract (0-DTE)</span>
-                <span class="text-[10px] text-slate-400 font-sans">Buy Zone: <strong id="ptDeltaBuyZone" class="text-indigo-200 font-mono">Calculated on trigger</strong></span>
+            <div class="flex flex-row justify-between items-center gap-2 font-mono">
+              <div class="truncate">
+                <span id="ptContractSymbol" class="text-[11px] sm:text-sm font-bold text-white tracking-wide block truncate">Daily ATM Contract (0-DTE)</span>
+                <span class="text-[9px] sm:text-[10px] text-slate-400 font-sans block truncate">Zone: <strong id="ptDeltaBuyZone" class="text-indigo-200 font-mono">Calculated on trigger</strong></span>
               </div>
-              <div class="flex sm:flex-col items-center sm:items-end justify-between w-full sm:w-auto text-right">
-                <div class="text-[10px] text-slate-400">Mark: <strong id="ptDeltaMark" class="text-white font-mono">~$215 - $245</strong></div>
-                <div class="text-xs font-bold text-winGreen font-mono">Target: <strong id="ptDeltaTarget" class="text-winGreen">+65% to +150% DOEV</strong></div>
+              <div class="flex flex-col items-end text-right shrink-0">
+                <div class="text-[9px] sm:text-[10px] text-slate-400">Mark: <strong id="ptDeltaMark" class="text-white font-mono">~$215</strong></div>
+                <div class="text-[10px] sm:text-xs font-bold text-winGreen font-mono">Target: <strong id="ptDeltaTarget" class="text-winGreen">+65% to +150%</strong></div>
               </div>
             </div>
           </div>
