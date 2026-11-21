@@ -2518,7 +2518,7 @@ Expected Profit: +50% Option Gross / +40% Net`;
     showAllRadarTrades = !showAllRadarTrades;
     if (window.DeltaDB && typeof DeltaDB.getSignalTrades === 'function') {
       const savedSignals = DeltaDB.getSignalTrades(0) || [];
-      renderTradesTable(savedSignals);
+      renderTradesTable(filterTradesForActiveAsset(savedSignals));
     }
   }
 
@@ -2674,16 +2674,16 @@ Expected Profit: +50% Option Gross / +40% Net`;
             activeTrade.realOption.isLive = true;
             updatePositionToolCockpit(activeTrade);
           }
-          renderTradesTable(realTrades);
+          renderTradesTable(filterTradesForActiveAsset(realTrades));
         });
 
-        renderTradesTable(realTrades);
+        renderTradesTable(filterTradesForActiveAsset(realTrades));
       }).catch(err => {
         console.warn("Notice fetching remote signals from Firestore:", err);
-        if (initialTrades.length > 0) renderTradesTable(initialTrades);
+        if (initialTrades.length > 0) renderTradesTable(filterTradesForActiveAsset(initialTrades));
       });
     } else if (initialTrades.length > 0) {
-      renderTradesTable(initialTrades);
+      renderTradesTable(filterTradesForActiveAsset(initialTrades));
     }
 
     // Update Quant Time-Machine Scorecard from current candle structure or verified trades
@@ -3173,7 +3173,7 @@ Expected Profit: +50% Option Gross / +40% Net`;
   function refreshPaperUI() {
     if (window.DeltaDB && typeof DeltaDB.getSignalTrades === 'function') {
       const savedSignals = DeltaDB.getSignalTrades(0) || [];
-      renderTradesTable(savedSignals);
+      renderTradesTable(filterTradesForActiveAsset(savedSignals));
     }
   }
 

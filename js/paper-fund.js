@@ -53,7 +53,16 @@ window.DeltaPaperFund = (function() {
     const riskModel = getRiskModel(targetAsset);
     const allocPct = riskModel === 'COMPOUND' ? 1.0 : (riskModel === 'MODERATE' ? 0.50 : 0.25);
 
-    if (!trades || trades.length === 0) {
+    // Strictly filter trades to the target asset if specified
+    const filteredTrades = targetAsset
+      ? (trades || []).filter(t => {
+          if (!t) return false;
+          const tAsset = (t.asset || (t.optionSymbol ? (t.optionSymbol.includes('ETH') ? 'ETH' : (t.optionSymbol.includes('XAUT') ? 'XAUT' : 'BTC')) : 'BTC')).toUpperCase();
+          return tAsset === targetAsset.toUpperCase();
+        })
+      : (trades || []);
+
+    if (!filteredTrades || filteredTrades.length === 0) {
       return {
         startingCapital,
         currentEquity: startingCapital,
@@ -72,13 +81,7 @@ window.DeltaPaperFund = (function() {
     }
 
     // Sort chronologically (oldest to newest) to model realistic sequential capital progression
-    // If two trades trigger on the exact same 15m candle bar, sort BTC before ETH
-    const chronoTrades = [...trades].sort((a, b) => {
-      if (a.time !== b.time) return a.time - b.time;
-      if (a.asset === 'BTC') return -1;
-      if (b.asset === 'BTC') return 1;
-      return 0;
-    });
+    const chronoTrades = [...filteredTrades].sort((a, b) => a.time - b.time);
 
     let currentBalance = startingCapital;
     let peakEquity = startingCapital;
