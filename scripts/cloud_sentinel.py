@@ -783,7 +783,7 @@ def evaluate_smc_setup(candles, htf_trend=None, asset="BTC"):
     # Compute Prior Day High (PDH) and Prior Day Low (PDL) aligned with Delta India's 05:30 IST session (00:00 UTC)
     daily_sessions = {}
     for c in candles:
-        sess_key = datetime.datetime.fromtimestamp(c["time"], tz=datetime.timezone.utc).strftime("%Y-%m-%d")
+        sess_key = datetime.fromtimestamp(c["time"], tz=timezone.utc).strftime("%Y-%m-%d")
         if sess_key not in daily_sessions:
             daily_sessions[sess_key] = {"high": c["high"], "low": c["low"]}
         else:
