@@ -2280,6 +2280,29 @@ window.DeltaLiveChart = (function() {
           }
         }
 
+        // Timeline Stage 1: Entry Snapshot Details
+        const entryTimeEl = document.getElementById('atmModalEntryTime');
+        if (entryTimeEl) entryTimeEl.innerText = `${entryTimeStr} IST`;
+
+        const entrySpotEl = document.getElementById('atmModalEntrySpot');
+        if (entrySpotEl) entrySpotEl.innerText = `$${entryNum.toLocaleString()}`;
+
+        const optionEntryEl = document.getElementById('atmModalOptionEntry');
+        if (optionEntryEl) optionEntryEl.innerText = `$${entryOpt.toFixed(1)}`;
+
+        // Timeline Stage 2: Resolution / Exit Snapshot Details
+        const exitTimeEl = document.getElementById('atmModalExitTime');
+        if (exitTimeEl) exitTimeEl.innerText = `${exitTimeStr} IST`;
+
+        const exitSpotEl = document.getElementById('atmModalExitSpot');
+        if (exitSpotEl) {
+          const resolvedExitSpot = t.exitPrice ? Number(t.exitPrice) : (t.outcome === "WIN" ? tpNum : (t.outcome === "LOSS" ? slNum : entryNum));
+          exitSpotEl.innerText = `$${resolvedExitSpot.toLocaleString()}`;
+        }
+
+        const contractBadgeEl = document.getElementById('atmModalContractBadge');
+        if (contractBadgeEl) contractBadgeEl.innerText = contractSymbol;
+
         // Timeline Exit Card Details
         const optionExitEl = document.getElementById('atmModalOptionExit');
         const netReturnEl = document.getElementById('atmModalNetPoints');
@@ -2313,6 +2336,15 @@ window.DeltaLiveChart = (function() {
             } else {
               netReturnEl.innerHTML = `<span class="text-cyan-300 font-bold font-mono">${livePnlDiff >= 0 ? '+' : ''}${livePnlDiff.toFixed(1)} pts (${livePnlDiff >= 0 ? '+' : ''}${livePnlPctStr}% Unrealized Mark)</span>`;
             }
+          } else if (t.outcome === "WIN" || t.outcome === "BE_WIN") {
+            const realizedPts = pnlDiff;
+            const realizedPct = entryOpt > 0 ? ((realizedPts / entryOpt) * 100).toFixed(1) : '0.0';
+            netReturnEl.innerHTML = `<span class="text-winGreen font-bold font-mono">+${realizedPts} pts (+${realizedPct}% Realized Take-Home)</span>`;
+          } else if (t.outcome === "LOSS") {
+            const lossPts = Math.abs(pnlDiff);
+            netReturnEl.innerHTML = `<span class="text-lossRed font-bold font-mono">-${lossPts} pts (-30.0% Preserved 70% Margin)</span>`;
+          } else {
+            netReturnEl.innerHTML = `<span class="text-slate-300 font-bold font-mono">Scratch Exit / ₹0 Capital Risk</span>`;
           }
         }
 
