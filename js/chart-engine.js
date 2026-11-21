@@ -1121,11 +1121,14 @@ window.DeltaLiveChart = (function() {
 
   let deltaTickerPollInterval = null;
 
+  let loadTimeframeSeq = 0;
+
   /**
    * Loads historical candles and connects live WebSocket for selected timeframe.
    * Uses Delta Exchange India (Primary - 100% reliable in India) with Binance as secondary fallback.
    */
   async function loadTimeframe(tf) {
+    const currentSeq = ++loadTimeframeSeq;
     activeTimeframe = tf;
     updateTimeframeButtons(tf);
 
@@ -1230,6 +1233,11 @@ window.DeltaLiveChart = (function() {
 
     if (!loadedBars || loadedBars.length === 0) {
       console.error("Unable to load candles from network providers.");
+      return;
+    }
+
+    // Drop stale response if a newer timeframe or asset request was triggered
+    if (currentSeq !== loadTimeframeSeq) {
       return;
     }
 
@@ -3290,6 +3298,8 @@ Expected Profit: +50% Option Gross / +40% Net`;
     window.open('chart.html', '_blank');
   }
 
+  let switchAssetDebounceTimer = null;
+
   function switchAsset(assetKey) {
     if (!assetKey || !ASSET_CONFIGS[assetKey]) return;
     if (activeAsset === assetKey) return;
@@ -3360,10 +3370,16 @@ Expected Profit: +50% Option Gross / +40% Net`;
     cachedDeltaTickers = null;
     lastDeltaTickersFetchTime = 0;
 
-    // 6. Clear current position box & reload candles
+    // 6. Clear current position box & debounce candle load to prevent rapid tab switch race conditions
     clearPositionBox();
     updatePositionToolCockpit(null);
-    loadTimeframe(activeTimeframe);
+
+    if (switchAssetDebounceTimer) {
+      clearTimeout(switchAssetDebounceTimer);
+    }
+    switchAssetDebounceTimer = setTimeout(() => {
+      loadTimeframe(activeTimeframe);
+    }, 40);
   }
 
   function clearTradeState() {

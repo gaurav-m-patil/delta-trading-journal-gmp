@@ -137,32 +137,32 @@
 
     <div id="tvLiveChartContainer" style="width: 100%; height: 100%; position: relative; min-height: 450px;" class="w-full h-full min-h-[450px] relative"></div>
 
-    <!-- Floating Compact Trade Cockpit Bar (Repositioned to Top-Left Below Legend - Bottom Axis 100% Clear) -->
-    <div id="tvPositionToolCockpit" class="absolute top-10 left-3 max-w-xl p-2.5 sm:p-3 rounded-2xl glass-cockpit shadow-2xl flex flex-col sm:flex-row items-center justify-between gap-3 z-20 transition-all font-mono border border-borderDark/80 backdrop-blur-md bg-slate-900/85">
-      <div class="flex items-center gap-3 w-full sm:w-auto">
-        <div id="ptDirectionBadge" class="h-8 w-8 rounded-xl bg-indigo-500/20 text-indigo-400 flex items-center justify-center font-bold text-sm shrink-0">
+    <!-- Floating Compact Trade Cockpit Bar (Hidden on Mobile by default / Sleek Collapsible Toggle) -->
+    <div id="tvPositionToolCockpit" class="hidden sm:flex absolute top-10 left-3 max-w-xl p-2 sm:p-2.5 rounded-xl glass-cockpit shadow-2xl flex-col sm:flex-row items-center justify-between gap-2 z-20 transition-all font-mono border border-borderDark/80 backdrop-blur-md bg-slate-900/85">
+      <div class="flex items-center gap-2 w-full sm:w-auto min-w-0">
+        <div id="ptDirectionBadge" class="h-7 w-7 rounded-lg bg-indigo-500/20 text-indigo-400 flex items-center justify-center font-bold text-xs shrink-0">
           <i class="fa-solid fa-radar animate-pulse"></i>
         </div>
-        <div>
-          <div class="flex items-center gap-2">
-            <span id="ptSetupName" class="text-xs font-bold text-white">24/7 Cloud Sentinel Radar</span>
-            <span id="ptOutcomeBadge" class="text-[10px] font-bold px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/30">STANDBY</span>
+        <div class="min-w-0">
+          <div class="flex items-center gap-1.5 truncate">
+            <span id="ptSetupName" class="text-xs font-bold text-white truncate">24/7 Cloud Sentinel Radar</span>
+            <span id="ptOutcomeBadge" class="text-[9px] font-bold px-1.5 py-0.2 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 shrink-0">STANDBY</span>
           </div>
-          <div class="text-[11px] text-slate-300 mt-0.5 flex flex-wrap gap-x-3 gap-y-0.5">
+          <div class="text-[10px] text-slate-300 mt-0.5 flex flex-wrap gap-x-2 gap-y-0.5">
             <span>Entry: <strong id="ptEntry" class="text-white">--</strong></span>
-            <span>Target: <strong id="ptTp" class="text-winGreen">--</strong></span>
-            <span>Stop: <strong id="ptSl" class="text-lossRed">--</strong></span>
+            <span>TP: <strong id="ptTp" class="text-winGreen">--</strong></span>
+            <span>SL: <strong id="ptSl" class="text-lossRed">--</strong></span>
             <span>R:R: <strong id="ptRR" class="text-indigo-300">--</strong></span>
           </div>
         </div>
       </div>
 
-      <div class="flex items-center justify-between sm:justify-end gap-3 w-full sm:w-auto border-t sm:border-t-0 pt-2 sm:pt-0 border-borderDark/60">
-        <div class="text-left sm:text-right text-[11px]">
-          <span id="ptContractSymbol" class="font-bold text-indigo-300 block">Delta India Contract</span>
-          <span class="text-slate-400">Mark: <strong id="ptDeltaMark" class="text-white">--</strong> | Target: <strong id="ptDeltaTarget" class="text-winGreen">--</strong></span>
+      <div class="flex items-center justify-between sm:justify-end gap-2 w-full sm:w-auto border-t sm:border-t-0 pt-1.5 sm:pt-0 border-borderDark/60 shrink-0">
+        <div class="text-left sm:text-right text-[10px]">
+          <span id="ptContractSymbol" class="font-bold text-indigo-300 block truncate">Delta Option</span>
+          <span class="text-slate-400">Mark: <strong id="ptDeltaMark" class="text-white">--</strong></span>
         </div>
-        <button onclick="DeltaLiveChart.openTradeDetailsModal()" class="px-3 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs transition-colors shadow-sm flex items-center gap-1.5 whitespace-nowrap">
+        <button onclick="DeltaLiveChart.openTradeDetailsModal()" class="px-2.5 py-1 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-[10px] transition-colors shadow-sm flex items-center gap-1 shrink-0">
           <i class="fa-solid fa-brain"></i> Playbook
         </button>
       </div>

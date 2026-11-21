@@ -161,9 +161,6 @@ window.DeltaApp = (function() {
       if (window.DeltaLiveChart && typeof DeltaLiveChart.switchAsset === 'function') {
         DeltaLiveChart.switchAsset(tab);
       }
-      setTimeout(() => {
-        if (window.DeltaLiveChart) DeltaLiveChart.initChart();
-      }, 60);
     }
 
     // Update Bottom Nav Button States
