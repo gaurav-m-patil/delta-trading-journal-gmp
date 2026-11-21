@@ -2763,7 +2763,7 @@ Expected Profit: +50% Option Gross / +40% Net`;
 
       // Update Paper Fund with 0 trades
       if (window.DeltaPaperFund && typeof DeltaPaperFund.calculatePortfolio === 'function') {
-        const pf = DeltaPaperFund.calculatePortfolio([]);
+        const pf = DeltaPaperFund.calculatePortfolio([], activeAsset);
         if (typeof DeltaPaperFund.renderExecutiveBanner === 'function') {
           DeltaPaperFund.renderExecutiveBanner('paperFundExecutiveBannerContainer', pf);
         }
@@ -2777,9 +2777,9 @@ Expected Profit: +50% Option Gross / +40% Net`;
     // Sort descending by time (latest on top)
     const sorted = [...trades].sort((a, b) => b.time - a.time);
 
-    // Calculate ₹100,000 Institutional Paper Fund Progression across all real trades till date
+    // Calculate ₹100,000 Institutional Paper Fund Progression strictly for the active asset
     const portfolio = (window.DeltaPaperFund && typeof DeltaPaperFund.calculatePortfolio === 'function')
-      ? DeltaPaperFund.calculatePortfolio(sorted)
+      ? DeltaPaperFund.calculatePortfolio(sorted, activeAsset)
       : null;
 
     if (portfolio) {

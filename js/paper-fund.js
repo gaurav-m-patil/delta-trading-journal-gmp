@@ -9,8 +9,9 @@ window.DeltaPaperFund = (function() {
   const STORAGE_KEY_RISK_MODEL = 'dtj_paper_risk_model_v1';
   const STORAGE_KEY_CUSTOM_CAPITAL = 'dtj_paper_custom_capital_v1';
 
-  function getRiskModel() {
-    return localStorage.getItem(STORAGE_KEY_RISK_MODEL) || 'BALANCED'; // BALANCED (25%), MODERATE (50%), COMPOUND (100%)
+  function getRiskModel(asset = null) {
+    const key = asset ? `${STORAGE_KEY_RISK_MODEL}_${asset}` : STORAGE_KEY_RISK_MODEL;
+    return localStorage.getItem(key) || 'BALANCED'; // BALANCED (25%), MODERATE (50%), COMPOUND (100%)
   }
 
   function getAllocPct(riskModel) {
@@ -19,35 +20,37 @@ window.DeltaPaperFund = (function() {
     return 0.25; // BALANCED default 25% tranche
   }
 
-  function setRiskModel(model) {
-    localStorage.setItem(STORAGE_KEY_RISK_MODEL, model);
+  function setRiskModel(model, asset = null) {
+    const key = asset ? `${STORAGE_KEY_RISK_MODEL}_${asset}` : STORAGE_KEY_RISK_MODEL;
+    localStorage.setItem(key, model);
     if (window.DeltaLiveChart && typeof DeltaLiveChart.refreshPaperUI === 'function') {
       DeltaLiveChart.refreshPaperUI();
     }
   }
 
-  function getStartingCapital() {
-    const raw = localStorage.getItem(STORAGE_KEY_CUSTOM_CAPITAL);
+  function getStartingCapital(asset = null) {
+    const key = asset ? `${STORAGE_KEY_CUSTOM_CAPITAL}_${asset}` : STORAGE_KEY_CUSTOM_CAPITAL;
+    const raw = localStorage.getItem(key);
     return raw ? parseFloat(raw) : DEFAULT_CAPITAL;
   }
 
-  function resetPortfolio() {
-    localStorage.setItem(STORAGE_KEY_CUSTOM_CAPITAL, DEFAULT_CAPITAL.toString());
-    localStorage.setItem(STORAGE_KEY_RISK_MODEL, 'BALANCED');
-    if (window.DeltaDB && typeof DeltaDB.clearAllSignalTrades === 'function') {
-      DeltaDB.clearAllSignalTrades();
-    }
+  function resetPortfolio(asset = null) {
+    const keyCap = asset ? `${STORAGE_KEY_CUSTOM_CAPITAL}_${asset}` : STORAGE_KEY_CUSTOM_CAPITAL;
+    const keyRisk = asset ? `${STORAGE_KEY_RISK_MODEL}_${asset}` : STORAGE_KEY_RISK_MODEL;
+    localStorage.setItem(keyCap, DEFAULT_CAPITAL.toString());
+    localStorage.setItem(keyRisk, 'BALANCED');
     if (window.DeltaLiveChart && typeof DeltaLiveChart.clearTradeState === 'function') {
       DeltaLiveChart.clearTradeState();
     }
   }
 
   /**
-   * Processes a list of trades and simulates real ₹100,000 institutional account progression
+   * Processes a list of trades and simulates real ₹100,000 institutional account progression for a specific asset or portfolio
    */
-  function calculatePortfolio(trades) {
-    const startingCapital = getStartingCapital();
-    const riskModel = getRiskModel();
+  function calculatePortfolio(trades, asset = null) {
+    const targetAsset = asset || (trades && trades.length > 0 && trades[0].asset ? trades[0].asset : null);
+    const startingCapital = getStartingCapital(targetAsset);
+    const riskModel = getRiskModel(targetAsset);
     const allocPct = riskModel === 'COMPOUND' ? 1.0 : (riskModel === 'MODERATE' ? 0.50 : 0.25);
 
     if (!trades || trades.length === 0) {

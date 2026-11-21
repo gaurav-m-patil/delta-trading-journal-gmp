@@ -36,12 +36,6 @@ window.DeltaApp = (function() {
     initSwipeNavigation();
     initClipboardPaste();
 
-    // Set default date for calculator
-    const todayISO = new Date().toISOString().split('T')[0];
-    const calcStartInput = document.getElementById('calcStartDate');
-    if (calcStartInput) calcStartInput.value = todayISO;
-    DeltaPlanner.onCalcModeInput('PCT');
-
     // Subscribe to DB changes
     DeltaDB.addListener(onDatabaseEvent);
 
@@ -133,7 +127,7 @@ window.DeltaApp = (function() {
   }
 
   // -------------------------------------------------------------
-  // 2. TAB NAVIGATION (Insights, Planner, Coach)
+  // 2. TAB NAVIGATION (Insights, BTC, ETH, XAUT)
   // -------------------------------------------------------------
   function switchMainTab(tab) {
     if (currentMainTab === tab) return;
@@ -141,41 +135,45 @@ window.DeltaApp = (function() {
 
     const views = {
       INSIGHTS: document.getElementById('view_INSIGHTS'),
-      CALCULATOR: document.getElementById('view_CALCULATOR'),
-      COACH: document.getElementById('view_COACH')
+      BTC: document.getElementById('view_ASSET'),
+      ETH: document.getElementById('view_ASSET'),
+      XAUT: document.getElementById('view_ASSET')
     };
 
     const buttons = {
       INSIGHTS: document.getElementById('tabBtn_INSIGHTS'),
-      CALCULATOR: document.getElementById('tabBtn_CALCULATOR'),
-      COACH: document.getElementById('tabBtn_COACH')
+      BTC: document.getElementById('tabBtn_BTC'),
+      ETH: document.getElementById('tabBtn_ETH'),
+      XAUT: document.getElementById('tabBtn_XAUT')
     };
 
-    // Toggle View Visibilities
-    Object.keys(views).forEach(k => {
-      if (!views[k]) return;
-      if (k === tab) {
-        views[k].classList.remove('hidden');
-      } else {
-        views[k].classList.add('hidden');
+    const viewInsights = document.getElementById('view_INSIGHTS');
+    const viewAsset = document.getElementById('view_ASSET');
+
+    if (tab === 'INSIGHTS') {
+      if (viewInsights) viewInsights.classList.remove('hidden');
+      if (viewAsset) viewAsset.classList.add('hidden');
+    } else {
+      if (viewInsights) viewInsights.classList.add('hidden');
+      if (viewAsset) viewAsset.classList.remove('hidden');
+
+      // Switch asset context (Chart, Ledger, Capital)
+      if (window.DeltaLiveChart && typeof DeltaLiveChart.switchAsset === 'function') {
+        DeltaLiveChart.switchAsset(tab);
       }
-    });
+      setTimeout(() => {
+        if (window.DeltaLiveChart) DeltaLiveChart.initChart();
+      }, 60);
+    }
 
     // Update Bottom Nav Button States
-    const activeClass = "flex-1 py-2.5 px-2 sm:px-3 text-xs font-bold rounded-xl transition-all bg-indigo-600 text-white flex items-center justify-center gap-1.5 shadow-lg shadow-indigo-600/25";
-    const inactiveClass = "flex-1 py-2.5 px-2 sm:px-3 text-xs font-bold rounded-xl transition-all text-slate-400 hover:text-white flex items-center justify-center gap-1.5";
+    const activeClass = "flex-1 py-2 px-2 text-xs font-bold rounded-xl transition-all bg-indigo-600 text-white flex items-center justify-center gap-1 shadow-lg shadow-indigo-600/25";
+    const inactiveClass = "flex-1 py-2 px-2 text-xs font-bold rounded-xl transition-all text-slate-400 hover:text-white flex items-center justify-center gap-1";
 
     Object.keys(buttons).forEach(k => {
       if (!buttons[k]) return;
       buttons[k].className = (k === tab) ? activeClass : inactiveClass;
     });
-
-    if (tab === 'CALCULATOR') {
-      DeltaPlanner.runInrCalculator();
-    } else if (tab === 'COACH') {
-      renderCoachTab();
-      setTimeout(() => { if (window.DeltaLiveChart) DeltaLiveChart.initChart(); }, 60);
-    }
 
     window.scrollTo({ top: 0, behavior: 'smooth' });
   }
@@ -189,12 +187,14 @@ window.DeltaApp = (function() {
     const subViews = {
       CHARTS: document.getElementById('subView_CHARTS'),
       EDGE: document.getElementById('subView_EDGE'),
+      COACH_AI: document.getElementById('subView_COACH_AI'),
       LOG: document.getElementById('subView_LOG')
     };
 
     const subBtns = {
       CHARTS: document.getElementById('subTabBtn_CHARTS'),
       EDGE: document.getElementById('subTabBtn_EDGE'),
+      COACH_AI: document.getElementById('subTabBtn_COACH_AI'),
       LOG: document.getElementById('subTabBtn_LOG')
     };
 
@@ -214,6 +214,8 @@ window.DeltaApp = (function() {
 
     if (tab === 'CHARTS') {
       setTimeout(() => { window.dispatchEvent(new Event('resize')); }, 60);
+    } else if (tab === 'COACH_AI') {
+      renderCoachTab();
     }
   }
 
@@ -223,14 +225,12 @@ window.DeltaApp = (function() {
     const views = {
       RADAR: document.getElementById('subViewCoach_RADAR'),
       PORTFOLIO: document.getElementById('subViewCoach_PORTFOLIO'),
-      ENGINE: document.getElementById('subViewCoach_ENGINE'),
-      AI: document.getElementById('subViewCoach_AI')
+      ENGINE: document.getElementById('subViewCoach_ENGINE')
     };
     const btns = {
       RADAR: document.getElementById('subTabCoachBtn_RADAR'),
       PORTFOLIO: document.getElementById('subTabCoachBtn_PORTFOLIO'),
-      ENGINE: document.getElementById('subTabCoachBtn_ENGINE'),
-      AI: document.getElementById('subTabCoachBtn_AI')
+      ENGINE: document.getElementById('subTabCoachBtn_ENGINE')
     };
 
     const activeCls = "flex-1 py-2 px-2.5 sm:px-3 text-xs font-bold rounded-xl transition-all bg-indigo-600 text-white flex items-center justify-center gap-1.5 shadow-md shrink-0 whitespace-nowrap";
@@ -487,21 +487,21 @@ window.DeltaApp = (function() {
       const tag = (e.target.tagName || '').toLowerCase();
       if (drawerOpen || settingsOpen || algoModalOpen || tag === 'input' || tag === 'textarea' || tag === 'select') return;
 
-      // Never switch tabs if touching within the Coach / Live Chart tab, interactive components, tables, or scrollable elements
-      if (currentMainTab === 'COACH' || e.target.closest('#mainTab_COACH') || e.target.closest('#tvLiveChartContainer') || e.target.closest('#tvPositionBoxSvg') || e.target.closest('.tv-lightweight-charts') || e.target.closest('.overflow-x-auto') || e.target.closest('table')) return;
+      // Never switch tabs if touching within an asset trading view, interactive chart, tables, or scrollable elements
+      if (['BTC', 'ETH', 'XAUT'].includes(currentMainTab) || e.target.closest('#view_ASSET') || e.target.closest('#tvLiveChartContainer') || e.target.closest('#tvPositionBoxSvg') || e.target.closest('.tv-lightweight-charts') || e.target.closest('.overflow-x-auto') || e.target.closest('table')) return;
 
       const dx = e.changedTouches[0].clientX - touchStartX;
       const dy = e.changedTouches[0].clientY - touchStartY;
 
       if (Math.abs(dx) > 70 && Math.abs(dx) > Math.abs(dy) * 1.8) {
+        const tabList = ['INSIGHTS', 'BTC', 'ETH', 'XAUT'];
+        const currIdx = tabList.indexOf(currentMainTab);
         if (dx < 0) {
           // Swipe Left -> Next Tab
-          if (currentMainTab === 'INSIGHTS') switchMainTab('CALCULATOR');
-          else if (currentMainTab === 'CALCULATOR') switchMainTab('COACH');
+          if (currIdx >= 0 && currIdx < tabList.length - 1) switchMainTab(tabList[currIdx + 1]);
         } else {
           // Swipe Right -> Prev Tab
-          if (currentMainTab === 'COACH') switchMainTab('CALCULATOR');
-          else if (currentMainTab === 'CALCULATOR') switchMainTab('INSIGHTS');
+          if (currIdx > 0) switchMainTab(tabList[currIdx - 1]);
         }
       }
     }, { passive: true });
@@ -657,8 +657,8 @@ window.DeltaApp = (function() {
     renderRiskSentinel(allTrades);
     renderPaginatedTrades();
 
-    // If Coach Tab is active, re-render it
-    if (currentMainTab === 'COACH') {
+    // If Asset or Coach sub-view is active, keep it in sync
+    if (currentInsightsSubTab === 'COACH_AI') {
       renderCoachTab();
     }
   }

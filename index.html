@@ -429,7 +429,10 @@
         <i class="fa-solid fa-chart-line"></i> Performance & Charts
       </button>
       <button id="subTabBtn_EDGE" onclick="DeltaApp.switchInsightsSubTab('EDGE')" class="flex-1 py-2 px-3 text-xs font-bold rounded-xl transition-all text-slate-400 hover:text-white bg-transparent flex items-center justify-center gap-1.5 shrink-0">
-        <i class="fa-solid fa-brain"></i> Edge & Hold Diagnostics
+        <i class="fa-solid fa-brain"></i> Edge & Diagnostics
+      </button>
+      <button id="subTabBtn_COACH_AI" onclick="DeltaApp.switchInsightsSubTab('COACH_AI')" class="flex-1 py-2 px-3 text-xs font-bold rounded-xl transition-all text-slate-400 hover:text-white bg-transparent flex items-center justify-center gap-1.5 shrink-0">
+        <i class="fa-solid fa-wand-magic-sparkles text-indigo-400"></i> AI Quant Coach
       </button>
       <button id="subTabBtn_LOG" onclick="DeltaApp.switchInsightsSubTab('LOG')" class="flex-1 py-2 px-3 text-xs font-bold rounded-xl transition-all text-slate-400 hover:text-white bg-transparent flex items-center justify-center gap-1.5 shrink-0">
         <i class="fa-solid fa-list-check"></i> Trade Audit Log
@@ -616,88 +619,107 @@
         </div>
       </section>
     </div>
-  </div>
 
-  <!-- ========================================== -->
-  <!-- TAB 2: 3-MONTH STEP-UP PROFIT PLANNER      -->
-  <!-- ========================================== -->
-  <div id="view_CALCULATOR" class="hidden max-w-5xl mx-auto">
-    <section class="bg-cardDark border border-borderDark p-4 sm:p-5 rounded-2xl mb-4 shadow-md">
-      <div class="flex justify-between items-center mb-3.5">
-        <div class="flex items-center gap-2.5">
-          <div class="h-8 w-8 rounded-lg bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center text-indigo-400 text-sm">
-            <i class="fa-solid fa-calculator"></i>
-          </div>
-          <div>
-            <h2 class="font-bold text-sm sm:text-base text-white leading-tight">Profit Planner</h2>
-            <span class="text-[11px] text-slate-400 font-mono">3-Month Step-Up Capital (1x → 2x → 3x)</span>
-          </div>
+    <!-- SUB-VIEW 4: QUANT COACH & AI DEEP-DIVE -->
+    <div id="subView_COACH_AI" class="hidden space-y-6">
+      <!-- Top Cockpit Header -->
+      <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 bg-cardDark border border-borderDark p-4 md:p-5 rounded-2xl shadow-md">
+        <div>
+          <h2 class="font-bold text-lg text-white flex items-center gap-2">
+            <i class="fa-solid fa-brain text-indigo-400"></i> Automated Trading Coach & Quant Cockpit
+          </h2>
+          <p class="text-xs text-slate-400 mt-0.5">Deterministic quantitative analytics cross-referenced with Gemini Quant Intelligence</p>
         </div>
-        <button onclick="DeltaPlanner.resetCalculatorInputs()" class="text-xs text-slate-300 hover:text-white bg-panelDark border border-borderDark px-3 py-1.5 rounded-lg transition-colors font-medium">
-          <i class="fa-solid fa-rotate-left mr-1"></i> Reset
+        <button onclick="DeltaApp.triggerCoachGeneration()" class="w-full sm:w-auto bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold px-4 py-2.5 rounded-xl transition-colors flex items-center justify-center gap-2 shadow-lg shadow-indigo-600/20">
+          <i class="fa-solid fa-bolt"></i> Run AI Analysis
         </button>
       </div>
 
+      <!-- 4 High-Impact Quantitative Leak Gauges -->
       <div class="grid grid-cols-2 lg:grid-cols-4 gap-3">
-        <div class="bg-brandDark border border-borderDark focus-within:border-indigo-500 px-3.5 py-2.5 rounded-xl transition-colors">
-          <label class="text-[10px] sm:text-[11px] font-semibold uppercase tracking-wider text-slate-400 block mb-1">Start Date</label>
-          <input type="date" id="calcStartDate" onchange="DeltaPlanner.runInrCalculator()" class="w-full bg-transparent text-sm sm:text-base font-bold text-white focus:outline-none font-mono">
+        <div class="bg-cardDark border border-borderDark p-4 rounded-xl">
+          <span class="text-[10px] font-semibold uppercase tracking-wider text-slate-400 block mb-1">Realized R:R</span>
+          <h3 class="text-xl font-bold font-mono text-white" id="coachRealizedRR">--</h3>
+          <span class="text-[9px] text-slate-500">Avg Win vs Avg Loss</span>
         </div>
 
-        <div class="bg-brandDark border border-borderDark focus-within:border-indigo-500 px-3.5 py-2.5 rounded-xl transition-colors">
-          <div class="flex justify-between items-center mb-1">
-            <label class="text-[10px] sm:text-[11px] font-semibold uppercase tracking-wider text-slate-400">M1 Capital (₹)</label>
-            <span class="text-[10px] text-indigo-400 font-mono font-semibold" id="calcCapitalFormatted">₹1,00,000</span>
-          </div>
-          <input type="number" id="calcCapital" oninput="DeltaPlanner.runInrCalculator()" placeholder="100000" value="100000" class="w-full bg-transparent text-sm sm:text-base font-bold text-white focus:outline-none font-mono">
+        <div class="bg-cardDark border border-borderDark p-4 rounded-xl">
+          <span class="text-[10px] font-semibold uppercase tracking-wider text-slate-400 block mb-1">Expectancy / Trade</span>
+          <h3 class="text-xl font-bold font-mono text-winGreen" id="coachExpectancy">$0.00</h3>
+          <span class="text-[9px] text-slate-500">Net edge per trade</span>
         </div>
 
-        <div id="boxCalcPct" class="bg-brandDark border border-borderDark focus-within:border-emerald-500 px-3.5 py-2.5 rounded-xl transition-all">
-          <label class="text-[10px] sm:text-[11px] font-semibold uppercase tracking-wider text-emerald-400 block mb-1">Daily Target (%)</label>
-          <input type="number" step="any" id="calcPct" oninput="DeltaPlanner.onCalcModeInput('PCT')" placeholder="e.g. 5" value="5" class="w-full bg-transparent text-sm sm:text-base font-bold text-white focus:outline-none font-mono">
+        <div class="bg-cardDark border border-borderDark p-4 rounded-xl">
+          <span class="text-[10px] font-semibold uppercase tracking-wider text-slate-400 block mb-1">Delta Fee Drag</span>
+          <h3 class="text-xl font-bold font-mono text-lossRed" id="coachFeeDrag">0.0%</h3>
+          <span class="text-[9px] text-slate-500">Commissions & 18% GST</span>
         </div>
 
-        <div id="boxCalcAmt" class="bg-brandDark border border-borderDark focus-within:border-emerald-500 px-3.5 py-2.5 rounded-xl transition-all opacity-40">
-          <label class="text-[10px] sm:text-[11px] font-semibold uppercase tracking-wider text-emerald-400 block mb-1">M1 Daily Profit (₹)</label>
-          <input type="number" step="any" id="calcAmt" disabled oninput="DeltaPlanner.onCalcModeInput('AMT')" placeholder="Auto" class="w-full bg-transparent text-sm sm:text-base font-bold text-white focus:outline-none font-mono">
+        <div class="bg-cardDark border border-borderDark p-4 rounded-xl border-l-4 border-l-amber-500">
+          <span class="text-amber-400 text-[10px] font-semibold uppercase tracking-wider block mb-1">Theta Hold Ratio</span>
+          <h3 class="text-xl font-bold font-mono text-amber-300" id="coachThetaRatio">--</h3>
+          <span class="text-[9px] text-slate-400">Loser Hold vs Winner Hold</span>
         </div>
       </div>
-    </section>
 
-    <!-- UNIFIED PROJECTION & EXPANDABLE MONTHLY CARDS -->
-    <section class="bg-cardDark border border-borderDark p-4 sm:p-5 rounded-2xl shadow-md">
-      <div class="flex flex-wrap justify-between items-center gap-3 pb-4 mb-4 border-b border-borderDark">
-        <div class="flex flex-wrap items-center gap-3 sm:gap-5 font-mono">
-          <div>
-            <span class="text-[10px] text-emerald-300 uppercase font-sans font-bold block">3-Month Total Profit</span>
-            <span class="font-bold text-lg sm:text-2xl text-winGreen" id="sumTotal3MProfit">₹0</span>
-          </div>
-          <div class="h-7 w-[1px] bg-borderDark hidden sm:block"></div>
-          <div>
-            <span class="text-[10px] text-slate-400 uppercase font-sans font-medium block">Daily Rate</span>
-            <span class="font-bold text-xs sm:text-sm text-emerald-400" id="sumDailyPctBadge">5.00% / day</span>
-          </div>
-          <div class="h-7 w-[1px] bg-borderDark hidden sm:block"></div>
-          <div>
-            <span class="text-[10px] text-slate-400 uppercase font-sans font-medium block">Trading Window (Mon–Fri)</span>
-            <span class="font-bold text-xs sm:text-sm text-white" id="sumTotalDays">0 days</span>
-            <span class="text-[11px] text-slate-400 ml-1" id="sumDateSpan"></span>
-          </div>
+      <!-- Theta Leak Alert Callout -->
+      <div class="bg-brandDark border border-borderDark p-4 rounded-2xl flex items-start gap-3">
+        <div class="h-8 w-8 rounded-xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center text-amber-400 shrink-0 mt-0.5">
+          <i class="fa-solid fa-hourglass-end text-sm"></i>
         </div>
-
-        <button onclick="DeltaPlanner.toggleAllCalcMonths()" id="btnToggleAllMonths" class="text-xs text-indigo-300 hover:text-white font-semibold px-3 py-1.5 rounded-xl bg-panelDark border border-borderDark transition-colors">
-          Expand All Days
-        </button>
+        <div>
+          <h4 class="font-bold text-xs text-white uppercase tracking-wider">Theta Decay Trap Diagnostic</h4>
+          <p class="text-xs text-slate-300 mt-1 leading-relaxed" id="coachThetaDiagnosis">Calculating hold durations...</p>
+        </div>
       </div>
 
-      <div id="calcUnifiedMonthsContainer" class="space-y-3"></div>
-    </section>
+      <!-- SMC Strategy Attribution Matrix -->
+      <section class="bg-cardDark border border-borderDark p-4 md:p-5 rounded-2xl shadow-md">
+        <div class="flex justify-between items-center mb-4">
+          <div>
+            <h3 class="font-bold text-sm md:text-base text-white">Smart Money Concepts (SMC) Strategy Leaderboard</h3>
+            <p class="text-[11px] text-slate-400">Cross-referencing your tagged setups against real mathematical edge</p>
+          </div>
+        </div>
+        <div class="overflow-x-auto custom-scroll">
+          <table class="w-full text-left text-xs">
+            <thead class="bg-brandDark text-slate-400 border-b border-borderDark uppercase tracking-wider text-[10px]">
+              <tr>
+                <th class="py-2.5 px-3">Strategy / Setup Tag</th>
+                <th class="py-2.5 px-3 text-center">Edge Tier</th>
+                <th class="py-2.5 px-3 text-right">Trades</th>
+                <th class="py-2.5 px-3 text-right">Win Rate</th>
+                <th class="py-2.5 px-3 text-right">Net Take-Home</th>
+                <th class="py-2.5 px-3 text-right">Expectancy</th>
+              </tr>
+            </thead>
+            <tbody id="coachStrategyBody" class="divide-y divide-borderDark/60 text-slate-300">
+              <tr><td colspan="6" class="text-center py-6 text-slate-500">Loading strategy matrix...</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- AI Coaching Report Card -->
+      <section class="bg-cardDark border border-borderDark p-4 md:p-5 rounded-2xl shadow-md">
+        <div class="flex justify-between items-center pb-3 mb-4 border-b border-borderDark">
+          <div class="flex items-center gap-2">
+            <i class="fa-solid fa-wand-magic-sparkles text-indigo-400"></i>
+            <h3 class="font-bold text-sm md:text-base text-white">Quantitative AI Review</h3>
+          </div>
+          <span id="coachModelLabel" class="text-[10px] text-indigo-300 font-mono">Model: Gemini Quant Engine</span>
+        </div>
+        <div id="coachAIArea" class="p-2 sm:p-4 rounded-xl bg-brandDark/50 min-h-[140px]">
+          <p class="text-xs text-slate-400 italic">Click "Run AI Analysis" above to generate your customized coaching breakdown.</p>
+        </div>
+      </section>
+    </div>
   </div>
 
   <!-- ========================================== -->
-  <!-- TAB 3: AI COACH & EDGE ANALYTICS SCREEN    -->
+  <!-- ASSET TRADING HUBS (BTC / ETH / XAUT)      -->
   <!-- ========================================== -->
-  <div id="view_COACH" class="hidden max-w-5xl mx-auto space-y-6">
+  <div id="view_ASSET" class="hidden max-w-5xl mx-auto space-y-6">
     <!-- 1. LIVE TICK-BY-TICK EXECUTION TERMINAL -->
     <section class="bg-cardDark border border-borderDark p-4 sm:p-5 rounded-2xl shadow-md space-y-4">
       <!-- Terminal Header: Row 1 - Asset Title & Live Price -->
@@ -890,21 +912,18 @@
         <div id="tvLiveChartContainer" class="w-full rounded-xl overflow-hidden border border-borderDark bg-[#0b0f17] shadow-inner relative min-h-[330px] sm:min-h-[420px]"></div>
       </div>
 
-      <!-- Coach Sub-View Switcher (Anti-Clutter) -->
-      <div class="flex items-center bg-brandDark/90 border border-borderDark rounded-2xl p-1.5 gap-1.5 shadow-sm overflow-x-auto custom-scroll">
-        <button id="subTabCoachBtn_RADAR" onclick="DeltaApp.switchCoachSubTab('RADAR')" class="flex-1 py-2 px-2.5 sm:px-3 text-xs font-bold rounded-xl transition-all bg-indigo-600 text-white flex items-center justify-center gap-1.5 shadow-md shrink-0 whitespace-nowrap">
-          <i class="fa-solid fa-crosshairs"></i> SMC Setup Radar & Simulation
-        </button>
-        <button id="subTabCoachBtn_PORTFOLIO" onclick="DeltaApp.switchCoachSubTab('PORTFOLIO')" class="flex-1 py-2 px-2.5 sm:px-3 text-xs font-bold rounded-xl transition-all text-slate-400 hover:text-white bg-transparent flex items-center justify-center gap-1.5 shrink-0 whitespace-nowrap">
-          <i class="fa-solid fa-wallet text-amber-400"></i> ₹1L Paper Fund
-        </button>
-        <button id="subTabCoachBtn_ENGINE" onclick="DeltaApp.switchCoachSubTab('ENGINE')" class="flex-1 py-2 px-2.5 sm:px-3 text-xs font-bold rounded-xl transition-all text-slate-400 hover:text-white bg-transparent flex items-center justify-center gap-1.5 shrink-0 whitespace-nowrap">
-          <i class="fa-solid fa-microchip"></i> Self-Improving Engine
-        </button>
-        <button id="subTabCoachBtn_AI" onclick="DeltaApp.switchCoachSubTab('AI')" class="flex-1 py-2 px-2.5 sm:px-3 text-xs font-bold rounded-xl transition-all text-slate-400 hover:text-white bg-transparent flex items-center justify-center gap-1.5 shrink-0 whitespace-nowrap">
-          <i class="fa-solid fa-brain"></i> Quant Coach & AI Deep-Dive
-        </button>
-      </div>
+    <!-- Coach Sub-View Switcher (Anti-Clutter) -->
+    <div class="flex items-center bg-brandDark/90 border border-borderDark rounded-2xl p-1.5 gap-1.5 shadow-sm overflow-x-auto custom-scroll">
+      <button id="subTabCoachBtn_RADAR" onclick="DeltaApp.switchCoachSubTab('RADAR')" class="flex-1 py-2 px-2.5 sm:px-3 text-xs font-bold rounded-xl transition-all bg-indigo-600 text-white flex items-center justify-center gap-1.5 shadow-md shrink-0 whitespace-nowrap">
+        <i class="fa-solid fa-crosshairs"></i> SMC Setup Radar & History
+      </button>
+      <button id="subTabCoachBtn_PORTFOLIO" onclick="DeltaApp.switchCoachSubTab('PORTFOLIO')" class="flex-1 py-2 px-2.5 sm:px-3 text-xs font-bold rounded-xl transition-all text-slate-400 hover:text-white bg-transparent flex items-center justify-center gap-1.5 shrink-0 whitespace-nowrap">
+        <i class="fa-solid fa-wallet text-amber-400"></i> ₹1L Capital & Ledger
+      </button>
+      <button id="subTabCoachBtn_ENGINE" onclick="DeltaApp.switchCoachSubTab('ENGINE')" class="flex-1 py-2 px-2.5 sm:px-3 text-xs font-bold rounded-xl transition-all text-slate-400 hover:text-white bg-transparent flex items-center justify-center gap-1.5 shrink-0 whitespace-nowrap">
+        <i class="fa-solid fa-microchip"></i> Self-Improving Engine
+      </button>
+    </div>
 
       <!-- COACH SUB-VIEW 1: SMC SETUP RADAR & TRADE HISTORY -->
       <div id="subViewCoach_RADAR" class="space-y-4">
@@ -1046,101 +1065,6 @@
         </div>
       </div>
     </section>
-
-    <!-- COACH SUB-VIEW 3: QUANT COACH & AI DEEP-DIVE -->
-    <div id="subViewCoach_AI" class="hidden space-y-6">
-      <!-- Top Cockpit Header -->
-      <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 bg-cardDark border border-borderDark p-4 md:p-5 rounded-2xl shadow-md">
-        <div>
-          <h2 class="font-bold text-lg text-white flex items-center gap-2">
-            <i class="fa-solid fa-brain text-indigo-400"></i> Automated Trading Coach & Quant Cockpit
-          </h2>
-          <p class="text-xs text-slate-400 mt-0.5">Deterministic quantitative analytics cross-referenced with Gemini Quant Intelligence</p>
-        </div>
-        <button onclick="DeltaApp.triggerCoachGeneration()" class="w-full sm:w-auto bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold px-4 py-2.5 rounded-xl transition-colors flex items-center justify-center gap-2 shadow-lg shadow-indigo-600/20">
-          <i class="fa-solid fa-bolt"></i> Run AI Analysis
-        </button>
-      </div>
-
-      <!-- 4 High-Impact Quantitative Leak Gauges -->
-      <div class="grid grid-cols-2 lg:grid-cols-4 gap-3">
-        <div class="bg-cardDark border border-borderDark p-4 rounded-xl">
-          <span class="text-[10px] font-semibold uppercase tracking-wider text-slate-400 block mb-1">Realized R:R</span>
-          <h3 class="text-xl font-bold font-mono text-white" id="coachRealizedRR">--</h3>
-          <span class="text-[9px] text-slate-500">Avg Win vs Avg Loss</span>
-        </div>
-
-        <div class="bg-cardDark border border-borderDark p-4 rounded-xl">
-          <span class="text-[10px] font-semibold uppercase tracking-wider text-slate-400 block mb-1">Expectancy / Trade</span>
-          <h3 class="text-xl font-bold font-mono text-winGreen" id="coachExpectancy">$0.00</h3>
-          <span class="text-[9px] text-slate-500">Net edge per trade</span>
-        </div>
-
-        <div class="bg-cardDark border border-borderDark p-4 rounded-xl">
-          <span class="text-[10px] font-semibold uppercase tracking-wider text-slate-400 block mb-1">Delta Fee Drag</span>
-          <h3 class="text-xl font-bold font-mono text-lossRed" id="coachFeeDrag">0.0%</h3>
-          <span class="text-[9px] text-slate-500">Commissions & 18% GST</span>
-        </div>
-
-        <div class="bg-cardDark border border-borderDark p-4 rounded-xl border-l-4 border-l-amber-500">
-          <span class="text-amber-400 text-[10px] font-semibold uppercase tracking-wider block mb-1">Theta Hold Ratio</span>
-          <h3 class="text-xl font-bold font-mono text-amber-300" id="coachThetaRatio">--</h3>
-          <span class="text-[9px] text-slate-400">Loser Hold vs Winner Hold</span>
-        </div>
-      </div>
-
-      <!-- Theta Leak Alert Callout -->
-      <div class="bg-brandDark border border-borderDark p-4 rounded-2xl flex items-start gap-3">
-        <div class="h-8 w-8 rounded-xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center text-amber-400 shrink-0 mt-0.5">
-          <i class="fa-solid fa-hourglass-end text-sm"></i>
-        </div>
-        <div>
-          <h4 class="font-bold text-xs text-white uppercase tracking-wider">Theta Decay Trap Diagnostic</h4>
-          <p class="text-xs text-slate-300 mt-1 leading-relaxed" id="coachThetaDiagnosis">Calculating hold durations...</p>
-        </div>
-      </div>
-
-      <!-- SMC Strategy Attribution Matrix -->
-      <section class="bg-cardDark border border-borderDark p-4 md:p-5 rounded-2xl shadow-md">
-        <div class="flex justify-between items-center mb-4">
-          <div>
-            <h3 class="font-bold text-sm md:text-base text-white">Smart Money Concepts (SMC) Strategy Leaderboard</h3>
-            <p class="text-[11px] text-slate-400">Cross-referencing your tagged setups against real mathematical edge</p>
-          </div>
-        </div>
-        <div class="overflow-x-auto custom-scroll">
-          <table class="w-full text-left text-xs">
-            <thead class="bg-brandDark text-slate-400 border-b border-borderDark uppercase tracking-wider text-[10px]">
-              <tr>
-                <th class="py-2.5 px-3">Strategy / Setup Tag</th>
-                <th class="py-2.5 px-3 text-center">Edge Tier</th>
-                <th class="py-2.5 px-3 text-right">Trades</th>
-                <th class="py-2.5 px-3 text-right">Win Rate</th>
-                <th class="py-2.5 px-3 text-right">Net Take-Home</th>
-                <th class="py-2.5 px-3 text-right">Expectancy</th>
-              </tr>
-            </thead>
-            <tbody id="coachStrategyBody" class="divide-y divide-borderDark/60 text-slate-300">
-              <tr><td colspan="6" class="text-center py-6 text-slate-500">Loading strategy matrix...</td></tr>
-            </tbody>
-          </table>
-        </div>
-      </section>
-
-      <!-- AI Coaching Report Card -->
-      <section class="bg-cardDark border border-borderDark p-4 md:p-5 rounded-2xl shadow-md">
-        <div class="flex justify-between items-center pb-3 mb-4 border-b border-borderDark">
-          <div class="flex items-center gap-2">
-            <i class="fa-solid fa-wand-magic-sparkles text-indigo-400"></i>
-            <h3 class="font-bold text-sm md:text-base text-white">Quantitative AI Review</h3>
-          </div>
-          <span id="coachModelLabel" class="text-[10px] text-indigo-300 font-mono">Model: Gemini Quant Engine</span>
-        </div>
-        <div id="coachAIArea" class="p-2 sm:p-4 rounded-xl bg-brandDark/50 min-h-[140px]">
-          <p class="text-xs text-slate-400 italic">Click "Run AI Analysis" above to generate your customized coaching breakdown.</p>
-        </div>
-      </section>
-    </div>
   </div>
 
   <!-- ========================================== -->
@@ -1466,17 +1390,20 @@
     </div>
   </div>
 
-  <!-- FLOATING BOTTOM NAVIGATION BAR (3 TABS)    -->
+  <!-- FLOATING BOTTOM NAVIGATION BAR (4 TABS)    -->
   <!-- ========================================== -->
-  <nav class="fixed bottom-4 left-1/2 -translate-x-1/2 z-30 w-[94%] max-w-[440px] bg-cardDark/95 backdrop-blur-md border border-borderDark rounded-2xl p-1.5 shadow-2xl flex items-center gap-1.5 no-select">
-    <button onclick="DeltaApp.switchMainTab('INSIGHTS')" id="tabBtn_INSIGHTS" class="flex-1 py-2.5 px-2 sm:px-3 text-xs font-bold rounded-xl transition-all bg-indigo-600 text-white flex items-center justify-center gap-1.5 shadow-lg shadow-indigo-600/25">
-      <i class="fa-solid fa-chart-pie"></i> Delta Insights
+  <nav class="fixed bottom-4 left-1/2 -translate-x-1/2 z-30 w-[96%] max-w-[500px] bg-cardDark/95 backdrop-blur-md border border-borderDark rounded-2xl p-1.5 shadow-2xl flex items-center gap-1.5 no-select">
+    <button onclick="DeltaApp.switchMainTab('INSIGHTS')" id="tabBtn_INSIGHTS" class="flex-1 py-2 px-2 text-xs font-bold rounded-xl transition-all bg-indigo-600 text-white flex items-center justify-center gap-1 shadow-lg shadow-indigo-600/25">
+      <i class="fa-solid fa-chart-pie"></i> <span class="hidden sm:inline">Delta</span> Insights
     </button>
-    <button onclick="DeltaApp.switchMainTab('CALCULATOR')" id="tabBtn_CALCULATOR" class="flex-1 py-2.5 px-2 sm:px-3 text-xs font-bold rounded-xl transition-all text-slate-400 hover:text-white flex items-center justify-center gap-1.5">
-      <i class="fa-solid fa-calculator"></i> Profit Planner
+    <button onclick="DeltaApp.switchMainTab('BTC')" id="tabBtn_BTC" class="flex-1 py-2 px-2 text-xs font-bold rounded-xl transition-all text-slate-400 hover:text-white flex items-center justify-center gap-1">
+      <i class="fa-brands fa-bitcoin text-amber-400"></i> BTC
     </button>
-    <button onclick="DeltaApp.switchMainTab('COACH')" id="tabBtn_COACH" class="flex-1 py-2.5 px-2 sm:px-3 text-xs font-bold rounded-xl transition-all text-slate-400 hover:text-white flex items-center justify-center gap-1.5">
-      <i class="fa-solid fa-brain"></i> AI Coach
+    <button onclick="DeltaApp.switchMainTab('ETH')" id="tabBtn_ETH" class="flex-1 py-2 px-2 text-xs font-bold rounded-xl transition-all text-slate-400 hover:text-white flex items-center justify-center gap-1">
+      <i class="fa-brands fa-ethereum text-indigo-400"></i> ETH
+    </button>
+    <button onclick="DeltaApp.switchMainTab('XAUT')" id="tabBtn_XAUT" class="flex-1 py-2 px-2 text-xs font-bold rounded-xl transition-all text-slate-400 hover:text-white flex items-center justify-center gap-1">
+      <i class="fa-solid fa-coins text-yellow-400"></i> XAUT
     </button>
   </nav>
 
