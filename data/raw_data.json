@@ -1,23 +1,20 @@
 {
-  "generated_at": "2026-11-20 18:59:40 UTC",
+  "generated_at": "2026-11-21 00:04:12 UTC",
   "wallet_txs": [
     {
-      "balance": "232.87038797",
-      "amount": "-1.50057462",
+      "balance": "0.00003502",
+      "amount": "-232.87035295",
       "meta_data": {
-        "amount_without_gst": "-1.27167341",
-        "fill_uuid": "4252dcadfa44472e978b4607343dd6f4",
-        "gst": "-0.22890121",
-        "product_symbol": "P-BTC-59600-211126"
+        "withdrawal_id": 13527776
       },
       "user_id": 27404882,
-      "uuid": "3017007fd2f545c59174221906342915",
+      "uuid": "616e240acff54d5991c39b63ae77227f",
       "asset_id": 14,
       "asset_symbol": "USD",
-      "created_at": "2026-11-20T16:02:29.578891Z",
-      "product_id": 165137,
+      "created_at": "2026-11-20T20:44:44.468079Z",
+      "product_id": null,
       "fund_id": null,
-      "transaction_type": "commission"
+      "transaction_type": "withdrawal"
     }
   ],
   "orders": [
