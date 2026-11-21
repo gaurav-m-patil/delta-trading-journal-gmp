@@ -842,7 +842,7 @@ window.DeltaApp = (function() {
       container.innerHTML = calHTML + `</div>` + legendHTML + `</div>`;
     } else {
       document.getElementById('middleSectionTitle').innerText = `Monthly Performance Overview`;
-      document.getElementById('middleSectionSubtitle').innerText = `Aggregated monthly cashflows and net trajectory`;
+      document.getElementById('middleSectionSubtitle').innerText = `Aggregated monthly cashflows • Tap any month card for comprehensive audited breakdown`;
 
       const matchingMonths = Object.keys(monthlyMap).filter(m => `${m}-01` >= startDate.slice(0, 7) && `${m}-01` <= endDate.slice(0, 7)).sort().reverse();
       if (matchingMonths.length === 0) return container.innerHTML = `<div class="p-8 text-center text-slate-500 text-xs">No trade history found.</div>`;
@@ -850,18 +850,22 @@ window.DeltaApp = (function() {
       let gridHTML = `<div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-2.5 sm:gap-3">`;
       matchingMonths.forEach(mKey => {
         const mData = monthlyMap[mKey];
+        const isWin = mData.net_pnl >= 0;
         gridHTML += `
-          <div class="border border-borderDark bg-panelDark/40 p-3 rounded-xl flex flex-col justify-between">
+          <div onclick="DeltaApp.openMonthDetailModal('${mKey}')" class="border border-borderDark/80 hover:border-indigo-500/60 bg-panelDark/40 hover:bg-panelDark/80 p-3 rounded-xl flex flex-col justify-between transition-all cursor-pointer group shadow-sm active:scale-[0.98]">
             <div class="flex justify-between items-center mb-1.5">
-              <span class="font-bold text-xs sm:text-sm text-white">${new Date(mKey + "-01").toLocaleString('default', { month: 'short', year: '2-digit' })}</span>
-              <span class="text-[9px] px-1.5 py-0.5 rounded bg-cardDark text-slate-400 border border-borderDark">${mData.trades}t</span>
+              <span class="font-bold text-xs sm:text-sm text-white group-hover:text-indigo-300 transition-colors">${new Date(mKey + "-01").toLocaleString('default', { month: 'short', year: '2-digit' })}</span>
+              <div class="flex items-center gap-1">
+                <span class="text-[9px] px-1.5 py-0.5 rounded bg-cardDark text-slate-400 border border-borderDark">${mData.trades}t</span>
+                <i class="fa-solid fa-chevron-right text-[8px] text-slate-600 group-hover:text-indigo-400 transition-transform group-hover:translate-x-0.5"></i>
+              </div>
             </div>
             <div class="my-1.5">
-              <span class="text-[9px] text-slate-400 block uppercase">Net Profit</span>
-              <h4 class="text-sm sm:text-base font-bold font-mono ${mData.net_pnl >= 0 ? 'text-winGreen' : 'text-lossRed'}">${mData.net_pnl >= 0 ? '+' : ''}${formatUSD(mData.net_pnl)}</h4>
+              <span class="text-[9px] text-slate-400 block uppercase">Net Take-Home</span>
+              <h4 class="text-sm sm:text-base font-bold font-mono ${isWin ? 'text-winGreen' : 'text-lossRed'}">${isWin ? '+' : ''}${formatUSD(mData.net_pnl)}</h4>
             </div>
             <div class="flex justify-between items-center pt-1.5 border-t border-borderDark/60 text-[9px] text-slate-400 font-mono">
-              <span>Gross: ${compactUSD(mData.gross_pnl)}</span>
+              <span>Gross: <strong class="${mData.gross_pnl >= 0 ? 'text-winGreen' : 'text-lossRed'}">${compactUSD(mData.gross_pnl)}</strong></span>
               <span class="text-lossRed">Fee: ${compactUSD(mData.total_fee)}</span>
             </div>
           </div>`;
@@ -2077,6 +2081,159 @@ window.DeltaApp = (function() {
     }
   }
 
+  function openMonthDetailModal(mKey) {
+    const monthlyMap = DeltaDB.getMonthlyMap();
+    if (!monthlyMap || !monthlyMap[mKey]) return;
+    const data = monthlyMap[mKey];
+
+    const dObj = new Date(mKey + "-01T00:00:00");
+    const displayMonth = dObj.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+    const isWin = data.net_pnl >= 0;
+    const winRate = data.trades > 0 ? Math.round((data.wins / data.trades) * 100) : 0;
+    const feeDrag = data.gross_pnl > 0 ? Math.round((data.total_fee / data.gross_pnl) * 100) : 0;
+
+    const html = `
+      <div class="text-center mb-4">
+        <span class="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded bg-indigo-500/10 text-indigo-300 border border-indigo-500/30">Audited Monthly Breakdown</span>
+        <h2 class="text-xl sm:text-2xl font-bold text-white font-sans mt-2">${displayMonth}</h2>
+        <h3 class="text-3xl font-bold font-mono mt-1 ${isWin ? 'text-winGreen' : 'text-lossRed'}">${isWin ? '+' : ''}${formatUSD(data.net_pnl)}</h3>
+        <p class="text-[10px] text-slate-400 mt-0.5 uppercase tracking-wider">Final Net Take-Home (Into Wallet)</p>
+        
+        <div class="grid grid-cols-3 gap-2 mt-3 text-xs font-mono">
+          <div class="p-2 rounded-xl bg-brandDark border border-borderDark">
+            <span class="text-[9px] text-slate-400 block uppercase font-sans">Trades</span>
+            <strong class="text-white">${data.trades}</strong>
+          </div>
+          <div class="p-2 rounded-xl bg-brandDark border border-borderDark">
+            <span class="text-[9px] text-slate-400 block uppercase font-sans">Win Rate</span>
+            <strong class="text-winGreen">${winRate}% (${data.wins}W / ${data.losses}L)</strong>
+          </div>
+          <div class="p-2 rounded-xl bg-brandDark border border-borderDark">
+            <span class="text-[9px] text-slate-400 block uppercase font-sans">Fee Drag</span>
+            <strong class="text-lossRed">${feeDrag > 0 ? feeDrag + '%' : 'N/A'}</strong>
+          </div>
+        </div>
+      </div>
+
+      <div class="bg-brandDark rounded-xl p-3.5 border border-borderDark/60 space-y-2 text-xs font-mono text-slate-300 mb-4">
+        <div class="flex justify-between items-center">
+          <span class="font-sans text-slate-400">Gross Trade Profit / Loss:</span>
+          <span class="font-bold ${data.gross_pnl >= 0 ? 'text-winGreen' : 'text-lossRed'}">${data.gross_pnl >= 0 ? '+' : ''}${formatUSD(data.gross_pnl)}</span>
+        </div>
+        <div class="flex justify-between items-center">
+          <span class="font-sans text-slate-400">Delta Exchange Brokerage:</span>
+          <span class="text-lossRed">-${formatUSD(data.base_brokerage)}</span>
+        </div>
+        <div class="flex justify-between items-center">
+          <span class="font-sans text-slate-400">18% Indian GST on Fees:</span>
+          <span class="text-amber-400">-${formatUSD(data.gst)}</span>
+        </div>
+        <div class="flex justify-between items-center pt-2 border-t border-borderDark/60">
+          <span class="font-sans text-slate-300 font-semibold">Total Exchange Deductions:</span>
+          <span class="text-lossRed font-bold">-${formatUSD(data.total_fee)}</span>
+        </div>
+        <div class="flex justify-between items-center pt-2 border-t border-borderDark/60 bg-panelDark/60 p-2 rounded-lg">
+          <span class="font-sans text-white font-bold">Net Audited PnL:</span>
+          <span class="font-bold font-mono text-base ${isWin ? 'text-winGreen' : 'text-lossRed'}">${isWin ? '+' : ''}${formatUSD(data.net_pnl)}</span>
+        </div>
+      </div>
+
+      <div class="flex gap-2">
+        <button onclick="DeltaApp.setPreset('custom', '${mKey}-01', '${mKey}-31', '${displayMonth}'); DeltaApp.hidePeek();" class="flex-1 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs transition-colors flex items-center justify-center gap-1.5 shadow-md">
+          <i class="fa-solid fa-filter"></i> Isolate & View Trades
+        </button>
+        <button onclick="DeltaApp.hidePeek()" class="px-4 py-2.5 rounded-xl bg-panelDark hover:bg-slate-800 text-slate-300 hover:text-white border border-borderDark text-xs font-semibold transition-colors">
+          Close
+        </button>
+      </div>`;
+
+    const peekCard = document.getElementById('peekCard');
+    const peekOverlay = document.getElementById('peekOverlay');
+    if (peekCard && peekOverlay) {
+      peekCard.innerHTML = html;
+      peekOverlay.classList.remove('opacity-0', 'pointer-events-none');
+      peekOverlay.classList.add('opacity-100');
+    }
+  }
+
+  function openMetricExplainerModal(metricKey) {
+    const titles = {
+      net: 'Understanding Net Take-Home',
+      winrate: 'Understanding Win Rate',
+      profitfactor: 'Understanding Profit Factor',
+      rr: 'Understanding Realized Risk-to-Reward'
+    };
+
+    const contents = {
+      net: `
+        <div class="space-y-3 text-xs leading-relaxed text-slate-300 font-sans">
+          <p><strong class="text-emerald-400">Net Take-Home</strong> is the actual money deposited into or deducted from your trading capital after subtracting all exchange fees.</p>
+          <div class="p-3 rounded-xl bg-panelDark border border-borderDark font-mono space-y-1 text-[11px]">
+            <div class="flex justify-between text-slate-300"><span>1. Gross Outcome:</span><span>Real trade profit/loss</span></div>
+            <div class="flex justify-between text-lossRed"><span>2. Less: Delta Brokerage:</span><span>Maker/taker execution fees</span></div>
+            <div class="flex justify-between text-amber-400"><span>3. Less: 18% GST:</span><span>Government tax on brokerage</span></div>
+            <div class="flex justify-between border-t border-borderDark pt-1 font-bold text-white"><span>= Net Take-Home:</span><span>What enters your bank/wallet</span></div>
+          </div>
+          <p class="text-slate-400 text-[11px]">Why is Gross different from Net? If you had <strong>-$330 Gross</strong> and paid <strong>$390 in fees</strong>, your Net Take-Home is <strong>-$720</strong>. This transparency helps you eliminate excessive over-trading.</p>
+        </div>
+      `,
+      winrate: `
+        <div class="space-y-3 text-xs leading-relaxed text-slate-300 font-sans">
+          <p><strong class="text-indigo-400">Win Rate</strong> is the percentage of completed trades that ended with a positive net return.</p>
+          <div class="p-3 rounded-xl bg-panelDark border border-borderDark font-mono text-center text-sm text-white">
+            Win Rate = (Winning Trades ÷ Total Closed Trades) × 100
+          </div>
+          <p class="text-slate-400 text-[11px]">Even with a 60% win rate, an account can lose money if average losses exceed average wins (poor Risk:Reward) or if fees eat up profits.</p>
+        </div>
+      `,
+      profitfactor: `
+        <div class="space-y-3 text-xs leading-relaxed text-slate-300 font-sans">
+          <p><strong class="text-indigo-400">Profit Factor</strong> measures the overall profitability of your strategy by comparing total money won versus total money lost.</p>
+          <div class="p-3 rounded-xl bg-panelDark border border-borderDark font-mono text-center text-sm text-white">
+            Profit Factor = Total Gross Wins ÷ Total Gross Losses
+          </div>
+          <div class="space-y-1.5 text-[11px]">
+            <div><strong class="text-lossRed">&lt; 1.00 (e.g. 0.69):</strong> Losing system. For every $1 made on wins, $1.45 was given back on losses.</div>
+            <div><strong class="text-slate-300">1.00:</strong> Break-even before exchange fees.</div>
+            <div><strong class="text-winGreen">&gt; 1.50+:</strong> Professional institutional edge. Wins comfortably overpower losses.</div>
+          </div>
+        </div>
+      `,
+      rr: `
+        <div class="space-y-3 text-xs leading-relaxed text-slate-300 font-sans">
+          <p><strong class="text-indigo-400">Realized R : R (Risk-to-Reward)</strong> shows what you actually made on winning trades compared to what you lost on losing trades.</p>
+          <div class="p-3 rounded-xl bg-panelDark border border-borderDark font-mono text-center text-sm text-white">
+            Realized R:R = 1 : (Average $ Win ÷ Average $ Loss)
+          </div>
+          <p class="text-slate-400 text-[11px]">If your card shows <strong>1 : 0.46 (+ $133 / - $289)</strong>, it means your average win was <strong>$133</strong> while your average loss was <strong>$289</strong>. Even with a high win rate, cutting losses early is essential to protect capital.</p>
+        </div>
+      `
+    };
+
+    const title = titles[metricKey] || 'Metric Explanation';
+    const body = contents[metricKey] || '<p class="text-slate-400">Detailed metric explanation.</p>';
+
+    const html = `
+      <div class="text-center mb-4">
+        <span class="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded bg-indigo-500/10 text-indigo-300 border border-indigo-500/30">Metrics Masterclass</span>
+        <h2 class="text-xl font-bold text-white font-sans mt-2">${title}</h2>
+      </div>
+      <div class="bg-brandDark rounded-xl p-3.5 border border-borderDark/60 mb-4">
+        ${body}
+      </div>
+      <button onclick="DeltaApp.hidePeek()" class="w-full py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs transition-colors shadow-md">
+        Got it!
+      </button>`;
+
+    const peekCard = document.getElementById('peekCard');
+    const peekOverlay = document.getElementById('peekOverlay');
+    if (peekCard && peekOverlay) {
+      peekCard.innerHTML = html;
+      peekOverlay.classList.remove('opacity-0', 'pointer-events-none');
+      peekOverlay.classList.add('opacity-100');
+    }
+  }
+
   function hidePeek() {
     const overlay = document.getElementById('peekOverlay');
     if (overlay) {
@@ -2127,6 +2284,8 @@ window.DeltaApp = (function() {
     sendTelegramMessage,
     checkAndSendTelegramSignal,
     checkAndSendTelegramOutcome,
-    getTelegramConfig
+    getTelegramConfig,
+    openMonthDetailModal,
+    openMetricExplainerModal
   };
 })();

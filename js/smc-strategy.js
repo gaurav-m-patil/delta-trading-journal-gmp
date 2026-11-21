@@ -618,7 +618,9 @@ window.DeltaSMCStrategy = (function() {
 
         // 3B. Bullish Order Block Liquidity Sweep (CALL)
         // Lower wick sweeps below recent swing low, candle absorbs and closes green above it
-        if (!setup && macroBias !== "BEARISH" && !isBearTrend) {
+        // Or extreme Capitulation V-Bottom Absorption: Oversold (RSI < 35), High RVOL (>=1.3x) with major lower wick (>=35%)
+        const isCapitulationSweep = (curRsi < 35 && curRvol >= 1.3 && (curLowerWick / curRng) >= 0.35);
+        if (!setup && (isCapitulationSweep || (macroBias !== "BEARISH" && !isBearTrend))) {
           const recentLows = swingLows.slice(-5).map(sl => sl.price);
           for (const slPrice of recentLows) {
             if (cur.low < slPrice && cur.close > slPrice && (curLowerWick / curRng) >= 0.25 && cur.close >= cur.open) {
@@ -633,8 +635,8 @@ window.DeltaSMCStrategy = (function() {
 
               setup = {
                 id: `cloud_bull_${cur.time}`,
-                strategyId: "ORDER_BLOCK_SWEEP_CALL",
-                name: "Bullish Order Block Liquidity Sweep",
+                strategyId: isCapitulationSweep ? "CAPITULATION_V_SWEEP_CALL" : "ORDER_BLOCK_SWEEP_CALL",
+                name: isCapitulationSweep ? "Institutional Capitulation V-Bottom Sweep" : "Bullish Order Block Liquidity Sweep",
                 direction: "LONG",
                 type: "LIQUIDITY_SWEEP",
                 index: i,

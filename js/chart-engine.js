@@ -1282,12 +1282,19 @@ window.DeltaLiveChart = (function() {
 
   function startDeltaTickerPoll() {
     if (deltaTickerPollInterval) clearInterval(deltaTickerPollInterval);
+    const pollerAsset = activeAsset;
+    const pollerDeltaSymbol = activeDeltaSymbol;
     deltaTickerPollInterval = setInterval(async () => {
+      // Abort immediately if user switched asset
+      if (activeAsset !== pollerAsset || activeDeltaSymbol !== pollerDeltaSymbol) {
+        clearInterval(deltaTickerPollInterval);
+        return;
+      }
       try {
-        const res = await fetch(`https://api.india.delta.exchange/v2/tickers/${activeDeltaSymbol}`, { cache: 'no-store' });
+        const res = await fetch(`https://api.india.delta.exchange/v2/tickers/${pollerDeltaSymbol}`, { cache: 'no-store' });
         if (res.ok) {
           const json = await res.json();
-          if (json && json.result && json.result.mark_price) {
+          if (json && json.result && json.result.mark_price && activeAsset === pollerAsset) {
             const markPrice = parseFloat(json.result.mark_price);
             const priceHeader = document.getElementById('chartLivePriceHeader');
             if (priceHeader && !isNaN(markPrice)) {
@@ -1304,12 +1311,28 @@ window.DeltaLiveChart = (function() {
    * Connects to public real-time Binance WebSocket for live tick-by-tick candle updates
    */
   function connectLiveWebSocket(interval) {
-    const wsUrl = `wss://stream.binance.com:9443/ws/${activeSymbol.toLowerCase()}@kline_${interval}`;
+    // 1. Fully disconnect and detach any existing WebSocket before connecting
+    if (wsConnection) {
+      try {
+        wsConnection.onopen = null;
+        wsConnection.onmessage = null;
+        wsConnection.onerror = null;
+        wsConnection.onclose = null;
+        wsConnection.close();
+      } catch (e) {}
+      wsConnection = null;
+    }
+
+    const boundSymbol = activeSymbol;
+    const boundAsset = activeAsset;
+    const wsUrl = `wss://stream.binance.com:9443/ws/${boundSymbol.toLowerCase()}@kline_${interval}`;
     
     try {
-      wsConnection = new WebSocket(wsUrl);
+      const ws = new WebSocket(wsUrl);
+      wsConnection = ws;
 
-      wsConnection.onopen = () => {
+      ws.onopen = () => {
+        if (ws !== wsConnection) return;
         const badge = document.getElementById('wsLiveBadge');
         if (badge) {
           badge.className = "px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 flex items-center gap-1.5";
@@ -1317,9 +1340,14 @@ window.DeltaLiveChart = (function() {
         }
       };
 
-      wsConnection.onmessage = (event) => {
+      ws.onmessage = (event) => {
+        if (ws !== wsConnection) return; // Discard events from old discarded connection
         try {
           const msg = JSON.parse(event.data);
+          // Discard if incoming event symbol doesn't strictly match the current activeSymbol
+          if (msg.s && msg.s.toUpperCase() !== activeSymbol.toUpperCase()) return;
+          if (activeAsset !== boundAsset) return;
+
           const k = msg.k;
           if (!k) return;
 
@@ -1366,14 +1394,15 @@ window.DeltaLiveChart = (function() {
         }
       };
 
-      wsConnection.onclose = () => {
+      ws.onclose = () => {
+        if (ws !== wsConnection) return;
         const badge = document.getElementById('wsLiveBadge');
         if (badge) {
           badge.className = "px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-amber-500/10 text-amber-400 border border-amber-500/30";
           badge.innerHTML = `Reconnecting stream...`;
         }
         setTimeout(() => {
-          if (activeTimeframe) connectLiveWebSocket(TIMEFRAME_MAP[activeTimeframe] || '15m');
+          if (ws === wsConnection && activeTimeframe) connectLiveWebSocket(TIMEFRAME_MAP[activeTimeframe] || '15m');
         }, 3000);
       };
     } catch (err) {
@@ -3223,7 +3252,19 @@ Expected Profit: +50% Option Gross / +40% Net`;
   function refreshPaperUI() {
     if (window.DeltaDB && typeof DeltaDB.getSignalTrades === 'function') {
       const savedSignals = DeltaDB.getSignalTrades(0) || [];
-      renderTradesTable(filterTradesForActiveAsset(savedSignals));
+      const filtered = filterTradesForActiveAsset(savedSignals);
+      renderTradesTable(filtered);
+      if (window.DeltaPaperFund && typeof DeltaPaperFund.calculatePortfolio === 'function') {
+        const pf = DeltaPaperFund.calculatePortfolio(filtered, activeAsset);
+        if (pf) {
+          if (typeof DeltaPaperFund.renderExecutiveBanner === 'function') {
+            DeltaPaperFund.renderExecutiveBanner('paperFundExecutiveBannerContainer', pf);
+          }
+          if (typeof DeltaPaperFund.renderPaperPortfolioTab === 'function') {
+            DeltaPaperFund.renderPaperPortfolioTab('subViewCoach_PORTFOLIO', pf);
+          }
+        }
+      }
     }
   }
 
@@ -3380,6 +3421,22 @@ Expected Profit: +50% Option Gross / +40% Net`;
     // 5. Clear cached tickers so they refetch for the new asset
     cachedDeltaTickers = null;
     lastDeltaTickersFetchTime = 0;
+
+    // Immediately stop old asset's ticker polling & websocket to prevent looping/flicker
+    if (deltaTickerPollInterval) {
+      clearInterval(deltaTickerPollInterval);
+      deltaTickerPollInterval = null;
+    }
+    if (wsConnection) {
+      try {
+        wsConnection.onopen = null;
+        wsConnection.onmessage = null;
+        wsConnection.onerror = null;
+        wsConnection.onclose = null;
+        wsConnection.close();
+      } catch (e) {}
+      wsConnection = null;
+    }
 
     // 6. Clear current position box & debounce candle load to prevent rapid tab switch race conditions
     clearPositionBox();

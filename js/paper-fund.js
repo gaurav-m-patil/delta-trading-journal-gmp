@@ -266,8 +266,9 @@ window.DeltaPaperFund = (function() {
             <span class="text-[10px] px-2 py-0.5 rounded bg-indigo-500/10 text-indigo-300 border border-indigo-500/30">
               Risk Sizing: <strong>${portfolio.riskModel === 'COMPOUND' ? '100% Compounding' : (portfolio.riskModel === 'MODERATE' ? '50% Moderate' : '25% Institutional')}</strong>
             </span>
-            <button onclick="DeltaPaperFund.promptRiskModelChange()" title="Change Risk Model" class="text-[10px] text-slate-400 hover:text-white px-1.5 py-0.5 rounded bg-panelDark border border-borderDark transition-colors">
-              <i class="fa-solid fa-sliders"></i>
+            <button onclick="DeltaPaperFund.promptRiskModelChange('${portfolio.asset || ''}')" title="Cycle Risk Sizing (25% Institutional -> 50% Moderate -> 100% Compounding)" class="text-[10px] text-slate-300 hover:text-white px-2 py-1 rounded bg-panelDark hover:bg-indigo-600/30 border border-borderDark hover:border-indigo-500/50 transition-all flex items-center gap-1 active:scale-95 cursor-pointer">
+              <i class="fa-solid fa-sliders text-indigo-400"></i>
+              <span class="hidden sm:inline font-mono">Cycle Sizing</span>
             </button>
           </div>
         </div>
@@ -719,10 +720,11 @@ window.DeltaPaperFund = (function() {
     `;
   }
 
-  function promptRiskModelChange() {
-    const current = getRiskModel();
+  function promptRiskModelChange(asset = null) {
+    const targetAsset = asset || (window.DeltaLiveChart && typeof DeltaLiveChart.getActiveAsset === 'function' ? DeltaLiveChart.getActiveAsset() : null);
+    const current = getRiskModel(targetAsset);
     const next = current === 'BALANCED' ? 'MODERATE' : (current === 'MODERATE' ? 'COMPOUND' : 'BALANCED');
-    setRiskModel(next);
+    setRiskModel(next, targetAsset);
   }
 
   function resetPortfolioPrompt() {

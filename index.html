@@ -364,9 +364,12 @@
       <!-- Primary Institutional Pillars (4 Key Metrics) -->
       <div class="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
         <!-- 1. Net PnL -->
-        <div class="bg-brandDark/80 border border-borderDark/80 p-3.5 rounded-xl border-l-4 border-l-emerald-500">
+        <div onclick="DeltaApp.openMetricExplainerModal('net')" class="bg-brandDark/80 hover:bg-brandDark border border-borderDark/80 hover:border-emerald-500/50 p-3.5 rounded-xl border-l-4 border-l-emerald-500 cursor-pointer transition-all group shadow-sm">
           <div class="flex items-center justify-between mb-1">
-            <span class="text-emerald-300 text-[10px] font-bold uppercase tracking-wider">Net Take-Home</span>
+            <span class="text-emerald-300 text-[10px] font-bold uppercase tracking-wider flex items-center gap-1">
+              Net Take-Home
+              <i class="fa-solid fa-circle-question text-[9px] text-slate-500 group-hover:text-emerald-400 transition-colors"></i>
+            </span>
             <i class="fa-solid fa-wallet text-emerald-400 text-xs"></i>
           </div>
           <h3 class="text-base sm:text-lg font-bold font-mono" id="kpiNet">$0.00</h3>
@@ -374,9 +377,12 @@
         </div>
 
         <!-- 2. Win Rate -->
-        <div class="bg-brandDark/80 border border-borderDark/80 p-3.5 rounded-xl">
+        <div onclick="DeltaApp.openMetricExplainerModal('winrate')" class="bg-brandDark/80 hover:bg-brandDark border border-borderDark/80 hover:border-indigo-500/50 p-3.5 rounded-xl cursor-pointer transition-all group shadow-sm">
           <div class="flex items-center justify-between mb-1">
-            <span class="text-slate-400 text-[10px] font-bold uppercase tracking-wider">Win Rate</span>
+            <span class="text-slate-400 text-[10px] font-bold uppercase tracking-wider flex items-center gap-1">
+              Win Rate
+              <i class="fa-solid fa-circle-question text-[9px] text-slate-500 group-hover:text-indigo-400 transition-colors"></i>
+            </span>
             <i class="fa-solid fa-bullseye text-indigo-400 text-xs"></i>
           </div>
           <h3 class="text-base sm:text-lg font-bold text-white font-mono" id="kpiWinRate">0%</h3>
@@ -384,9 +390,12 @@
         </div>
 
         <!-- 3. Profit Factor -->
-        <div class="bg-brandDark/80 border border-borderDark/80 p-3.5 rounded-xl">
+        <div onclick="DeltaApp.openMetricExplainerModal('profitfactor')" class="bg-brandDark/80 hover:bg-brandDark border border-borderDark/80 hover:border-indigo-500/50 p-3.5 rounded-xl cursor-pointer transition-all group shadow-sm">
           <div class="flex items-center justify-between mb-1">
-            <span class="text-slate-400 text-[10px] font-bold uppercase tracking-wider">Profit Factor</span>
+            <span class="text-slate-400 text-[10px] font-bold uppercase tracking-wider flex items-center gap-1">
+              Profit Factor
+              <i class="fa-solid fa-circle-question text-[9px] text-slate-500 group-hover:text-indigo-400 transition-colors"></i>
+            </span>
             <i class="fa-solid fa-scale-balanced text-indigo-400 text-xs"></i>
           </div>
           <h3 class="text-base sm:text-lg font-bold text-white font-mono" id="kpiProfitFactor">--</h3>
@@ -394,9 +403,12 @@
         </div>
 
         <!-- 4. Realized R:R -->
-        <div class="bg-brandDark/80 border border-borderDark/80 p-3.5 rounded-xl">
+        <div onclick="DeltaApp.openMetricExplainerModal('rr')" class="bg-brandDark/80 hover:bg-brandDark border border-borderDark/80 hover:border-indigo-500/50 p-3.5 rounded-xl cursor-pointer transition-all group shadow-sm">
           <div class="flex items-center justify-between mb-1">
-            <span class="text-slate-400 text-[10px] font-bold uppercase tracking-wider">Realized R : R</span>
+            <span class="text-slate-400 text-[10px] font-bold uppercase tracking-wider flex items-center gap-1">
+              Realized R : R
+              <i class="fa-solid fa-circle-question text-[9px] text-slate-500 group-hover:text-indigo-400 transition-colors"></i>
+            </span>
             <i class="fa-solid fa-chart-line text-indigo-400 text-xs"></i>
           </div>
           <h3 class="text-base sm:text-lg font-bold text-indigo-300 font-mono" id="kpiRealizedRR">--</h3>

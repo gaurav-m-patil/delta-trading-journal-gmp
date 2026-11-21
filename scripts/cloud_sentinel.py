@@ -813,16 +813,18 @@ def evaluate_smc_setup(candles, htf_trend=None, asset="BTC"):
     recent_lows = [sl["price"] for sl in swing_lows[-5:]] if swing_lows else []
     for sl_price in recent_lows:
         if low < sl_price and close_p > sl_price and (lower_wick / rng) >= 0.25 and close_p >= open_p:
+            # Check if this is an extreme capitulation V-bottom absorption (RSI < 35, high RVOL, deep wick)
+            is_capitulation_v = (rsi < 35.0 and rvol >= 1.3 and (lower_wick / rng) >= 0.35)
             # Dynamic ATR-based risk buffer
             risk = max(min_risk_pts, (close_p - low) + (atr14 * (atr_buffer_mult * 1.5)))
             tp = round(close_p + (risk * 2.2), 2 if asset in ["ETH", "XAUT"] else 0)
             sl = round(low - (atr14 * atr_buffer_mult), 2 if asset in ["ETH", "XAUT"] else 0)
             rr = round((tp - close_p) / max(0.01, close_p - sl), 1)
 
-            abs_desc = f"Bullish Delta Absorption ({round((lower_wick/rng)*100)}% wick + {rvol}x RVOL)"
+            abs_desc = f"{'Capitulation V-Bottom' if is_capitulation_v else 'Bullish Delta'} Absorption ({round((lower_wick/rng)*100)}% wick + {rvol}x RVOL)"
             trade = {
                 "id": f"cloud_{asset.lower()}_bull_{last_closed['time']}",
-                "name": f"{asset} Bullish Order Block Liquidity Sweep",
+                "name": f"{asset} {'Capitulation V-Bottom Sweep' if is_capitulation_v else 'Bullish Order Block Liquidity Sweep'}",
                 "asset": asset,
                 "direction": "LONG",
                 "time": last_closed["time"],
@@ -832,8 +834,9 @@ def evaluate_smc_setup(candles, htf_trend=None, asset="BTC"):
                 "rr": f"1:{rr}",
                 "rsi": rsi,
                 "rvol": rvol,
+                "is_capitulation": is_capitulation_v,
                 "rationale": {
-                    "pattern": "Bullish Lower Wick Absorption",
+                    "pattern": "Capitulation V-Bottom Absorption" if is_capitulation_v else "Bullish Lower Wick Absorption",
                     "levelTested": f"Support Liquidity Sweep ({format_asset_price(sl_price, asset)})",
                     "confirmation": f"Strong green close back above swing floor with {rvol}x RVOL",
                     "absorption": abs_desc
@@ -969,7 +972,13 @@ def evaluate_smc_setup(candles, htf_trend=None, asset="BTC"):
     # Idea 4: Multi-Timeframe 1H Trend Alignment Confluence Check
     if trade and htf_trend:
         htf_bias = htf_trend.get("trend", "NEUTRAL")
-        if htf_bias == "NEUTRAL":
+        # Capitulation V-Bottom reversals are mean-reverting absorption events that occur after extreme sell-offs;
+        # do not disqualify them purely because 1H trend is laggingly bearish!
+        if trade.get("is_capitulation"):
+            print(f"[Sentinel] 🚀 Capitulation V-Bottom Sweep detected! Allowing LONG reversal despite 1H {htf_bias} bias.")
+            trade["htf_trend"] = htf_trend
+            trade["rationale"]["htfAlignment"] = f"Capitulation Absorption (1H: {htf_bias})"
+        elif htf_bias == "NEUTRAL":
             print(f"[Sentinel] ⚠️ Filtered out setup {trade['id']}: 1H {asset} Macro Trend is NEUTRAL / RANGEBOUND (Chop Zone).")
             return None
         elif trade["direction"] == "LONG" and htf_bias == "BEARISH":
@@ -978,8 +987,9 @@ def evaluate_smc_setup(candles, htf_trend=None, asset="BTC"):
         elif trade["direction"] == "SHORT" and htf_bias == "BULLISH":
             print(f"[Sentinel] ⚠️ Filtered out SHORT setup {trade['id']}: Counter to 1H {asset} Bullish Trend.")
             return None
-        trade["htf_trend"] = htf_trend
-        trade["rationale"]["htfAlignment"] = htf_trend.get("label", "Neutral")
+        else:
+            trade["htf_trend"] = htf_trend
+            trade["rationale"]["htfAlignment"] = htf_trend.get("label", "Neutral")
     elif trade:
         trade["rationale"]["htfAlignment"] = "Neutral (Rangebound)"
 
