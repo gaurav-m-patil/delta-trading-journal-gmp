@@ -303,49 +303,47 @@
   <!-- ========================================== -->
   <div id="view_INSIGHTS" class="block">
     <!-- CONTROLS & TIMEFRAME BAR -->
-    <section class="flex flex-col sm:flex-row justify-between items-stretch sm:items-center gap-3 mb-5">
-      <!-- Active Timeframe Context Banner -->
-      <div class="bg-cardDark border border-borderDark px-4 py-2.5 rounded-xl flex items-center justify-between sm:justify-start gap-4 shadow-sm flex-1">
-        <div class="flex items-center gap-2.5">
-          <div class="h-7 w-7 rounded-lg bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center text-indigo-400 text-xs">
+    <section class="flex flex-col sm:flex-row justify-between items-stretch sm:items-center gap-2.5 mb-5">
+      <!-- Active Timeframe Context Banner & Integrated Run Sync -->
+      <div class="bg-cardDark border border-borderDark px-3 py-2 sm:px-4 sm:py-2.5 rounded-xl flex items-center justify-between gap-3 shadow-sm flex-1">
+        <div class="flex items-center gap-2 sm:gap-2.5 min-w-0">
+          <div class="h-7 w-7 rounded-lg bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center text-indigo-400 text-xs shrink-0">
             <i class="fa-regular fa-calendar-check"></i>
           </div>
-          <div>
-            <span class="text-[9px] text-slate-400 uppercase tracking-wider block font-medium">Active Timeframe</span>
-            <h3 class="text-xs sm:text-sm font-bold text-white font-mono" id="kpiActivity">Current Month</h3>
+          <div class="min-w-0">
+            <span class="text-[8px] sm:text-[9px] text-slate-400 uppercase tracking-wider block font-medium">Active Timeframe</span>
+            <h3 class="text-xs sm:text-sm font-bold text-white font-mono truncate" id="kpiActivity">Current Month</h3>
           </div>
         </div>
-        <span id="staleWarningText" class="hidden text-[10px] font-mono text-amber-400 bg-amber-500/10 border border-amber-500/20 px-2 py-0.5 rounded">
-          <i class="fa-solid fa-triangle-exclamation mr-1"></i>Stale Sync (>24h)
-        </span>
+
+        <div class="flex items-center gap-2 shrink-0">
+          <span id="staleWarningText" class="hidden text-[9px] sm:text-[10px] font-mono text-amber-400 bg-amber-500/10 border border-amber-500/20 px-2 py-0.5 rounded">
+            <i class="fa-solid fa-triangle-exclamation mr-1"></i>Stale (>24h)
+          </span>
+          <!-- Run Sync Button Next to Month -->
+          <button onclick="DeltaApp.triggerGitHubWorkflow()" id="syncWorkflowBtn" class="px-3 py-1.5 text-xs font-semibold bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg transition-colors flex items-center gap-1.5 shadow-md shadow-indigo-600/20 shrink-0" title="Sync latest trades from Delta Exchange">
+            <i class="fa-solid fa-rotate text-[11px]"></i> <span>Run Sync</span>
+          </button>
+        </div>
       </div>
 
-      <!-- Filter Pills -->
-      <div class="flex items-center bg-cardDark border border-borderDark rounded-xl p-1 gap-1">
-        <button onclick="DeltaApp.setPreset('CURRENT_MONTH')" id="btn_CURRENT_MONTH" class="flex-1 sm:flex-none px-3 py-1.5 text-xs font-semibold rounded-lg transition-colors bg-indigo-600 text-white text-center">Current Month</button>
-        <button onclick="DeltaApp.setPreset('CUSTOM')" id="btn_CUSTOM" class="flex-1 sm:flex-none px-3 py-1.5 text-xs font-semibold rounded-lg transition-colors text-slate-400 hover:text-white text-center">Custom Range</button>
-        <button onclick="DeltaApp.setPreset('ALL_TIME')" id="btn_ALL_TIME" class="flex-1 sm:flex-none px-3 py-1.5 text-xs font-semibold rounded-lg transition-colors text-slate-400 hover:text-white text-center">All-Time</button>
-      </div>
-
-      <!-- Custom Date Inputs -->
-      <div id="customDateContainer" class="hidden items-center justify-between gap-1.5 bg-cardDark border border-borderDark rounded-xl px-3 py-1.5">
-        <input type="date" id="customStartDate" onchange="DeltaApp.applyGlobalFilter()" class="bg-transparent text-[11px] text-white focus:outline-none font-mono">
-        <span class="text-slate-500 text-xs">to</span>
-        <input type="date" id="customEndDate" onchange="DeltaApp.applyGlobalFilter()" class="bg-transparent text-[11px] text-white focus:outline-none font-mono">
-      </div>
-
-      <!-- Action Buttons -->
+      <!-- Filter Pills & Settings Gear -->
       <div class="flex items-center gap-2">
-        <button onclick="DeltaApp.openTelegramModal()" class="flex-1 sm:flex-none px-3 py-2 text-xs font-bold bg-[#229ED9]/15 text-[#229ED9] border border-[#229ED9]/30 hover:bg-[#229ED9]/25 rounded-xl transition-colors flex items-center justify-center gap-1.5 shadow-sm" title="Configure Telegram Trade Signal Alerts">
-          <i class="fa-brands fa-telegram text-sm"></i> Telegram <span id="tgStatusBadge" class="hidden h-2 w-2 rounded-full bg-emerald-400 animate-pulse"></span>
-        </button>
-        <button onclick="DeltaApp.switchMainTab('COACH')" class="flex-1 sm:flex-none px-3.5 py-2 text-xs font-bold bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 hover:bg-indigo-500/20 rounded-xl transition-colors flex items-center justify-center gap-1.5">
-          <i class="fa-solid fa-brain"></i> AI Coach
-        </button>
-        <button onclick="DeltaApp.triggerGitHubWorkflow()" id="syncWorkflowBtn" class="flex-1 sm:flex-none px-3.5 py-2 text-xs font-medium bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl transition-colors flex items-center justify-center gap-1.5 shadow-lg shadow-indigo-600/20">
-          <i class="fa-solid fa-play"></i> Run Sync
-        </button>
-        <button onclick="DeltaApp.toggleGhSettings()" class="p-2 text-xs bg-cardDark border border-borderDark hover:bg-panelDark rounded-xl text-slate-400 hover:text-white transition-colors" title="Settings & Firebase Sync">
+        <div class="flex items-center bg-cardDark border border-borderDark rounded-xl p-1 gap-1 flex-1 sm:flex-none">
+          <button onclick="DeltaApp.setPreset('CURRENT_MONTH')" id="btn_CURRENT_MONTH" class="flex-1 sm:flex-none px-2.5 sm:px-3 py-1.5 text-xs font-semibold rounded-lg transition-colors bg-indigo-600 text-white text-center">Current Month</button>
+          <button onclick="DeltaApp.setPreset('CUSTOM')" id="btn_CUSTOM" class="flex-1 sm:flex-none px-2.5 sm:px-3 py-1.5 text-xs font-semibold rounded-lg transition-colors text-slate-400 hover:text-white text-center">Custom Range</button>
+          <button onclick="DeltaApp.setPreset('ALL_TIME')" id="btn_ALL_TIME" class="flex-1 sm:flex-none px-2.5 sm:px-3 py-1.5 text-xs font-semibold rounded-lg transition-colors text-slate-400 hover:text-white text-center">All-Time</button>
+        </div>
+
+        <!-- Custom Date Inputs -->
+        <div id="customDateContainer" class="hidden items-center justify-between gap-1.5 bg-cardDark border border-borderDark rounded-xl px-3 py-1.5">
+          <input type="date" id="customStartDate" onchange="DeltaApp.applyGlobalFilter()" class="bg-transparent text-[11px] text-white focus:outline-none font-mono">
+          <span class="text-slate-500 text-xs">to</span>
+          <input type="date" id="customEndDate" onchange="DeltaApp.applyGlobalFilter()" class="bg-transparent text-[11px] text-white focus:outline-none font-mono">
+        </div>
+
+        <!-- Settings Cog -->
+        <button onclick="DeltaApp.toggleGhSettings()" class="p-2 text-xs bg-cardDark border border-borderDark hover:bg-panelDark rounded-xl text-slate-400 hover:text-white transition-colors shrink-0" title="Settings & Telegram/Firebase Config">
           <i class="fa-solid fa-gear"></i>
         </button>
       </div>
@@ -441,29 +439,16 @@
 
     <!-- SUB-VIEW 1: PERFORMANCE TRAJECTORY & CALENDAR -->
     <div id="subView_CHARTS" class="space-y-6">
-      <!-- TRAJECTORY & INSTRUMENT ANALYSIS -->
-      <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <section class="lg:col-span-2 bg-cardDark border border-borderDark p-4 md:p-5 rounded-2xl flex flex-col">
-          <div class="flex justify-between items-center mb-3">
-            <div>
-              <h2 class="font-bold text-sm md:text-base text-white">Performance Trajectory</h2>
-              <p class="text-[11px] text-slate-400">Cumulative Net Take-Home vs Gross Outcome</p>
-            </div>
-          </div>
-          <div id="equityChart" class="flex-1 w-full overflow-hidden min-h-[260px]"></div>
-        </section>
-
-        <section class="bg-cardDark border border-borderDark p-4 md:p-5 rounded-2xl flex flex-col gap-4">
+      <!-- PERFORMANCE TRAJECTORY (FULL WIDTH) -->
+      <section class="bg-cardDark border border-borderDark p-4 md:p-5 rounded-2xl flex flex-col">
+        <div class="flex justify-between items-center mb-3">
           <div>
-            <h2 class="font-bold text-sm md:text-base text-white">Instrument Analysis</h2>
-            <p class="text-[11px] text-slate-400">Options Calls vs Puts performance</p>
+            <h2 class="font-bold text-sm md:text-base text-white">Performance Trajectory</h2>
+            <p class="text-[11px] text-slate-400">Cumulative Net Take-Home vs Gross Outcome</p>
           </div>
-          <div class="flex-1 grid grid-cols-2 lg:grid-cols-1 xl:grid-cols-2 gap-4 items-center">
-            <div class="flex flex-col items-center w-full"><div id="callPutChart" class="w-full"></div><p class="text-[10px] text-slate-400 uppercase tracking-wide mt-2">Calls vs Puts (PnL)</p></div>
-            <div class="flex flex-col items-center w-full"><div id="buySellChart" class="w-full"></div><p class="text-[10px] text-slate-400 uppercase tracking-wide mt-2">Calls vs Puts (Trades)</p></div>
-          </div>
-        </section>
-      </div>
+        </div>
+        <div id="equityChart" class="flex-1 w-full overflow-hidden min-h-[260px]"></div>
+      </section>
 
       <!-- ADAPTIVE CALENDAR / MONTHLY OVERVIEW SECTION -->
       <section class="bg-cardDark border border-borderDark p-4 md:p-5 rounded-2xl">

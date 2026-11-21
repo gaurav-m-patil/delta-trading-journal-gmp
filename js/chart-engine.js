@@ -3302,6 +3302,17 @@ Expected Profit: +50% Option Gross / +40% Net`;
 
   function switchAsset(assetKey) {
     if (!assetKey || !ASSET_CONFIGS[assetKey]) return;
+
+    // If chart hasn't been initialized yet (e.g. initial page load was on INSIGHTS tab)
+    if (!chart) {
+      activeAsset = assetKey;
+      const cfg = ASSET_CONFIGS[assetKey];
+      activeSymbol = cfg.binanceSymbol;
+      activeDeltaSymbol = cfg.deltaSymbol;
+      initChart();
+      return;
+    }
+
     if (activeAsset === assetKey) return;
 
     activeAsset = assetKey;
