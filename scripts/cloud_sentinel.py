@@ -1212,21 +1212,24 @@ def run_sentinel():
                 tp1_gross_profit_usd = (tp1_p - buy_p) * alloc_info["half_qty"]
                 tp1_booked_inr = round(tp1_gross_profit_usd * 85.0)
 
-                tp1_msg = f"""{est_prefix}🎯 <b>TARGET 1 HIT ({tp1_pct_str} DERISK) · {asset}</b>
-🏷️ <code>{contract}</code>
+                tp1_msg = f"""🎯 <b>TARGET 1 HIT · {asset} ({tp1_pct_str})</b>
+━━━━━━━━━━━━━━━━━━━━
+⚡ <b>CONTRACT:</b> <code>{contract}</code>
+💵 <b>BOOKED PROFIT:</b> <b>+₹{tp1_booked_inr:,} INR</b> (50% Scalp Locked)
+📦 <b>ACTION:</b> <b>SELL {alloc_info['half_contracts']} Contracts</b> ({alloc_info['half_qty']} {alloc_info['unit_name']})
+🛑 <b>STOP LOSS STATUS:</b> <b>Trailed to Breakeven ({entry_str})</b>
 
-💰 <b>DERISK EXECUTION & BOOKED PROFIT</b>
-• Exited Quantity: <b>{alloc_info['half_contracts']} Contracts ({alloc_info['half_qty']} {alloc_info['unit_name']}) · 50% Position</b>
-• Fill Price: ${buy_p:.1f} ➔ <b>Exited At: ${tp1_p:.1f} ({tp1_pct_str})</b>
-• Booked Cash Gain: <b>+₹{tp1_booked_inr:,} INR</b> (Realized)
-• Stop Status: <b>Trailed to Breakeven ({entry_str})</b>
-
-🏃 <b>RUNNER IN FLIGHT</b>
-• Remaining Position: <b>{alloc_info['runner_contracts']} Contracts ({alloc_info['runner_qty']} {alloc_info['unit_name']})</b>
-• Trailing to Target 2: <b>{tp_str}</b> (Zero downside risk remaining)
-
-⏰ <i>{get_now_ist_str()}</i>
-🔗 <a href="https://delta-trading-journal-gmp.vercel.app/chart.html">Open Live Chart</a>"""
+📍 <b>{asset} SPOT PROGRESS:</b>
+• Entry: <b>{entry_str}</b>
+• Current Spot: <b>{cur_str}</b> (TP1 Cleared)
+• Final Target (TP2): <b>{tp_str}</b>
+━━━━━━━━━━━━━━━━━━━━
+🏃 <b>RUNNER IN FLIGHT:</b>
+• Remaining: <b>{alloc_info['runner_contracts']} Contracts ({alloc_info['runner_qty']} {alloc_info['unit_name']})</b>
+• Risk: <b>ZERO Downside Risk</b> (Free Trade on Delta)
+━━━━━━━━━━━━━━━━━━━━
+⏰ <b>{get_now_ist_str()}</b>
+🔗 <a href="https://delta-trading-journal-gmp.vercel.app/chart.html">Open Live Chart & Cockpit</a>"""
                 send_telegram_message(bot_token, chat_id, tp1_msg)
                 sync_trade_to_firestore(active_trade)
                 active_trades[asset] = active_trade
@@ -1263,21 +1266,23 @@ def run_sentinel():
                 guaranteed_runner_profit_usd = (buy_p * 1.0) * alloc_info["runner_qty"] # At least +100% floor on runner
                 guaranteed_runner_inr = round(guaranteed_runner_profit_usd * 85.0)
 
-                tier2_msg = f"""🔒 <b>MILESTONE PROFIT RATCHET ACTIVATED · {asset}</b>
-🏷️ <code>{contract}</code>
+                tier2_msg = f"""🔒 <b>PROFIT RATCHET ACTIVATED · {asset}</b>
+━━━━━━━━━━━━━━━━━━━━
+⚡ <b>CONTRACT:</b> <code>{contract}</code>
+💵 <b>LOCKED PROFIT:</b> <b>At least +₹{guaranteed_runner_inr:,} INR</b> (+75% Blended Floor)
+📦 <b>ACTION:</b> <b>DO NOT EXIT MANUALLY</b>
+🛑 <b>NEW STOP LOSS:</b> <b>Move SL to {stop_str}</b>
 
-🎯 <b>WHAT JUST HAPPENED?</b>
-• {asset} reached <b>{progress_pct * 100:.1f}% of target journey</b> ({cur_str}).
-• 50% was already booked at TP1 (${tp1_p:.1f} / {tp1_pct_str}).
-• <b>The remaining 50% runner ({alloc_info['runner_contracts']} Contracts) has now locked in a guaranteed profit floor!</b>
-
-💎 <b>WHAT YOU NEED TO DO:</b>
-• <b>Do NOT exit manually!</b> Let the runner ride to Target 2 ({tp_str}).
-• <b>Modify Stop Loss on Remaining {alloc_info['runner_contracts']} Contracts:</b> Set stop to <b>{stop_str}</b> (or option floor ~$1,270.0).
-• <b>Guaranteed Minimum Payout:</b> If price reverses from here, you still walk away with <b>at least +₹{guaranteed_runner_inr:,} INR</b> additional profit (+75% blended net across whole trade).
-• <b>If price continues downward:</b> Trailing stop tightens candle-by-candle until maximum profit at TP2!
-
-⏰ <i>{get_now_ist_str()}</i>
+📍 <b>{asset} SPOT PROGRESS:</b>
+• Journey: <b>{progress_pct * 100:.1f}% to TP2 Complete</b>
+• Current Spot: <b>{cur_str}</b>
+• Final Target (TP2): <b>{tp_str}</b>
+━━━━━━━━━━━━━━━━━━━━
+🎯 <b>RUNNER MANAGEMENT:</b>
+➊ <b>Modify Stop Loss:</b> Set stop to <b>{stop_str}</b> on remaining <b>{alloc_info['runner_contracts']} Contracts</b>
+➋ <b>Upside Target:</b> Let runner ride to <b>{tp_str}</b> (Trailing candle-by-candle)
+━━━━━━━━━━━━━━━━━━━━
+⏰ <b>{get_now_ist_str()}</b>
 🔗 <a href="https://delta-trading-journal-gmp.vercel.app/chart.html">Open Live Chart & Cockpit</a>"""
                 send_telegram_message(bot_token, chat_id, tier2_msg)
                 sync_trade_to_firestore(active_trade)
@@ -1299,35 +1304,38 @@ def run_sentinel():
                 total_profit_inr = round(total_profit_usd * 85.0)
 
                 if is_est:
-                    msg = f"""🛡️ <b>ESTIMATION TARGET HIT (+{blended_pct:.1f}%) · {asset}</b>
-🏷️ <code>{contract}</code>
+                    msg = f"""🏆 <b>TARGET 2 HIT (+{blended_pct:.1f}%) · {asset} (ESTIMATION)</b>
+━━━━━━━━━━━━━━━━━━━━
+⚡ <b>CONTRACT:</b> <code>{contract}</code>
+💵 <b>NET GAIN:</b> <b>+{blended_pct:.1f}%</b> (${buy_p:.1f} ➔ ${sell_p:.1f})
+📦 <b>QUANTITY:</b> <b>0 Contracts</b> (₹0 Risk · Preserved Capital)
+🛑 <b>STATUS:</b> <b>Full Target Achieved</b>
 
-💰 <b>THEORETICAL RETURN (OBSERVATION ONLY)</b>
-• Fill: ${buy_p:.1f} ➔ <b>Blended Exit: ${sell_p:.1f} (+{blended_pct:.1f}%)</b>
-• Spot Move: {entry_str} ➔ <b>{cur_str}</b>
-• Risk Guard: <i>2-SL Protection active. Capital preserved (₹0 risk).</i>
-
-⏰ <i>{get_now_ist_str()}</i>
-🔗 <a href="https://delta-trading-journal-gmp.vercel.app/chart.html">Open Live Chart</a>"""
+📍 <b>{asset} SPOT LEVELS:</b>
+• Entry: <b>{entry_str}</b>
+• Target: <b>{cur_str}</b>
+━━━━━━━━━━━━━━━━━━━━
+⏰ <b>{get_now_ist_str()}</b>
+🔗 <a href="https://delta-trading-journal-gmp.vercel.app/chart.html">Open Live Chart & Cockpit</a>"""
                 else:
                     total_resolved = daily_counts['wins'] + daily_counts['losses']
                     win_rate_calc = round((daily_counts['wins'] / max(1, total_resolved)) * 100)
-                    msg = f"""🏆 <b>TRADE TARGET HIT (+{blended_pct:.1f}% NET GAIN) · {asset}</b>
-🏷️ <code>{contract}</code>
+                    msg = f"""🏆 <b>TARGET 2 HIT (+{blended_pct:.1f}% NET GAIN) · {asset}</b>
+━━━━━━━━━━━━━━━━━━━━
+⚡ <b>CONTRACT:</b> <code>{contract}</code>
+💵 <b>NET PROFIT:</b> <b>+₹{total_profit_inr:,} INR</b> (+{blended_pct:.1f}% Blended)
+📦 <b>QUANTITY:</b> <b>100% Closed ({alloc_info['contracts']} Contracts)</b>
+🛑 <b>EXIT STATUS:</b> <b>TP1 + TP2 Cleared Cleanly</b>
 
-💰 <b>REALIZED RETURN & CAPITAL IMPACT</b>
-• Exited Position: <b>100% Closed ({alloc_info['contracts']} Contracts / {alloc_info['total_asset_qty']} {alloc_info['unit_name']})</b>
-• Execution: ${buy_p:.1f} ➔ <b>Blended Exit: ${sell_p:.1f} (+{blended_pct:.1f}%)</b>
-• 50% booked at TP1 (${tp1_p:.1f}) + 50% at TP2 (${target_p:.1f} / {target_pct})
-• Booked Cash Gain: <b>+₹{total_profit_inr:,} INR</b> (Gross Realized)
-• {asset} Spot: {entry_str} ➔ <b>{cur_str}</b>
-
-📊 <b>TODAY'S SCORECARD</b>
+📍 <b>{asset} SPOT LEVELS:</b>
+• Entry: <b>{entry_str}</b>
+• Exit Spot: <b>{cur_str}</b>
+━━━━━━━━━━━━━━━━━━━━
+📊 <b>TODAY'S SCORECARD:</b>
 • Record: <b>{daily_counts['wins']}W - {daily_counts['losses']}L</b> ({win_rate_calc}% Win Rate)
-• Total Alerts: <b>{daily_counts['trades_given']}</b>
-
-⏰ <i>{get_now_ist_str()}</i>
-🔗 <a href="https://delta-trading-journal-gmp.vercel.app/chart.html">Open Live Chart</a>"""
+━━━━━━━━━━━━━━━━━━━━
+⏰ <b>{get_now_ist_str()}</b>
+🔗 <a href="https://delta-trading-journal-gmp.vercel.app/chart.html">Open Live Chart & Cockpit</a>"""
                 send_telegram_message(bot_token, chat_id, msg)
                 active_trade["outcome"] = "WIN"
                 active_trade["exitPrice"] = current_price
@@ -1360,36 +1368,40 @@ def run_sentinel():
                     exit_reason_text = "Scalp booked at TP1; remaining position exited at Breakeven"
 
                 if is_est:
-                    msg = f"""🛡️ <b>ESTIMATION TRAILED STOP EXIT ({pnl_label}) · {asset}</b>
-🏷️ <code>{contract}</code>
+                    msg = f"""🛡️ <b>TRAILED STOP EXIT ({pnl_label}) · {asset} (ESTIMATION)</b>
+━━━━━━━━━━━━━━━━━━━━
+⚡ <b>CONTRACT:</b> <code>{contract}</code>
+💵 <b>NET REALIZATION:</b> <b>{pnl_label}</b>
+📦 <b>QUANTITY:</b> <b>0 Contracts</b> (₹0 Risk · Preserved Capital)
+🛑 <b>EXECUTION:</b> {exit_reason_text}
 
-💰 <b>THEORETICAL RETURN</b>
-• Net Realization: <b>{pnl_label}</b>
-• Execution: {exit_reason_text}
-• {asset} Spot: Exited at {cur_str}
-
-⏰ <i>{get_now_ist_str()}</i>
-🔗 <a href="https://delta-trading-journal-gmp.vercel.app/chart.html">Open Live Chart</a>"""
+📍 <b>{asset} SPOT LEVELS:</b>
+• Entry: <b>{entry_str}</b>
+• Exit Spot: <b>{cur_str}</b>
+━━━━━━━━━━━━━━━━━━━━
+⏰ <b>{get_now_ist_str()}</b>
+🔗 <a href="https://delta-trading-journal-gmp.vercel.app/chart.html">Open Live Chart & Cockpit</a>"""
                 else:
                     alloc_info = calculate_trade_allocation(asset, buy_p)
                     profit_usd = (sell_p - buy_p) * alloc_info["total_asset_qty"]
                     profit_inr = round(profit_usd * 85.0)
 
-                    msg = f"""🛡️ <b>TRAILED STOP PROFIT HIT ({pnl_label}) · {asset}</b>
-🏷️ <code>{contract}</code>
+                    msg = f"""🛡️ <b>TRAILED STOP HIT ({pnl_label}) · {asset}</b>
+━━━━━━━━━━━━━━━━━━━━
+⚡ <b>CONTRACT:</b> <code>{contract}</code>
+💵 <b>NET PROFIT:</b> <b>+₹{profit_inr:,} INR</b> ({pnl_label})
+📦 <b>QUANTITY:</b> <b>100% Closed ({alloc_info['contracts']} Contracts)</b>
+🛑 <b>EXECUTION:</b> {exit_reason_text}
 
-💰 <b>REALIZED RETURN & POSITION CLOSED</b>
-• Exited Position: <b>100% Closed ({alloc_info['contracts']} Contracts / {alloc_info['total_asset_qty']} {alloc_info['unit_name']})</b>
-• Entry: ${buy_p:.1f} ➔ <b>Net Realized Exit: ${sell_p:.1f} ({pnl_label})</b>
-• Booked Cash Profit: <b>+₹{profit_inr:,} INR</b> (Realized)
-• Execution: {exit_reason_text}
-• {asset} Spot: Exited at {cur_str} (Entry: {entry_str})
-
-📊 <b>TODAY'S SCORECARD</b>
+📍 <b>{asset} SPOT LEVELS:</b>
+• Entry: <b>{entry_str}</b>
+• Exit Spot: <b>{cur_str}</b>
+━━━━━━━━━━━━━━━━━━━━
+📊 <b>TODAY'S SCORECARD:</b>
 • Record: <b>{daily_counts['wins']}W - {daily_counts['losses']}L</b>
-
-⏰ <i>{get_now_ist_str()}</i>
-🔗 <a href="https://delta-trading-journal-gmp.vercel.app/chart.html">Open Live Chart</a>"""
+━━━━━━━━━━━━━━━━━━━━
+⏰ <b>{get_now_ist_str()}</b>
+🔗 <a href="https://delta-trading-journal-gmp.vercel.app/chart.html">Open Live Chart & Cockpit</a>"""
                 send_telegram_message(bot_token, chat_id, msg)
                 active_trade["outcome"] = "BE_WIN"
                 active_trade["exitPrice"] = current_price
@@ -1414,36 +1426,40 @@ def run_sentinel():
                 pts_loss = round(buy_p - sell_p, 1)
 
                 if is_est:
-                    msg = f"""🛡️ <b>ESTIMATION STOP LOSS HIT (-30.0%) · {asset}</b>
-🏷️ <code>{contract}</code>
+                    msg = f"""🛑 <b>STOP LOSS HIT (-30.0%) · {asset} (ESTIMATION)</b>
+━━━━━━━━━━━━━━━━━━━━
+⚡ <b>CONTRACT:</b> <code>{contract}</code>
+💵 <b>EXIT MARK:</b> <b>${sell_p:.1f}</b> (-{pts_loss} pts / -30.0%)
+📦 <b>QUANTITY:</b> <b>0 Contracts</b> (₹0 Risk · 2-SL Preserved)
+🛑 <b>STATUS:</b> <b>Zero Real Capital Loss</b>
 
-💰 <b>THEORETICAL DRAWDOWN</b>
-• Exit: ${sell_p:.1f} (-{pts_loss} pts / -30.0%)
-• {asset} Spot: {entry_str} ➔ <b>{cur_str}</b>
-• Status: <i>2-SL Rule preserved capital. Zero real loss.</i>
-
-⏰ <i>{get_now_ist_str()}</i>
-🔗 <a href="https://delta-trading-journal-gmp.vercel.app/chart.html">Open Live Chart</a>"""
+📍 <b>{asset} SPOT LEVELS:</b>
+• Entry: <b>{entry_str}</b>
+• SL Spot Hit: <b>{cur_str}</b>
+━━━━━━━━━━━━━━━━━━━━
+⏰ <b>{get_now_ist_str()}</b>
+🔗 <a href="https://delta-trading-journal-gmp.vercel.app/chart.html">Open Live Chart & Cockpit</a>"""
                 else:
                     alloc_info = calculate_trade_allocation(asset, buy_p)
                     loss_usd = (buy_p - sell_p) * alloc_info["total_asset_qty"]
                     loss_inr = round(loss_usd * 85.0)
 
                     msg = f"""🛑 <b>STOP LOSS TRIGGERED (-30.0%) · {asset}</b>
-🏷️ <code>{contract}</code>
+━━━━━━━━━━━━━━━━━━━━
+⚡ <b>CONTRACT:</b> <code>{contract}</code>
+💵 <b>DRAWDOWN:</b> <b>-₹{loss_inr:,} INR</b> (Capital Protected 70%)
+📦 <b>QUANTITY:</b> <b>100% Closed ({alloc_info['contracts']} Contracts)</b>
+🛑 <b>EXIT MARK:</b> <b>${sell_p:.1f}</b> (-{pts_loss} pts / -30.0%)
 
-💰 <b>CAPITAL PRESERVATION EXIT</b>
-• Position Exited: <b>100% Closed ({alloc_info['contracts']} Contracts / {alloc_info['total_asset_qty']} {alloc_info['unit_name']})</b>
-• Entry: ${buy_p:.1f} ➔ <b>Exit: ${sell_p:.1f} (-{pts_loss} pts / -30.0%)</b>
-• Realized Drawdown: <b>-₹{loss_inr:,} INR</b> (Capital Protected 70%)
-• {asset} Spot: {entry_str} ➔ <b>{cur_str} (Invalidation Hit)</b>
-
-📊 <b>TODAY'S SCORECARD</b>
+📍 <b>{asset} SPOT LEVELS:</b>
+• Entry: <b>{entry_str}</b>
+• SL Spot Hit: <b>{cur_str}</b>
+━━━━━━━━━━━━━━━━━━━━
+📊 <b>TODAY'S SCORECARD:</b>
 • Record: <b>{daily_counts['wins']}W - {daily_counts['losses']}L</b>
-• Strict Risk Discipline: Position cut cleanly at -30% limit
-
-⏰ <i>{get_now_ist_str()}</i>
-🔗 <a href="https://delta-trading-journal-gmp.vercel.app/chart.html">Open Live Chart</a>"""
+━━━━━━━━━━━━━━━━━━━━
+⏰ <b>{get_now_ist_str()}</b>
+🔗 <a href="https://delta-trading-journal-gmp.vercel.app/chart.html">Open Live Chart & Cockpit</a>"""
                 send_telegram_message(bot_token, chat_id, msg)
                 active_trade["outcome"] = "LOSS"
                 active_trade["exitPrice"] = current_price
@@ -1525,9 +1541,28 @@ def run_sentinel():
                 except Exception:
                     blended_target_pct = 75.0
 
-                entry_disp = f"${setup['entry']:,.2f}" if asset in ["ETH", "XAUT"] else f"${setup['entry']:,}"
-                tp_disp = f"${setup['tp']:,.2f}" if asset in ["ETH", "XAUT"] else f"${setup['tp']:,}"
-                sl_disp = f"${setup['sl']:,.2f}" if asset in ["ETH", "XAUT"] else f"${setup['sl']:,}"
+                entry_val = float(setup['entry'])
+                tp_val = float(setup['tp'])
+                sl_val = float(setup['sl'])
+                if setup["direction"] == "LONG":
+                    tp1_spot_val = entry_val + 0.5 * (tp_val - entry_val)
+                    tp1_pts = round(tp1_spot_val - entry_val, 2 if asset in ["ETH", "XAUT"] else 0)
+                    tp2_pts = round(tp_val - entry_val, 2 if asset in ["ETH", "XAUT"] else 0)
+                    sl_pts = round(entry_val - sl_val, 2 if asset in ["ETH", "XAUT"] else 0)
+                else:
+                    tp1_spot_val = entry_val - 0.5 * (entry_val - tp_val)
+                    tp1_pts = round(entry_val - tp1_spot_val, 2 if asset in ["ETH", "XAUT"] else 0)
+                    tp2_pts = round(entry_val - tp_val, 2 if asset in ["ETH", "XAUT"] else 0)
+                    sl_pts = round(sl_val - entry_val, 2 if asset in ["ETH", "XAUT"] else 0)
+
+                tp1_pts_disp = f"+{tp1_pts:,.2f}" if asset in ["ETH", "XAUT"] else f"+{int(tp1_pts):,} pts"
+                tp2_pts_disp = f"+{tp2_pts:,.2f}" if asset in ["ETH", "XAUT"] else f"+{int(tp2_pts):,} pts"
+                sl_pts_disp = f"-{sl_pts:,.2f}" if asset in ["ETH", "XAUT"] else f"-{int(sl_pts):,} pts"
+
+                entry_disp = f"${entry_val:,.2f}" if asset in ["ETH", "XAUT"] else f"${int(entry_val):,}"
+                tp1_disp = f"${tp1_spot_val:,.2f}" if asset in ["ETH", "XAUT"] else f"${int(tp1_spot_val):,}"
+                tp_disp = f"${tp_val:,.2f}" if asset in ["ETH", "XAUT"] else f"${int(tp_val):,}"
+                sl_disp = f"${sl_val:,.2f}" if asset in ["ETH", "XAUT"] else f"${int(sl_val):,}"
 
                 if circuit_breaker_active:
                     # Risk Guard Active: Log as Estimation Mode
@@ -1537,28 +1572,27 @@ def run_sentinel():
                     setup["skippedReason"] = "2 SL Daily Limit Hit - Risk Guard Preserving Capital"
                     setup["optionEntryLockedMark"] = opt.get("mark_price", 220)
 
-                    action_title = f"🟡 BUY {asset} CALL (ESTIMATION)" if is_call else f"🟡 BUY {asset} PUT (ESTIMATION)"
+                    action_title = f"BUY CALL OPTION · {asset} (ESTIMATION)" if is_call else f"BUY PUT OPTION · {asset} (ESTIMATION)"
                     entry_p = opt.get("mark_price", 220)
-                    msg = f"""<b>{action_title}</b>
-🏷️ <code>{opt['symbol']}</code> · 🛡️ <b>2-SL Risk Guard</b>
+                    msg = f"""🚨 <b>{action_title}</b>
+━━━━━━━━━━━━━━━━━━━━
+⚡ <b>CONTRACT:</b> <code>{opt['symbol']}</code>
+💵 <b>BUY ZONE:</b> <b>${entry_p:.1f}</b> ({opt['buy_zone']})
+📦 <b>QUANTITY:</b> <b>0 Contracts</b> (₹0 Risk · 2-SL Risk Guard)
+🛑 <b>STOP LOSS:</b> <b>${opt['stop_price']:.1f}</b> (-30% Max Risk)
 
-🎯 <b>OBSERVATION PARAMETERS (₹0 RISK)</b>
-• Buy Zone: <b>{opt['buy_zone']}</b> (Mark: ${entry_p:.1f})
-• Hard Stop (SL): <b>${opt['stop_price']:.1f}</b> (-30.0%)
-
-📈 <b>PROJECTED TARGETS</b>
-• Target 1: <b>${opt['tp1_price']:.1f}</b> ({opt['tp1_pct']}) ➔ <i>Lock 50% & Move SL to BE</i>
-• Target 2: <b>${opt['target_price']:.1f}</b> ({opt['target_pct']} Runner)
-• Blended Net: <b>+{blended_target_pct:.1f}%</b>
-
-🔍 <b>SMC CONTEXT & SPOT REF</b>
-• Spot: <b>{entry_disp}</b> ➔ TP <b>{tp_disp}</b> (R:R {setup['rr']}) | SL <b>{sl_disp}</b>
-• Pattern: {setup['name']}
-• Edge: {setup['rationale']['levelTested']} · {setup['rvol']}x RVOL
-• Status: <i>2 SL hit today. Signal tracked for learning only. Zero capital allocated.</i>
-
-⏰ <i>{get_now_ist_str()}</i>
-🔗 <a href="https://delta-trading-journal-gmp.vercel.app/chart.html">Open Live Chart</a>"""
+📍 <b>{asset} SPOT LEVELS:</b>
+• Entry: <b>{entry_disp}</b>
+• TP1:   <b>{tp1_disp}</b> ({tp1_pts_disp})
+• TP2:   <b>{tp_disp}</b> ({tp2_pts_disp})
+• SL:    <b>{sl_disp}</b> ({sl_pts_disp})
+━━━━━━━━━━━━━━━━━━━━
+🎯 <b>EXECUTION TARGETS:</b>
+➊ <b>TP1:</b> <b>${opt['tp1_price']:.1f}</b> ({opt['tp1_pct']}) ➔ Lock 50% & Trail SL to BE
+➋ <b>TP2:</b> <b>${opt['target_price']:.1f}</b> ({opt['target_pct']}) ➔ Runner (Trail with Ratchet)
+━━━━━━━━━━━━━━━━━━━━
+⏰ <b>{get_now_ist_str()}</b>
+🔗 <a href="https://delta-trading-journal-gmp.vercel.app/chart.html">Open Live Chart & Cockpit</a>"""
 
                     if send_telegram_message(bot_token, chat_id, msg):
                         state[f"last_alerted_trade_id_{asset}"] = trade_id
@@ -1579,34 +1613,33 @@ def run_sentinel():
                     setup["outcome"] = "ACTIVE"
                     setup["optionEntryLockedMark"] = opt.get("mark_price", 220)
 
-                    action_title = f"🟢 BUY {asset} CALL OPTION" if is_call else f"🔴 BUY {asset} PUT OPTION"
+                    action_title = f"BUY CALL OPTION · {asset}" if is_call else f"BUY PUT OPTION · {asset}"
                     entry_p = opt.get("mark_price", 220)
                     alloc_info = calculate_trade_allocation(asset, entry_p)
 
-                    msg = f"""<b>{action_title}</b>
-🏷️ <code>{opt['symbol']}</code> · {session['flag']} <b>{session['name']}</b>
+                    # Estimated cash gain on TP1
+                    tp1_gain_usd = (opt['tp1_price'] - entry_p) * alloc_info['half_qty']
+                    tp1_gain_inr = round(tp1_gain_usd * 85.0)
+                    tp1_gain_text = f"Book ₹{tp1_gain_inr/1000:.0f}k" if tp1_gain_inr >= 1000 else f"Book ₹{tp1_gain_inr}"
 
-💰 <b>CAPITAL & POSITION SIZING</b>
-• Capital Allocation: <b>₹{alloc_info['allocated_inr']:,} INR</b> (25% Fund Tranche)
-• Position Quantity: <b>{alloc_info['contracts']} Contracts ({alloc_info['total_asset_qty']} {alloc_info['unit_name']})</b>
-• Cost per Contract: ₹{alloc_info['cost_per_contract_inr']} (~${entry_p * alloc_info['contract_unit']:.2f})
+                    msg = f"""🚨 <b>{action_title}</b>
+━━━━━━━━━━━━━━━━━━━━
+⚡ <b>CONTRACT:</b> <code>{opt['symbol']}</code>
+💵 <b>BUY ZONE:</b> <b>${entry_p:.1f}</b> (₹{alloc_info['cost_per_contract_inr']:,} / contract)
+📦 <b>QUANTITY:</b> <b>{alloc_info['contracts']} Contracts</b> (₹{alloc_info['allocated_inr']:,} INR)
+🛑 <b>STOP LOSS:</b> <b>${opt['stop_price']:.1f}</b> (-30% Max Risk)
 
-🎯 <b>EXECUTION PARAMETERS</b>
-• Buy Zone: <b>{opt['buy_zone']}</b> (Mark: ${entry_p:.1f})
-• Hard Stop (SL): <b>${opt['stop_price']:.1f}</b> (-30.0%)
-
-📈 <b>PROFIT TARGETS & ORDER PLAYBOOK</b>
-• Target 1: <b>${opt['tp1_price']:.1f}</b> ({opt['tp1_pct']}) ➔ <i>Sell {alloc_info['half_contracts']} Contracts ({alloc_info['half_qty']} {alloc_info['unit_name']}), Trail SL to BE</i>
-• Target 2: <b>${opt['target_price']:.1f}</b> ({opt['target_pct']}) ➔ <i>Sell {alloc_info['runner_contracts']} Contracts ({alloc_info['runner_qty']} {alloc_info['unit_name']} Runner)</i>
-• Net Blended Gain: <b>+{blended_target_pct:.1f}%</b>
-
-🔍 <b>SMC CONTEXT & SPOT REF</b>
-• Spot: <b>{entry_disp}</b> ➔ TP <b>{tp_disp}</b> (R:R {setup['rr']}) | SL <b>{sl_disp}</b>
-• Pattern: {setup['name']}
-• Edge: {setup['rationale']['levelTested']} · {setup['rvol']}x RVOL
-• IV Pricing: {opt.get('iv_badge', '🟡 FAIR')} ({opt.get('iv_rating', 'Calibrated')})
-
-⏰ <i>{get_now_ist_str()}</i>
+📍 <b>{asset} SPOT LEVELS:</b>
+• Entry: <b>{entry_disp}</b>
+• TP1:   <b>{tp1_disp}</b> ({tp1_pts_disp})
+• TP2:   <b>{tp_disp}</b> ({tp2_pts_disp})
+• SL:    <b>{sl_disp}</b> ({sl_pts_disp})
+━━━━━━━━━━━━━━━━━━━━
+🎯 <b>EXECUTION TARGETS:</b>
+➊ <b>TP1:</b> <b>${opt['tp1_price']:.1f}</b> ({opt['tp1_pct']}) ➔ <b>SELL {alloc_info['half_contracts']} Contracts</b> ({tp1_gain_text})
+➋ <b>TP2:</b> <b>${opt['target_price']:.1f}</b> ({opt['target_pct']}) ➔ <b>RUNNER {alloc_info['runner_contracts']} Contracts</b> (Trail with Ratchet)
+━━━━━━━━━━━━━━━━━━━━
+⏰ <b>{get_now_ist_str()}</b>
 🔗 <a href="https://delta-trading-journal-gmp.vercel.app/chart.html">Open Live Chart & Cockpit</a>"""
 
                     if send_telegram_message(bot_token, chat_id, msg):
