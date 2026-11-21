@@ -807,6 +807,15 @@ def evaluate_smc_setup(candles, htf_trend=None, asset="BTC"):
     if rng < (atr14 * 0.40):
         return None
 
+    # 4. Kaufman Efficiency Ratio (KER): Reject low-efficiency chop drift (< 0.22)
+    if len(candles) >= 16:
+        net_chg = abs(close_p - candles[-16]["close"])
+        path_sum = sum(abs(candles[k]["close"] - candles[k-1]["close"]) for k in range(len(candles)-15, len(candles)-1))
+        ker = round(net_chg / max(0.01, path_sum), 2)
+        if ker < 0.22:
+            print(f"[Sentinel] ⚠️ Chop filter active for {asset} (KER: {ker} < 0.22). Sideways noise; skipping.")
+            return None
+
     trade = None
 
     # Setup 1: Bullish Liquidity Sweep (Lower wick absorption below swing low)

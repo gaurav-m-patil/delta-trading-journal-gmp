@@ -34,27 +34,34 @@ window.DeltaQuant = (function() {
       };
     }
 
-    let grossPnl = 0;
-    let netPnl = 0;
-    let totalFee = 0;
-    let baseBrokerage = 0;
-    let gst = 0;
+    let grossCents = 0;
+    let netCents = 0;
+    let totalFeeCents = 0;
+    let baseBrokerageCents = 0;
+    let gstCents = 0;
 
     let wins = [];
     let losses = [];
     let beCount = 0;
 
     trades.forEach(t => {
-      grossPnl += t.gross_pnl || 0;
-      netPnl += t.net_pnl || 0;
-      totalFee += t.total_fee || 0;
-      baseBrokerage += t.base_brokerage || 0;
-      gst += t.gst || 0;
+      grossCents += Math.round((t.gross_pnl || 0) * 100);
+      netCents += Math.round((t.net_pnl || 0) * 100);
+      totalFeeCents += Math.round((t.total_fee || 0) * 100);
+      baseBrokerageCents += Math.round((t.base_brokerage || 0) * 100);
+      gstCents += Math.round((t.gst || 0) * 100);
 
-      if (t.net_pnl > 0.0001) wins.push(t.net_pnl);
-      else if (t.net_pnl < -0.0001) losses.push(Math.abs(t.net_pnl));
+      const netPnlVal = t.net_pnl || 0;
+      if (netPnlVal > 0.0001) wins.push(netPnlVal);
+      else if (netPnlVal < -0.0001) losses.push(Math.abs(netPnlVal));
       else beCount++;
     });
+
+    const grossPnl = grossCents / 100;
+    const netPnl = netCents / 100;
+    const totalFee = totalFeeCents / 100;
+    const baseBrokerage = baseBrokerageCents / 100;
+    const gst = gstCents / 100;
 
     const tradeCount = trades.length;
     const winCount = wins.length;

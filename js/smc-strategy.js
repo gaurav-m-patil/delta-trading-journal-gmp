@@ -395,6 +395,18 @@ window.DeltaSMCStrategy = (function() {
       const baselineAtr = smaAtr[i] || curAtr;
       const atrRatio = Number((curAtr / (baselineAtr || 1)).toFixed(2));
 
+      // Institutional Kaufman Efficiency Ratio (KER) calculation over last 14 candles
+      // Measures price path directness: 1.0 = pure trend, < 0.25 = choppy sideways drift
+      let ker = 0.50;
+      if (i >= 14) {
+        const netChange = Math.abs(cur.close - candles[i - 14].close);
+        let pathSum = 0;
+        for (let ki = i - 13; ki <= i; ki++) {
+          pathSum += Math.abs(candles[ki].close - candles[ki - 1].close);
+        }
+        ker = pathSum > 0 ? Number((netChange / pathSum).toFixed(2)) : 0.50;
+      }
+
       // Dynamic Market Regime Classification
       const isBearTrend = cur.close < curEma50 && (curEma50 <= curEma200 || cur.close < curEma200);
       const isBullTrend = cur.close > curEma50 && (curEma50 >= curEma200 || cur.close > curEma200);
@@ -407,6 +419,9 @@ window.DeltaSMCStrategy = (function() {
         regime = "TREND_BEAR";
       } else if (isBullTrend) {
         regime = "TREND_BULL";
+      }
+      if (ker < 0.22) {
+        regime = "CHOP_CONSOLIDATION";
       }
 
       // Dynamic Support and Resistance Pivots over lookback window
@@ -423,13 +438,14 @@ window.DeltaSMCStrategy = (function() {
       // -------------------------------------------------------------
       // SETUP 1: INSTITUTIONAL BREAKDOWN & TREND EXPANSION (BOS PUT)
       // Captures fast 1,000 - 3,000 pt market crashes (e.g. yesterday's selloff!)
+      // Filter out low-efficiency chop consolidation
       // -------------------------------------------------------------
       const isBreakdown = (cur.close < sLow * 0.9992) || (prev.close <= sLow && cur.close < prev.close);
       const isBearMomentum = (cur.close < cur.open) && (cur.close < prev.close) && (cur.close <= cur.low + (cur.high - cur.low) * 0.35);
       const isBearExpansionVol = (curRvol >= 1.1) || (atrRatio >= 1.15);
       const isTrendOrMacroBear = isBearTrend || macroBias === "BEARISH";
 
-      if (isBreakdown && isBearMomentum && isBearExpansionVol && isTrendOrMacroBear) {
+      if (isBreakdown && isBearMomentum && isBearExpansionVol && isTrendOrMacroBear && ker >= 0.22) {
         const entry = cur.close;
         // Dynamic Stop based on breakdown high or 1.2x ATR
         const rawSl = Math.max(prev.high, cur.high) + (curAtr * 0.5);
@@ -486,13 +502,14 @@ window.DeltaSMCStrategy = (function() {
       // -------------------------------------------------------------
       // SETUP 2: INSTITUTIONAL BREAKOUT & TREND EXPANSION (BOS CALL)
       // Captures strong bullish momentum expansions
+      // Filter out low-efficiency chop consolidation
       // -------------------------------------------------------------
       const isBreakout = (cur.close > sHigh * 1.0008) || (prev.close >= sHigh && cur.close > prev.close);
       const isBullMomentum = (cur.close > cur.open) && (cur.close > prev.close) && (cur.close >= cur.high - (cur.high - cur.low) * 0.35);
       const isBullExpansionVol = (curRvol >= 1.1) || (atrRatio >= 1.15);
       const isTrendOrMacroBull = isBullTrend || macroBias === "BULLISH";
 
-      if (!setup && isBreakout && isBullMomentum && isBullExpansionVol && isTrendOrMacroBull && macroBias !== "BEARISH") {
+      if (!setup && isBreakout && isBullMomentum && isBullExpansionVol && isTrendOrMacroBull && macroBias !== "BEARISH" && ker >= 0.22) {
         const entry = cur.close;
         const rawSl = Math.min(prev.low, cur.low) - (curAtr * 0.5);
         const sl = Math.round(rawSl * 10) / 10;

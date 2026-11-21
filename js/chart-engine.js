@@ -22,6 +22,8 @@ window.DeltaLiveChart = (function() {
   let activeSymbol = 'BTCUSDT';
   let activeDeltaSymbol = 'BTCUSD';
   let wsConnection = null;
+  let wsLastTickTime = 0;
+  let wsHeartbeatInterval = null;
   let candleData = [];
 
   const ASSET_CONFIGS = {
@@ -1311,7 +1313,11 @@ window.DeltaLiveChart = (function() {
    * Connects to public real-time Binance WebSocket for live tick-by-tick candle updates
    */
   function connectLiveWebSocket(interval) {
-    // 1. Fully disconnect and detach any existing WebSocket before connecting
+    // 1. Fully disconnect and detach any existing WebSocket and heartbeat before connecting
+    if (wsHeartbeatInterval) {
+      clearInterval(wsHeartbeatInterval);
+      wsHeartbeatInterval = null;
+    }
     if (wsConnection) {
       try {
         wsConnection.onopen = null;
@@ -1330,9 +1336,25 @@ window.DeltaLiveChart = (function() {
     try {
       const ws = new WebSocket(wsUrl);
       wsConnection = ws;
+      wsLastTickTime = Date.now();
+
+      // Institutional 6.5s Heartbeat Monitor to detect silent network stalls
+      wsHeartbeatInterval = setInterval(() => {
+        if (ws !== wsConnection) {
+          clearInterval(wsHeartbeatInterval);
+          return;
+        }
+        const silenceDuration = Date.now() - wsLastTickTime;
+        const badge = document.getElementById('wsLiveBadge');
+        if (silenceDuration > 9000 && badge) {
+          badge.className = "px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-amber-500/10 text-amber-400 border border-amber-500/30 flex items-center gap-1.5";
+          badge.innerHTML = `<span class="h-2 w-2 rounded-full bg-amber-400 animate-pulse"></span> Feed Latency (${Math.round(silenceDuration / 1000)}s)`;
+        }
+      }, 3000);
 
       ws.onopen = () => {
         if (ws !== wsConnection) return;
+        wsLastTickTime = Date.now();
         const badge = document.getElementById('wsLiveBadge');
         if (badge) {
           badge.className = "px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 flex items-center gap-1.5";
@@ -1347,6 +1369,13 @@ window.DeltaLiveChart = (function() {
           // Discard if incoming event symbol doesn't strictly match the current activeSymbol
           if (msg.s && msg.s.toUpperCase() !== activeSymbol.toUpperCase()) return;
           if (activeAsset !== boundAsset) return;
+
+          wsLastTickTime = Date.now();
+          const badge = document.getElementById('wsLiveBadge');
+          if (badge && !badge.innerHTML.includes('Live Tick Stream')) {
+            badge.className = "px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 flex items-center gap-1.5";
+            badge.innerHTML = `<span class="h-2 w-2 rounded-full bg-emerald-400 animate-ping"></span> Live Tick Stream`;
+          }
 
           const k = msg.k;
           if (!k) return;
@@ -3423,6 +3452,10 @@ Expected Profit: +50% Option Gross / +40% Net`;
     lastDeltaTickersFetchTime = 0;
 
     // Immediately stop old asset's ticker polling & websocket to prevent looping/flicker
+    if (wsHeartbeatInterval) {
+      clearInterval(wsHeartbeatInterval);
+      wsHeartbeatInterval = null;
+    }
     if (deltaTickerPollInterval) {
       clearInterval(deltaTickerPollInterval);
       deltaTickerPollInterval = null;
