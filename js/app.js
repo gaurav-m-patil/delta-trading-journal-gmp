@@ -1713,6 +1713,27 @@ window.DeltaApp = (function() {
     }
   }
 
+  let isAllTimeRealityCollapsed = true;
+  function toggleAllTimeRealityCollapse() {
+    isAllTimeRealityCollapsed = !isAllTimeRealityCollapsed;
+    const content = document.getElementById('allTimeRealityCollapseContent');
+    const chevron = document.getElementById('allTimeRealityChevron');
+    const toggleText = document.getElementById('allTimeRealityToggleText');
+
+    if (!content) return;
+
+    if (isAllTimeRealityCollapsed) {
+      content.classList.add('hidden');
+      if (chevron) chevron.className = 'fa-solid fa-chevron-down';
+      if (toggleText) toggleText.innerText = 'Expand';
+    } else {
+      content.classList.remove('hidden');
+      if (chevron) chevron.className = 'fa-solid fa-chevron-up';
+      if (toggleText) toggleText.innerText = 'Collapse';
+      renderAllTimeInrRealityCheck();
+    }
+  }
+
   function setTradeFilter(filter) {
     currentTradeFilter = filter;
     currentTradePage = 1;
@@ -2574,6 +2595,7 @@ window.DeltaApp = (function() {
     showPeek,
     hidePeek,
     toggleTradeLogCollapse,
+    toggleAllTimeRealityCollapse,
     setTradeFilter,
     setTradeSort,
     openSentinelConfigModal,
