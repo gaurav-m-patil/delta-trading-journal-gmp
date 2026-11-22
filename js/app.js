@@ -1586,18 +1586,25 @@ window.DeltaApp = (function() {
       realizedSubsequentNetInr += (t.net_pnl || 0) * INR_RATE;
     });
 
-    // 4. Milestone Schedule (Strictly Weekday Trading Sessions)
-    // Calendar targets: End of Nov 2026, Dec 2026, Jan 2027, Feb 2027, and 6-Month Mark
+    // 4. Milestone Schedule (Strictly Next 3 Months: End of Nov 26, Dec 26, Jan 27)
     const nowUtc = new Date();
     const nowEpoch = nowUtc.getTime();
 
     const milestones = [
       { id: 'NOV_END', name: 'End of Nov 26', targetDate: new Date('2026-11-30T23:59:59Z') },
       { id: 'DEC_END', name: 'End of Dec 26', targetDate: new Date('2026-12-31T23:59:59Z') },
-      { id: 'JAN_END', name: 'End of Jan 27', targetDate: new Date('2027-01-31T23:59:59Z') },
-      { id: 'FEB_END', name: 'End of Feb 27', targetDate: new Date('2027-02-28T23:59:59Z') },
-      { id: 'SIX_MONTH', name: '6-Month Mark', targetDate: new Date(nowEpoch + 180 * 86400000) }
+      { id: 'JAN_END', name: 'End of Jan 27', targetDate: new Date('2027-01-31T23:59:59Z') }
     ];
+
+    // Helper: Dynamic Tiered Sizing (+₹50k capital for every ₹5L cumulative profit beyond ₹10L)
+    function resolveDynamicCapCeiling(cumulativeTotalProfit) {
+      if (cumulativeTotalProfit < 1500000) {
+        return 100000; // Tier 1: ₹1,00,000 baseline
+      }
+      // For ₹15L -> ₹1.5L; ₹20L -> ₹2.0L; ₹25L -> ₹2.5L; ₹30L -> ₹3.0L (+₹50k per ₹5L profit)
+      const additional5LSteps = Math.floor((cumulativeTotalProfit - 1500000) / 500000);
+      return 150000 + (additional5LSteps * 50000);
+    }
 
     // 5. Tiered Vault Skimming Simulator
     function simulateMilestoneProgression(tradingDaysAhead) {
@@ -1607,13 +1614,8 @@ window.DeltaApp = (function() {
 
       // Simulate trading-day by trading-day (Weekdays only)
       for (let day = 1; day <= tradingDaysAhead; day++) {
-        // Determine dynamic active cap ceiling based on total cumulative profit
-        let maxActiveCap = 100000; // Tier 1: ₹1,00,000
-        if (cumulativeTotalProfit >= 2000000) {
-          maxActiveCap = 200000; // Tier 3: ₹2,00,000
-        } else if (cumulativeTotalProfit >= 1500000) {
-          maxActiveCap = 150000; // Tier 2: ₹1,50,000
-        }
+        // Compute dynamic active cap ceiling based on cumulative profit milestones
+        const maxActiveCap = resolveDynamicCapCeiling(cumulativeTotalProfit);
 
         // Apply trade gain
         const dayGain = currentActiveCapital * effectiveDailyGrowth;
@@ -1630,12 +1632,14 @@ window.DeltaApp = (function() {
 
       const totalRealizedWealth = currentActiveCapital + cumulativeWithdrawnToBank;
       const netGainOnBase = totalRealizedWealth - realTradingCapital;
+      const currentCap = resolveDynamicCapCeiling(cumulativeTotalProfit);
 
       return {
         activeCapital: currentActiveCapital,
         withdrawnToBank: cumulativeWithdrawnToBank,
         totalRealizedWealth: totalRealizedWealth,
         netGainOnBase: netGainOnBase,
+        currentCapCeiling: currentCap,
         multiplier: realTradingCapital > 0 ? (totalRealizedWealth / realTradingCapital).toFixed(1) : '1.0'
       };
     }
@@ -1652,7 +1656,7 @@ window.DeltaApp = (function() {
     const statMultiplierEl = document.getElementById('statReturnMultiplier');
 
     if (statActiveCapEl) statActiveCapEl.innerText = formatINR(immediateSim.activeCapital, 0);
-    if (statCapCeilingEl) statCapCeilingEl.innerText = formatINR(immediateSim.activeCapital >= 200000 ? 200000 : (immediateSim.activeCapital >= 150000 ? 150000 : 100000), 0);
+    if (statCapCeilingEl) statCapCeilingEl.innerText = formatINR(immediateSim.currentCapCeiling, 0);
     if (statBankWithdrawnEl) statBankWithdrawnEl.innerText = formatINR(immediateSim.withdrawnToBank, 0);
     if (statTotalWealthEl) statTotalWealthEl.innerText = formatINR(immediateSim.totalRealizedWealth, 0);
     if (statMultiplierEl) statMultiplierEl.innerText = `+${immediateSim.multiplier}x Initial Capital`;
@@ -1670,59 +1674,54 @@ window.DeltaApp = (function() {
     if (metricWinRateEl) metricWinRateEl.innerText = `${winRate}% (${winCount}W / ${lossCount}L)`;
     if (metricFreqEl) metricFreqEl.innerText = `~${tradesPerDay.toFixed(1)} trade / day`;
     if (metricTierEl) {
-      if (immediateSim.totalRealizedWealth >= 2000000) metricTierEl.innerText = "Tier 3 (₹2L Max Base)";
-      else if (immediateSim.totalRealizedWealth >= 1500000) metricTierEl.innerText = "Tier 2 (₹1.5L Max Base)";
-      else metricTierEl.innerText = "Tier 1 (₹1L Max Base)";
+      const activeCap = immediateSim.currentCapCeiling;
+      metricTierEl.innerText = `Cap: ${formatINR(activeCap, 0)}`;
     }
 
-    // 6. Render Milestone Projection Cards (Strictly Weekday Sessions)
+    // 6. Render Milestone Projection Cards (Strictly Next 3 Months, Weekday Sessions)
     const container = document.getElementById('projectionMilestonesContainer');
     if (container) {
       container.innerHTML = milestones.map(m => {
         const weekdaysLeft = countWeekdaysBetween(nowUtc, m.targetDate);
         const sim = simulateMilestoneProgression(weekdaysLeft);
 
-        let tierBadge = `<span class="px-1.5 py-0.5 rounded text-[9px] font-mono bg-slate-800 text-slate-300">Cap: ₹1.0L</span>`;
-        if (sim.totalRealizedWealth >= 2000000) {
-          tierBadge = `<span class="px-1.5 py-0.5 rounded text-[9px] font-mono bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">Cap: ₹2.0L</span>`;
-        } else if (sim.totalRealizedWealth >= 1500000) {
-          tierBadge = `<span class="px-1.5 py-0.5 rounded text-[9px] font-mono bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">Cap: ₹1.5L</span>`;
-        }
+        const capLabel = formatINR(sim.currentCapCeiling, 0);
+        const tierBadge = `<span class="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">Cap: ${capLabel}</span>`;
 
         return `
-          <div class="p-3.5 sm:p-4 rounded-xl bg-brandDark/85 border border-borderDark hover:border-emerald-500/40 transition-all shadow-md flex flex-col justify-between space-y-3">
+          <div class="p-4 sm:p-5 rounded-2xl bg-gradient-to-br from-brandDark/95 to-brandDark/70 border border-borderDark hover:border-emerald-500/50 transition-all shadow-lg flex flex-col justify-between space-y-4">
             <div>
-              <div class="flex items-center justify-between pb-2 border-b border-borderDark/60">
-                <span class="font-bold text-xs text-white font-sans">${m.name}</span>
-                <span class="text-[10px] text-slate-400 font-mono">${weekdaysLeft} sessions left</span>
+              <div class="flex items-center justify-between pb-2.5 border-b border-borderDark/60">
+                <span class="font-extrabold text-sm sm:text-base text-white font-sans">${m.name}</span>
+                <span class="text-[11px] text-slate-400 font-mono bg-panelDark px-2 py-0.5 rounded-lg border border-borderDark/60">${weekdaysLeft} sessions left</span>
               </div>
 
               <!-- Withdrawn Cash Hero -->
-              <div class="mt-2.5">
-                <span class="text-[9px] uppercase tracking-wider text-emerald-400 block font-sans font-semibold">
-                  <i class="fa-solid fa-building-columns text-[8px] mr-0.5"></i> Safe in Bank Vault
+              <div class="mt-3">
+                <span class="text-[10px] uppercase tracking-wider text-emerald-400 block font-sans font-bold flex items-center gap-1">
+                  <i class="fa-solid fa-building-columns text-[9px]"></i> Safe in Bank Vault
                 </span>
-                <div class="text-base sm:text-lg font-extrabold font-mono text-emerald-400 truncate">
+                <div class="text-xl sm:text-2xl font-extrabold font-mono text-emerald-400 tracking-tight my-0.5 truncate">
                   ${formatINR(sim.withdrawnToBank, 0)}
                 </div>
               </div>
 
               <!-- Active Trading Capital -->
-              <div class="mt-2 flex items-center justify-between text-[11px] font-mono">
+              <div class="mt-2.5 flex items-center justify-between text-xs font-mono py-1 border-t border-borderDark/40">
                 <span class="text-slate-400 font-sans">Active in Delta:</span>
-                <strong class="text-white">${formatINR(sim.activeCapital, 0)}</strong>
+                <strong class="text-white font-bold">${formatINR(sim.activeCapital, 0)}</strong>
               </div>
 
               <!-- Total Wealth -->
-              <div class="mt-1 flex items-center justify-between text-[11px] font-mono pt-1.5 border-t border-borderDark/50">
-                <span class="text-slate-300 font-sans font-medium">Total Net Wealth:</span>
-                <strong class="text-indigo-300 font-bold">${formatINR(sim.totalRealizedWealth, 0)}</strong>
+              <div class="mt-1 flex items-center justify-between text-xs font-mono pt-1.5 border-t border-borderDark/60">
+                <span class="text-slate-300 font-sans font-semibold">Total Net Wealth:</span>
+                <strong class="text-indigo-300 font-extrabold text-sm">${formatINR(sim.totalRealizedWealth, 0)}</strong>
               </div>
             </div>
 
             <!-- Tier Status Footer -->
-            <div class="pt-2 border-t border-borderDark/50 flex items-center justify-between">
-              <span class="text-[10px] font-mono font-bold text-emerald-400">+${sim.multiplier}x Gain</span>
+            <div class="pt-2.5 border-t border-borderDark/60 flex items-center justify-between">
+              <span class="text-xs font-mono font-extrabold text-emerald-400">+${sim.multiplier}x Initial</span>
               ${tierBadge}
             </div>
           </div>
