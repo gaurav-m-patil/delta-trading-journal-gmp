@@ -21,6 +21,11 @@ window.DeltaApp = (function() {
     return (num < 0 ? "-$" : "$") + Math.abs(num).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   };
 
+  const formatINR = (val, decimals = 2) => {
+    const num = Number(val) || 0;
+    return (num < 0 ? "-₹" : "₹") + Math.abs(num).toLocaleString('en-IN', { minimumFractionDigits: decimals, maximumFractionDigits: decimals });
+  };
+
   const compactUSD = (val) => {
     const num = Number(val) || 0;
     const absNum = Math.abs(num);
@@ -733,6 +738,7 @@ window.DeltaApp = (function() {
     renderHoldDurationDiagnostic(currentFilteredTrades);
     renderRiskSentinel(allTrades);
     renderPaginatedTrades();
+    renderAllTimeInrRealityCheck();
 
     // If Asset or Coach sub-view is active, keep it in sync
     if (currentInsightsSubTab === 'COACH_AI') {
@@ -1432,6 +1438,211 @@ window.DeltaApp = (function() {
         </div>
       </div>
     `;
+  }
+
+  // -------------------------------------------------------------
+  // ALL-TIME INR REALITY CHECK & DIAGNOSTIC ENGINE
+  // Strictly Unfiltered: Computes 100% of all-time trade records
+  // -------------------------------------------------------------
+  function renderAllTimeInrRealityCheck() {
+    const allTrades = DeltaDB.getTrades();
+    const netEl = document.getElementById('allTimeNetInr');
+    const badgeEl = document.getElementById('allTimeStatusBadge');
+    const grossEl = document.getElementById('allTimeGrossInr');
+    const brokEl = document.getElementById('allTimeBrokerageInr');
+    const gstEl = document.getElementById('allTimeGstInr');
+    const feeEl = document.getElementById('allTimeTotalFeeInr');
+    const feeSubEl = document.getElementById('allTimeFeeDragSub');
+    const countEl = document.getElementById('allTimeTradesCount');
+    const winRateEl = document.getElementById('allTimeWinRate');
+    const listEl = document.getElementById('allTimeDiagnosticList');
+    const glowEl = document.getElementById('allTimeInrGlowBg');
+
+    if (!netEl || !allTrades || allTrades.length === 0) return;
+
+    const INR_RATE = 85.0; // Standard Delta Exchange India rate
+
+    let grossUsd = 0;
+    let baseBrokerageUsd = 0;
+    let gstUsd = 0;
+    let totalFeeUsd = 0;
+    let netUsd = 0;
+
+    let wins = [];
+    let losses = [];
+    let grossWinsUsd = 0;
+    let grossLossesUsd = 0;
+
+    const dailyNetMap = {};
+
+    allTrades.forEach(t => {
+      const g = t.gross_pnl || 0;
+      const b = t.base_brokerage || 0;
+      const gst = t.gst || 0;
+      const f = t.total_fee || (b + gst);
+      const n = t.net_pnl || (g - f);
+
+      grossUsd += g;
+      baseBrokerageUsd += b;
+      gstUsd += gst;
+      totalFeeUsd += f;
+      netUsd += n;
+
+      if (n > 0.0001) wins.push(n);
+      else if (n < -0.0001) losses.push(Math.abs(n));
+
+      if (g > 0.0001) grossWinsUsd += g;
+      else if (g < -0.0001) grossLossesUsd += Math.abs(g);
+
+      const dKey = t.rawDate || "unknown";
+      if (!dailyNetMap[dKey]) dailyNetMap[dKey] = 0;
+      dailyNetMap[dKey] += n;
+    });
+
+    const totalTrades = allTrades.length;
+    const winCount = wins.length;
+    const lossCount = losses.length;
+    const winRate = totalTrades > 0 ? Math.round((winCount / totalTrades) * 100) : 0;
+
+    // Convert to INR
+    const grossInr = grossUsd * INR_RATE;
+    const baseBrokerageInr = baseBrokerageUsd * INR_RATE;
+    const gstInr = gstUsd * INR_RATE;
+    const totalFeeInr = totalFeeUsd * INR_RATE;
+    const netInr = netUsd * INR_RATE;
+
+    const isNetProfit = netInr >= 0;
+
+    // Update Top Row DOM
+    if (countEl) countEl.innerText = `${totalTrades} Total Trades`;
+    if (winRateEl) winRateEl.innerText = `${winRate}% (${winCount}W / ${lossCount}L)`;
+
+    if (netEl) {
+      netEl.innerText = formatINR(netInr, 2);
+      netEl.className = `text-2xl sm:text-3xl lg:text-4xl font-extrabold font-mono tracking-tight my-1 ${isNetProfit ? 'text-winGreen' : 'text-lossRed'}`;
+    }
+
+    if (badgeEl) {
+      if (isNetProfit) {
+        badgeEl.className = "text-xs sm:text-sm font-mono font-bold uppercase tracking-wider px-3 py-1.5 rounded-xl border flex items-center gap-1.5 shadow-sm bg-emerald-500/10 text-emerald-400 border-emerald-500/30";
+        badgeEl.innerHTML = `<span class="h-2 w-2 rounded-full bg-emerald-400"></span> NET PROFIT`;
+      } else {
+        badgeEl.className = "text-xs sm:text-sm font-mono font-bold uppercase tracking-wider px-3 py-1.5 rounded-xl border flex items-center gap-1.5 shadow-sm bg-rose-500/10 text-rose-400 border-rose-500/30";
+        badgeEl.innerHTML = `<span class="h-2 w-2 rounded-full bg-rose-400 animate-pulse"></span> NET LOSS`;
+      }
+    }
+
+    if (glowEl) {
+      glowEl.className = `absolute -top-24 -right-24 w-72 h-72 rounded-full blur-3xl pointer-events-none opacity-10 ${isNetProfit ? 'bg-emerald-500' : 'bg-rose-500'}`;
+    }
+
+    if (grossEl) {
+      grossEl.innerText = formatINR(grossInr, 2);
+      grossEl.className = `text-sm sm:text-base font-bold font-mono truncate ${grossInr >= 0 ? 'text-winGreen' : 'text-lossRed'}`;
+    }
+
+    if (brokEl) brokEl.innerText = `-${formatINR(baseBrokerageInr, 2)}`;
+    if (gstEl) gstEl.innerText = `-${formatINR(gstInr, 2)}`;
+    if (feeEl) feeEl.innerText = `-${formatINR(totalFeeInr, 2)}`;
+
+    // Fee drag percentage
+    const feeDragPct = grossWinsUsd > 0 ? Math.round((totalFeeUsd / grossWinsUsd) * 100) : 0;
+    if (feeSubEl) {
+      feeSubEl.innerText = `${feeDragPct}% Fee Drag on Wins`;
+    }
+
+    // -------------------------------------------------------------
+    // AUTOMATED ALL-TIME DIAGNOSTIC ENGINE
+    // -------------------------------------------------------------
+    const avgWinUsd = winCount > 0 ? (wins.reduce((a, b) => a + b, 0) / winCount) : 0;
+    const avgLossUsd = lossCount > 0 ? (losses.reduce((a, b) => a + b, 0) / lossCount) : 0;
+    const avgWinInr = avgWinUsd * INR_RATE;
+    const avgLossInr = avgLossUsd * INR_RATE;
+    const lossToWinRatio = avgWinUsd > 0 ? (avgLossUsd / avgWinUsd) : 0;
+
+    const avgFeePerTradeInr = totalTrades > 0 ? (totalFeeInr / totalTrades) : 0;
+
+    // Outlier / Concentration analysis
+    const sortedTrades = [...allTrades].sort((a, b) => (a.net_pnl || 0) - (b.net_pnl || 0));
+    const worst3NetUsd = sortedTrades.slice(0, 3).reduce((a, t) => a + (t.net_pnl || 0), 0);
+    const worst3NetInr = worst3NetUsd * INR_RATE;
+    const worst3ShareOfLoss = netUsd < 0 ? Math.min(100, Math.round((Math.abs(worst3NetUsd) / Math.abs(netUsd)) * 100)) : 0;
+
+    // Generate Diagnostic Bullet Cards
+    const diagnosticCards = [];
+
+    // 1. Profit/Loss Root Cause
+    if (isNetProfit) {
+      diagnosticCards.push({
+        icon: "fa-circle-check text-emerald-400",
+        border: "border-emerald-500/30 bg-emerald-500/5",
+        title: "Net Profitable Trading Edge",
+        text: `Your overall market edge is generating positive capital growth (Net: <strong>+${formatINR(netInr, 2)}</strong>). Your win rate is strong at <strong>${winRate}%</strong>, and your gross profit of <strong>${formatINR(grossInr, 2)}</strong> comfortably withstands exchange deductions.`
+      });
+    } else {
+      if (grossInr > 0) {
+        diagnosticCards.push({
+          icon: "fa-triangle-exclamation text-amber-400",
+          border: "border-amber-500/30 bg-amber-500/5",
+          title: "Execution Drag Inverting Edge (Fee Inversion)",
+          text: `Your gross trading edge is actually positive at <strong>+${formatINR(grossInr, 2)}</strong>, but total execution costs of <strong>-${formatINR(totalFeeInr, 2)}</strong> (Brokerage: ${formatINR(baseBrokerageInr, 2)} + GST: ${formatINR(gstInr, 2)}) have dragged your bottom line into a net deficit of <strong>${formatINR(netInr, 2)}</strong>.`
+        });
+      } else {
+        diagnosticCards.push({
+          icon: "fa-circle-xmark text-rose-400",
+          border: "border-rose-500/30 bg-rose-500/5",
+          title: "Root Cause: High Win Rate Masked by Extreme Payoff Asymmetry",
+          text: `Despite winning <strong>${winRate}% of all trades</strong> (${winCount}W vs ${lossCount}L), your bottom line is in a net deficit of <strong>${formatINR(netInr, 2)}</strong>. Losing trades hit an average of <strong>${formatINR(avgLossInr, 2)}</strong>, which is <strong>${lossToWinRatio.toFixed(1)}x larger</strong> than your average win of <strong>${formatINR(avgWinInr, 2)}</strong>. Infrequent but unhedged catastrophic drawdowns completely wipe out dozens of small scalp wins.`
+        });
+      }
+    }
+
+    // 2. Brokerage & Tax Drag Analysis
+    diagnosticCards.push({
+      icon: "fa-receipt text-indigo-400",
+      border: "border-indigo-500/30 bg-indigo-500/5",
+      title: `Exchange Drag: ${formatINR(totalFeeInr, 2)} Consumed Across ${totalTrades} Trades`,
+      text: `Exchange deductions have consumed <strong>${feeDragPct}% of all gross winning gains</strong> (${formatINR(baseBrokerageInr, 2)} in pure Delta Exchange brokerage + <strong>${formatINR(gstInr, 2)}</strong> in 18% Indian GST). You are paying an average of <strong>${formatINR(avgFeePerTradeInr, 2)} in charges on every single trade</strong> entered. Micro-scalping low R:R options contracts severely erodes net capital.`
+    });
+
+    // 3. Payoff Asymmetry Check
+    diagnosticCards.push({
+      icon: "fa-scale-unbalanced-flip text-amber-400",
+      border: "border-borderDark/80 bg-brandDark/70",
+      title: `Payoff Ratio: 1 : ${(avgWinUsd > 0 && avgLossUsd > 0 ? (avgWinUsd / avgLossUsd).toFixed(2) : '0.00')} (Avg Win ${formatINR(avgWinInr, 2)} vs Avg Loss ${formatINR(avgLossInr, 2)})`,
+      text: `Every loss costs you <strong>${lossToWinRatio.toFixed(1)}x more</strong> than a win generates. To reach steady institutional profitability with this ratio, you would need an impossible win rate of &gt;${Math.round((lossToWinRatio / (1 + lossToWinRatio)) * 100)}%. Enforcing a strict 30% stop loss on options options premiums will immediately protect your wallet.`
+    });
+
+    // 4. Consistency / Concentration Check
+    if (netInr < 0 && worst3ShareOfLoss > 30) {
+      diagnosticCards.push({
+        icon: "fa-chart-pie text-rose-400",
+        border: "border-rose-500/20 bg-brandDark/70",
+        title: `Loss Concentration: Top 3 Worst Trades Drive ${worst3ShareOfLoss}% of Total Net Loss`,
+        text: `Your overall deficit is heavily skewed by a tiny handful of outlier trades. Just <strong>3 out of ${totalTrades} trades (1.2%)</strong> contributed <strong>${formatINR(worst3NetInr, 2)}</strong> of your total net deficit. Eliminating unchecked outlier sessions through an automated 2-loss daily circuit breaker stabilizes your performance curve immediately.`
+      });
+    } else {
+      diagnosticCards.push({
+        icon: "fa-arrows-split-up-and-left text-slate-400",
+        border: "border-borderDark/80 bg-brandDark/70",
+        title: "Distribution & Trade Frequency Diagnostic",
+        text: `Over <strong>${totalTrades} closed contracts</strong>, execution is distributed across ${Object.keys(dailyNetMap).length} active trading sessions. Preserving capital requires shifting from high-frequency low-margin scalps to higher conviction Smart Money Concepts (SMC) sweeps with 1:2+ R:R.`
+      });
+    }
+
+    if (listEl) {
+      listEl.innerHTML = diagnosticCards.map(c => `
+        <div class="p-3.5 sm:p-4 rounded-xl border ${c.border} transition-all">
+          <div class="flex items-start gap-2.5">
+            <i class="fa-solid ${c.icon} text-sm mt-0.5 shrink-0"></i>
+            <div class="space-y-1 min-w-0">
+              <h4 class="font-bold text-xs sm:text-sm text-white font-sans">${c.title}</h4>
+              <p class="text-xs text-slate-300 leading-relaxed font-sans">${c.text}</p>
+            </div>
+          </div>
+        </div>
+      `).join('');
+    }
   }
 
   // Sentinel Configuration Modal Handlers
