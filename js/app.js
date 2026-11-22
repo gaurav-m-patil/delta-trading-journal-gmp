@@ -2168,7 +2168,7 @@ window.DeltaApp = (function() {
     const peekOverlay = document.getElementById('peekOverlay');
     if (peekCard && peekOverlay) {
       peekCard.innerHTML = html;
-      peekOverlay.classList.remove('opacity-0', 'pointer-events-none');
+      peekOverlay.classList.remove('hidden', 'opacity-0', 'pointer-events-none');
       peekOverlay.classList.add('opacity-100');
     }
   }
@@ -2243,7 +2243,7 @@ window.DeltaApp = (function() {
     const peekOverlay = document.getElementById('peekOverlay');
     if (peekCard && peekOverlay) {
       peekCard.innerHTML = html;
-      peekOverlay.classList.remove('opacity-0', 'pointer-events-none');
+      peekOverlay.classList.remove('hidden', 'opacity-0', 'pointer-events-none');
       peekOverlay.classList.add('opacity-100');
     }
   }
@@ -2321,7 +2321,7 @@ window.DeltaApp = (function() {
     const peekOverlay = document.getElementById('peekOverlay');
     if (peekCard && peekOverlay) {
       peekCard.innerHTML = html;
-      peekOverlay.classList.remove('opacity-0', 'pointer-events-none');
+      peekOverlay.classList.remove('hidden', 'opacity-0', 'pointer-events-none');
       peekOverlay.classList.add('opacity-100');
     }
   }
@@ -2331,6 +2331,11 @@ window.DeltaApp = (function() {
     if (overlay) {
       overlay.classList.remove('opacity-100');
       overlay.classList.add('opacity-0', 'pointer-events-none');
+      setTimeout(() => {
+        if (overlay.classList.contains('opacity-0')) {
+          overlay.classList.add('hidden');
+        }
+      }, 160);
     }
   }
 
