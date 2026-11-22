@@ -1536,14 +1536,26 @@ window.DeltaApp = (function() {
       geomReturnPerTrade = Math.pow(prod, 1 / multipliers.length) - 1;
     }
 
-    // Days elapsed since Nov 19
+    // Days elapsed since Nov 19 (Excluding weekends: Monday to Friday only)
+    function countWeekdaysBetween(startDate, endDate) {
+      let count = 0;
+      let cur = new Date(startDate);
+      while (cur <= endDate) {
+        const dayOfWeek = cur.getDay(); // 0 is Sunday, 6 is Saturday
+        if (dayOfWeek !== 0 && dayOfWeek !== 6) {
+          count++;
+        }
+        cur.setDate(cur.getDate() + 1);
+      }
+      return Math.max(1, count);
+    }
+
     const startDate = new Date('2026-11-19T00:00:00Z');
     const today = new Date();
-    const msDiff = Math.max(86400000, today.getTime() - startDate.getTime());
-    const daysElapsed = Math.max(1, Math.round(msDiff / (1000 * 60 * 60 * 24)));
-    const tradesPerDay = totalTradesNov19 > 0 ? (totalTradesNov19 / daysElapsed) : 1.0;
+    const weekdaysElapsed = countWeekdaysBetween(startDate, today);
+    const tradesPerDay = totalTradesNov19 > 0 ? (totalTradesNov19 / weekdaysElapsed) : 1.0;
 
-    // Daily pace
+    // Daily pace based on institutional weekday velocity
     let effectiveDailyGrowth = Math.pow(1 + geomReturnPerTrade, Math.min(2.0, Math.max(0.5, tradesPerDay))) - 1;
 
     // Stress-Tested Haircut Mode: Accounts for 1 loss (-30%) every 2 wins + chop
@@ -1554,15 +1566,15 @@ window.DeltaApp = (function() {
     // Confidence Badge
     const badgeEl = document.getElementById('paceConfidenceBadge');
     if (badgeEl) {
-      if (daysElapsed < 5) {
+      if (weekdaysElapsed < 5) {
         badgeEl.className = "text-[10px] font-mono font-bold uppercase tracking-wider px-2.5 py-1.5 rounded-xl border flex items-center gap-1.5 bg-amber-500/10 text-amber-300 border-amber-500/30";
-        badgeEl.innerHTML = `<i class="fa-solid fa-clock-rotate-left"></i> Early Sample (${daysElapsed}d / ${totalTradesNov19}t)`;
-      } else if (daysElapsed <= 14) {
+        badgeEl.innerHTML = `<i class="fa-solid fa-clock-rotate-left"></i> Early Sample (${weekdaysElapsed} Weekdays / ${totalTradesNov19}t)`;
+      } else if (weekdaysElapsed <= 14) {
         badgeEl.className = "text-[10px] font-mono font-bold uppercase tracking-wider px-2.5 py-1.5 rounded-xl border flex items-center gap-1.5 bg-indigo-500/10 text-indigo-300 border-indigo-500/30";
-        badgeEl.innerHTML = `<i class="fa-solid fa-chart-line"></i> Developing Pace (${daysElapsed}d / ${totalTradesNov19}t)`;
+        badgeEl.innerHTML = `<i class="fa-solid fa-chart-line"></i> Developing Pace (${weekdaysElapsed} Weekdays / ${totalTradesNov19}t)`;
       } else {
         badgeEl.className = "text-[10px] font-mono font-bold uppercase tracking-wider px-2.5 py-1.5 rounded-xl border flex items-center gap-1.5 bg-emerald-500/10 text-emerald-300 border-emerald-500/30";
-        badgeEl.innerHTML = `<i class="fa-solid fa-shield-halved"></i> Institutional Confidence (${daysElapsed}d / ${totalTradesNov19}t)`;
+        badgeEl.innerHTML = `<i class="fa-solid fa-shield-halved"></i> Institutional Confidence (${weekdaysElapsed} Weekdays / ${totalTradesNov19}t)`;
       }
     }
 
@@ -1574,7 +1586,7 @@ window.DeltaApp = (function() {
       realizedSubsequentNetInr += (t.net_pnl || 0) * INR_RATE;
     });
 
-    // 4. Milestone Schedule
+    // 4. Milestone Schedule (Strictly Weekday Trading Sessions)
     // Calendar targets: End of Nov 2026, Dec 2026, Jan 2027, Feb 2027, and 6-Month Mark
     const nowUtc = new Date();
     const nowEpoch = nowUtc.getTime();
@@ -1588,13 +1600,13 @@ window.DeltaApp = (function() {
     ];
 
     // 5. Tiered Vault Skimming Simulator
-    function simulateMilestoneProgression(daysAhead) {
+    function simulateMilestoneProgression(tradingDaysAhead) {
       let currentActiveCapital = realTradingCapital + realizedSubsequentNetInr;
       let cumulativeWithdrawnToBank = 0;
       let cumulativeTotalProfit = 0;
 
-      // Simulate day-by-day
-      for (let day = 1; day <= daysAhead; day++) {
+      // Simulate trading-day by trading-day (Weekdays only)
+      for (let day = 1; day <= tradingDaysAhead; day++) {
         // Determine dynamic active cap ceiling based on total cumulative profit
         let maxActiveCap = 100000; // Tier 1: ₹1,00,000
         if (cumulativeTotalProfit >= 2000000) {
@@ -1628,9 +1640,9 @@ window.DeltaApp = (function() {
       };
     }
 
-    // Compute status on immediate Nov end milestone for top cards
-    const daysToNovEnd = Math.max(1, Math.round((milestones[0].targetDate.getTime() - nowEpoch) / (1000 * 60 * 60 * 24)));
-    const immediateSim = simulateMilestoneProgression(daysToNovEnd);
+    // Compute status on immediate Nov end milestone for top cards (using weekdays only)
+    const weekdaysToNovEnd = countWeekdaysBetween(nowUtc, milestones[0].targetDate);
+    const immediateSim = simulateMilestoneProgression(weekdaysToNovEnd);
 
     // Update Top Row & Status Cards
     const statActiveCapEl = document.getElementById('statActiveExchangeCapital');
@@ -1663,12 +1675,12 @@ window.DeltaApp = (function() {
       else metricTierEl.innerText = "Tier 1 (₹1L Max Base)";
     }
 
-    // 6. Render Milestone Projection Cards
+    // 6. Render Milestone Projection Cards (Strictly Weekday Sessions)
     const container = document.getElementById('projectionMilestonesContainer');
     if (container) {
       container.innerHTML = milestones.map(m => {
-        const daysLeft = Math.max(1, Math.round((m.targetDate.getTime() - nowEpoch) / (1000 * 60 * 60 * 24)));
-        const sim = simulateMilestoneProgression(daysLeft);
+        const weekdaysLeft = countWeekdaysBetween(nowUtc, m.targetDate);
+        const sim = simulateMilestoneProgression(weekdaysLeft);
 
         let tierBadge = `<span class="px-1.5 py-0.5 rounded text-[9px] font-mono bg-slate-800 text-slate-300">Cap: ₹1.0L</span>`;
         if (sim.totalRealizedWealth >= 2000000) {
@@ -1682,7 +1694,7 @@ window.DeltaApp = (function() {
             <div>
               <div class="flex items-center justify-between pb-2 border-b border-borderDark/60">
                 <span class="font-bold text-xs text-white font-sans">${m.name}</span>
-                <span class="text-[10px] text-slate-400 font-mono">${daysLeft}d left</span>
+                <span class="text-[10px] text-slate-400 font-mono">${weekdaysLeft} sessions left</span>
               </div>
 
               <!-- Withdrawn Cash Hero -->
