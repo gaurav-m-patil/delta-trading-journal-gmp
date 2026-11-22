@@ -1447,6 +1447,28 @@ window.DeltaApp = (function() {
   // -------------------------------------------------------------
   let realTradingCapital = parseFloat(localStorage.getItem('dtj_real_trading_capital')) || 25000;
   let paceProjectionMode = localStorage.getItem('dtj_pace_projection_mode') || 'FULL'; // 'FULL' or 'STRESS'
+  let isCapitalTrajectoryCollapsed = true;
+  let activeTrajectoryDetailMonth = null;
+
+  function toggleCapitalTrajectoryCollapse() {
+    isCapitalTrajectoryCollapsed = !isCapitalTrajectoryCollapsed;
+    const content = document.getElementById('capitalTrajectoryCollapseContent');
+    const chevron = document.getElementById('capitalTrajectoryChevron');
+    const toggleText = document.getElementById('capitalTrajectoryToggleText');
+
+    if (!content) return;
+
+    if (isCapitalTrajectoryCollapsed) {
+      content.classList.add('hidden');
+      if (chevron) chevron.className = 'fa-solid fa-chevron-down';
+      if (toggleText) toggleText.innerText = 'Expand';
+    } else {
+      content.classList.remove('hidden');
+      if (chevron) chevron.className = 'fa-solid fa-chevron-up';
+      if (toggleText) toggleText.innerText = 'Collapse';
+      renderCapitalTrajectory();
+    }
+  }
 
   function setPaceProjectionMode(mode) {
     paceProjectionMode = mode;
@@ -1455,11 +1477,11 @@ window.DeltaApp = (function() {
     const btnStress = document.getElementById('btnPaceMode_STRESS');
     if (btnFull && btnStress) {
       if (mode === 'FULL') {
-        btnFull.className = "px-2.5 py-1 text-[11px] font-bold font-mono rounded-lg transition-all bg-indigo-600 text-white shadow-sm flex items-center gap-1";
-        btnStress.className = "px-2.5 py-1 text-[11px] font-bold font-mono rounded-lg transition-all text-slate-400 hover:text-white bg-transparent flex items-center gap-1";
+        btnFull.className = "px-2 py-0.5 text-[10px] font-bold font-mono rounded-md transition-all bg-indigo-600 text-white shadow-sm flex items-center gap-1";
+        btnStress.className = "px-2 py-0.5 text-[10px] font-bold font-mono rounded-md transition-all text-slate-400 hover:text-white bg-transparent flex items-center gap-1";
       } else {
-        btnFull.className = "px-2.5 py-1 text-[11px] font-bold font-mono rounded-lg transition-all text-slate-400 hover:text-white bg-transparent flex items-center gap-1";
-        btnStress.className = "px-2.5 py-1 text-[11px] font-bold font-mono rounded-lg transition-all bg-indigo-600 text-white shadow-sm flex items-center gap-1";
+        btnFull.className = "px-2 py-0.5 text-[10px] font-bold font-mono rounded-md transition-all text-slate-400 hover:text-white bg-transparent flex items-center gap-1";
+        btnStress.className = "px-2 py-0.5 text-[10px] font-bold font-mono rounded-md transition-all bg-indigo-600 text-white shadow-sm flex items-center gap-1";
       }
     }
     renderCapitalTrajectory();
@@ -1481,6 +1503,17 @@ window.DeltaApp = (function() {
       const el = document.getElementById('inputRealTradingCapital');
       if (el) el.value = realTradingCapital;
     }
+  }
+
+  function closeTrajectoryMonthDetail() {
+    const container = document.getElementById('trajectoryMonthDetailContainer');
+    if (container) container.classList.add('hidden');
+    activeTrajectoryDetailMonth = null;
+  }
+
+  function openTrajectoryMonthDetail(monthId) {
+    activeTrajectoryDetailMonth = monthId;
+    renderCapitalTrajectory();
   }
 
   function renderCapitalTrajectory() {
@@ -1606,14 +1639,32 @@ window.DeltaApp = (function() {
       return 150000 + (additional5LSteps * 50000);
     }
 
+    // Helper: Build weekday session dates array
+    function getWeekdayDatesArray(startDateObj, targetDateObj) {
+      const dates = [];
+      let cur = new Date(startDateObj);
+      while (cur <= targetDateObj) {
+        const dow = cur.getDay();
+        if (dow !== 0 && dow !== 6) {
+          dates.push(new Date(cur));
+        }
+        cur.setDate(cur.getDate() + 1);
+      }
+      return dates;
+    }
+
     // 5. Tiered Vault Skimming Simulator
-    function simulateMilestoneProgression(tradingDaysAhead) {
+    function simulateMilestoneProgression(tradingDaysAhead, targetDateObj = null) {
       let currentActiveCapital = realTradingCapital + realizedSubsequentNetInr;
       let cumulativeWithdrawnToBank = 0;
       let cumulativeTotalProfit = 0;
+      const dayByDayLog = [];
+
+      const sessionDates = targetDateObj ? getWeekdayDatesArray(nowUtc, targetDateObj) : [];
 
       // Simulate trading-day by trading-day (Weekdays only)
       for (let day = 1; day <= tradingDaysAhead; day++) {
+        const startDayCap = currentActiveCapital;
         // Compute dynamic active cap ceiling based on cumulative profit milestones
         const maxActiveCap = resolveDynamicCapCeiling(cumulativeTotalProfit);
 
@@ -1622,12 +1673,26 @@ window.DeltaApp = (function() {
         cumulativeTotalProfit += dayGain;
         currentActiveCapital += dayGain;
 
+        let skimToday = 0;
         // Apply Tiered Vault Skim
         if (currentActiveCapital > maxActiveCap) {
-          const excessSkim = currentActiveCapital - maxActiveCap;
-          cumulativeWithdrawnToBank += excessSkim;
+          skimToday = currentActiveCapital - maxActiveCap;
+          cumulativeWithdrawnToBank += skimToday;
           currentActiveCapital = maxActiveCap;
         }
+
+        const dateLabel = sessionDates[day - 1] ? sessionDates[day - 1].toLocaleDateString('en-IN', { weekday: 'short', day: '2-digit', month: 'short' }) : `Day ${day}`;
+
+        dayByDayLog.push({
+          dayIndex: day,
+          dateLabel: dateLabel,
+          startCap: startDayCap,
+          gain: dayGain,
+          skim: skimToday,
+          endCap: currentActiveCapital,
+          cumBank: cumulativeWithdrawnToBank,
+          capCeiling: maxActiveCap
+        });
       }
 
       const totalRealizedWealth = currentActiveCapital + cumulativeWithdrawnToBank;
@@ -1640,13 +1705,14 @@ window.DeltaApp = (function() {
         totalRealizedWealth: totalRealizedWealth,
         netGainOnBase: netGainOnBase,
         currentCapCeiling: currentCap,
+        dayByDayLog: dayByDayLog,
         multiplier: realTradingCapital > 0 ? (totalRealizedWealth / realTradingCapital).toFixed(1) : '1.0'
       };
     }
 
     // Compute status on immediate Nov end milestone for top cards (using weekdays only)
     const weekdaysToNovEnd = countWeekdaysBetween(nowUtc, milestones[0].targetDate);
-    const immediateSim = simulateMilestoneProgression(weekdaysToNovEnd);
+    const immediateSim = simulateMilestoneProgression(weekdaysToNovEnd, milestones[0].targetDate);
 
     // Update Top Row & Status Cards
     const statActiveCapEl = document.getElementById('statActiveExchangeCapital');
@@ -1683,50 +1749,92 @@ window.DeltaApp = (function() {
     if (container) {
       container.innerHTML = milestones.map(m => {
         const weekdaysLeft = countWeekdaysBetween(nowUtc, m.targetDate);
-        const sim = simulateMilestoneProgression(weekdaysLeft);
+        const sim = simulateMilestoneProgression(weekdaysLeft, m.targetDate);
 
         const capLabel = formatINR(sim.currentCapCeiling, 0);
         const tierBadge = `<span class="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">Cap: ${capLabel}</span>`;
+        const isSelected = activeTrajectoryDetailMonth === m.id;
 
         return `
-          <div class="p-4 sm:p-5 rounded-2xl bg-gradient-to-br from-brandDark/95 to-brandDark/70 border border-borderDark hover:border-emerald-500/50 transition-all shadow-lg flex flex-col justify-between space-y-4">
+          <div onclick="DeltaApp.openTrajectoryMonthDetail('${m.id}')" class="p-3.5 sm:p-4 rounded-xl cursor-pointer bg-gradient-to-br from-brandDark/95 to-brandDark/70 border ${isSelected ? 'border-emerald-400 ring-2 ring-emerald-500/30' : 'border-borderDark hover:border-emerald-500/50'} transition-all shadow-md flex flex-col justify-between space-y-3 active:scale-[0.99]">
             <div>
-              <div class="flex items-center justify-between pb-2.5 border-b border-borderDark/60">
-                <span class="font-extrabold text-sm sm:text-base text-white font-sans">${m.name}</span>
-                <span class="text-[11px] text-slate-400 font-mono bg-panelDark px-2 py-0.5 rounded-lg border border-borderDark/60">${weekdaysLeft} sessions left</span>
+              <div class="flex items-center justify-between pb-2 border-b border-borderDark/60">
+                <span class="font-extrabold text-xs sm:text-sm text-white font-sans flex items-center gap-1.5">
+                  ${m.name}
+                  <span class="text-[9px] text-emerald-400 font-mono font-normal"><i class="fa-solid fa-list-ol"></i> Tap for Daily</span>
+                </span>
+                <span class="text-[10px] text-slate-400 font-mono bg-panelDark px-1.5 py-0.5 rounded border border-borderDark/60">${weekdaysLeft} sessions</span>
               </div>
 
               <!-- Withdrawn Cash Hero -->
-              <div class="mt-3">
-                <span class="text-[10px] uppercase tracking-wider text-emerald-400 block font-sans font-bold flex items-center gap-1">
-                  <i class="fa-solid fa-building-columns text-[9px]"></i> Safe in Bank Vault
+              <div class="mt-2.5">
+                <span class="text-[9px] uppercase tracking-wider text-emerald-400 block font-sans font-bold flex items-center gap-1">
+                  <i class="fa-solid fa-building-columns text-[8px]"></i> Safe in Bank Vault
                 </span>
-                <div class="text-xl sm:text-2xl font-extrabold font-mono text-emerald-400 tracking-tight my-0.5 truncate">
+                <div class="text-lg sm:text-xl font-extrabold font-mono text-emerald-400 tracking-tight my-0.5 truncate">
                   ${formatINR(sim.withdrawnToBank, 0)}
                 </div>
               </div>
 
               <!-- Active Trading Capital -->
-              <div class="mt-2.5 flex items-center justify-between text-xs font-mono py-1 border-t border-borderDark/40">
+              <div class="mt-2 flex items-center justify-between text-[11px] font-mono py-1 border-t border-borderDark/40">
                 <span class="text-slate-400 font-sans">Active in Delta:</span>
                 <strong class="text-white font-bold">${formatINR(sim.activeCapital, 0)}</strong>
               </div>
 
               <!-- Total Wealth -->
-              <div class="mt-1 flex items-center justify-between text-xs font-mono pt-1.5 border-t border-borderDark/60">
-                <span class="text-slate-300 font-sans font-semibold">Total Net Wealth:</span>
-                <strong class="text-indigo-300 font-extrabold text-sm">${formatINR(sim.totalRealizedWealth, 0)}</strong>
+              <div class="mt-0.5 flex items-center justify-between text-[11px] font-mono pt-1 border-t border-borderDark/60">
+                <span class="text-slate-300 font-sans font-semibold">Total Wealth:</span>
+                <strong class="text-indigo-300 font-extrabold text-xs sm:text-sm">${formatINR(sim.totalRealizedWealth, 0)}</strong>
               </div>
             </div>
 
             <!-- Tier Status Footer -->
-            <div class="pt-2.5 border-t border-borderDark/60 flex items-center justify-between">
-              <span class="text-xs font-mono font-extrabold text-emerald-400">+${sim.multiplier}x Initial</span>
+            <div class="pt-2 border-t border-borderDark/60 flex items-center justify-between">
+              <span class="text-[11px] font-mono font-extrabold text-emerald-400">+${sim.multiplier}x Initial</span>
               ${tierBadge}
             </div>
           </div>
         `;
       }).join('');
+    }
+
+    // 7. Render Day-by-Day Extraction Schedule if a month is tapped
+    const detailContainer = document.getElementById('trajectoryMonthDetailContainer');
+    const detailTitle = document.getElementById('trajectoryDetailTitle');
+    const detailTbody = document.getElementById('trajectoryDayByDayBody');
+
+    if (activeTrajectoryDetailMonth && detailContainer && detailTbody) {
+      const selectedMilestone = milestones.find(m => m.id === activeTrajectoryDetailMonth) || milestones[0];
+      const weekdaysLeft = countWeekdaysBetween(nowUtc, selectedMilestone.targetDate);
+      const detailedSim = simulateMilestoneProgression(weekdaysLeft, selectedMilestone.targetDate);
+
+      if (detailTitle) {
+        detailTitle.innerHTML = `<span class="text-emerald-400">${selectedMilestone.name}</span> Day-by-Day Wealth Harvest Schedule (${weekdaysLeft} Weekday Sessions)`;
+      }
+
+      detailTbody.innerHTML = detailedSim.dayByDayLog.map(row => {
+        const hasSkim = row.skim > 0;
+        return `
+          <tr class="hover:bg-panelDark/60 transition-colors ${hasSkim ? 'bg-emerald-500/5' : ''}">
+            <td class="py-2 px-2.5 font-bold text-white flex items-center gap-1.5">
+              ${row.dateLabel}
+              ${hasSkim ? '<span class="text-[8px] font-sans px-1.5 py-0.2 rounded bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">SKIM</span>' : ''}
+            </td>
+            <td class="py-2 px-2 text-slate-300 font-mono">${formatINR(row.startCap, 0)}</td>
+            <td class="py-2 px-2 text-right font-bold text-emerald-400 font-mono">+${formatINR(row.gain, 0)}</td>
+            <td class="py-2 px-2 text-right font-bold font-mono ${hasSkim ? 'text-emerald-300' : 'text-slate-500'}">
+              ${hasSkim ? `+${formatINR(row.skim, 0)}` : '₹0'}
+            </td>
+            <td class="py-2 px-2 text-right font-bold text-white font-mono">${formatINR(row.endCap, 0)}</td>
+            <td class="py-2 px-2 text-right font-bold text-indigo-300 font-mono">${formatINR(row.cumBank, 0)}</td>
+          </tr>
+        `;
+      }).join('');
+
+      detailContainer.classList.remove('hidden');
+    } else if (detailContainer && !activeTrajectoryDetailMonth) {
+      detailContainer.classList.add('hidden');
     }
   }
 
@@ -2886,6 +2994,9 @@ window.DeltaApp = (function() {
     hidePeek,
     toggleTradeLogCollapse,
     toggleAllTimeRealityCollapse,
+    toggleCapitalTrajectoryCollapse,
+    openTrajectoryMonthDetail,
+    closeTrajectoryMonthDetail,
     setTradeFilter,
     setTradeSort,
     openSentinelConfigModal,
