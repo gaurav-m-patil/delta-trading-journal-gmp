@@ -504,9 +504,69 @@ window.DeltaApp = (function() {
     }, { passive: true });
   }
 
-  // -------------------------------------------------------------
-  // 3. FILTERING & KPI RESOLUTION
-  // -------------------------------------------------------------
+  // Mobile Touch & Long-Press Handling for Calendar Day Tiles
+  let dayTouchTimer = null;
+  let dayTouchStartX = 0;
+  let dayTouchStartY = 0;
+  let dayTouchStartTime = 0;
+  let dayTouchMoved = false;
+
+  function handleDayTouchStart(e, dateKey) {
+    if (!e.touches || e.touches.length !== 1) return;
+    dayTouchStartX = e.touches[0].clientX;
+    dayTouchStartY = e.touches[0].clientY;
+    dayTouchStartTime = Date.now();
+    dayTouchMoved = false;
+    if (dayTouchTimer) clearTimeout(dayTouchTimer);
+
+    // Tap & Hold (long-press >= 280ms) triggers stable Peek modal on mobile
+    dayTouchTimer = setTimeout(() => {
+      if (!dayTouchMoved) {
+        showPeek(dateKey, true);
+        if (navigator.vibrate) {
+          try { navigator.vibrate(40); } catch (_) {}
+        }
+      }
+    }, 280);
+  }
+
+  function handleDayTouchMove(e) {
+    if (!e.touches || e.touches.length !== 1) return;
+    const dx = Math.abs(e.touches[0].clientX - dayTouchStartX);
+    const dy = Math.abs(e.touches[0].clientY - dayTouchStartY);
+    // Increased tolerance to 20px so natural thumb tremors and resting micro-movements
+    // do not prematurely cancel the tap-and-hold when scrolling isn't at the hard boundary!
+    if (dx > 20 || dy > 20) {
+      dayTouchMoved = true;
+      if (dayTouchTimer) {
+        clearTimeout(dayTouchTimer);
+        dayTouchTimer = null;
+      }
+    }
+  }
+
+  function handleDayTouchEnd(e, dateKey) {
+    const elapsed = Date.now() - dayTouchStartTime;
+    if (dayTouchTimer) {
+      clearTimeout(dayTouchTimer);
+      dayTouchTimer = null;
+    }
+    // Quick tap (< 250ms with minimal movement) opens the stable peek modal directly on mobile
+    if (!dayTouchMoved && elapsed < 250) {
+      showPeek(dateKey, true);
+    }
+  }
+
+  function handleDayClick(e, dateKey) {
+    // Prevent synthetic click from firing after touch events
+    if (e && e.detail === 0) return;
+    const isMobile = window.innerWidth <= 768 || ('ontouchstart' in window);
+    if (isMobile) {
+      showPeek(dateKey, true);
+    } else {
+      filterBySpecificDay(dateKey);
+    }
+  }
   function setPreset(preset) {
     currentPreset = preset;
     ['CURRENT_MONTH', 'CUSTOM', 'ALL_TIME'].forEach(p => {
@@ -835,8 +895,12 @@ window.DeltaApp = (function() {
 
           calHTML += `
             <div class="relative aspect-square rounded-xl border ${tierClass} flex flex-col justify-center items-center cursor-pointer transition-all hover:scale-105 active:scale-95 no-select shadow-sm"
-                 onclick="DeltaApp.filterBySpecificDay('${fullDateKey}')"
-                 onmouseenter="DeltaApp.showPeek('${fullDateKey}')" onmouseleave="DeltaApp.hidePeek()" ontouchstart="DeltaApp.showPeek('${fullDateKey}')" ontouchend="DeltaApp.hidePeek()" title="Click to filter journal to ${fullDateKey}">
+                 onclick="DeltaApp.handleDayClick(event, '${fullDateKey}')"
+                 onmouseenter="DeltaApp.showPeek('${fullDateKey}')" onmouseleave="DeltaApp.hidePeek()"
+                 ontouchstart="DeltaApp.handleDayTouchStart(event, '${fullDateKey}')"
+                 ontouchmove="DeltaApp.handleDayTouchMove(event)"
+                 ontouchend="DeltaApp.handleDayTouchEnd(event, '${fullDateKey}')"
+                 title="Tap to view day breakdown or filter journal">
               <span class="absolute top-1 left-1.5 text-[9px] font-bold text-white/90 pointer-events-none">${day}</span>
               <span class="absolute top-1 right-1.5 px-1 py-0.2 rounded bg-black/50 text-[7px] font-mono text-slate-200 hidden sm:block pointer-events-none">${dayData.trades}t</span>
               <div class="text-[9px] sm:text-xs font-bold font-mono mt-2 pointer-events-none">${isWin ? '+' : ''}${compactUSD(dayData.net_pnl)}</div>
@@ -2064,7 +2128,7 @@ window.DeltaApp = (function() {
     }
   }
 
-  function showPeek(dateKey) {
+  function showPeek(dateKey, isMobile = false) {
     const dailyMap = DeltaDB.getDailyMap();
     if (!dailyMap || !dailyMap[dateKey]) return;
     const data = dailyMap[dateKey];
@@ -2075,10 +2139,10 @@ window.DeltaApp = (function() {
     const isWin = data.net_pnl >= 0;
 
     const html = `
-      <div class="text-center mb-4">
+      <div class="text-center mb-3">
         <p class="text-slate-400 text-[11px] font-semibold uppercase tracking-wider">${displayDate}</p>
         <h2 class="text-3xl font-bold font-mono mt-1.5 ${isWin ? 'text-winGreen' : 'text-lossRed'}">${isWin ? '+' : ''}${formatUSD(data.net_pnl)}</h2>
-        <div class="flex justify-center gap-2 mt-3 text-xs font-mono">
+        <div class="flex justify-center gap-2 mt-2.5 text-xs font-mono">
           <span class="px-2 py-0.5 rounded bg-brandDark border border-borderDark text-slate-300">${data.trades} ${data.trades === 1 ? 'Trade' : 'Trades'}</span>
           <span class="px-2 py-0.5 rounded bg-winGreen/10 border border-winGreen/20 text-winGreen">${data.wins}W</span>
           <span class="px-2 py-0.5 rounded bg-lossRed/10 border border-lossRed/20 text-lossRed">${data.losses}L</span>
@@ -2090,6 +2154,14 @@ window.DeltaApp = (function() {
         <div class="flex justify-between items-center"><span>18% GST</span><span class="text-amber-400">${formatUSD(data.gst)}</span></div>
         <div class="flex justify-between items-center pt-1.5 border-t border-borderDark/60"><span>Total Fee Paid</span><span class="text-lossRed font-bold">${formatUSD(data.total_fee)}</span></div>
         <div class="flex justify-between items-center pt-1.5 border-t border-borderDark/60"><span>Net Take-Home</span><span class="font-bold ${data.net_pnl >= 0 ? 'text-winGreen' : 'text-lossRed'}">${formatUSD(data.net_pnl)}</span></div>
+      </div>
+      <div class="flex gap-2 mt-4">
+        <button onclick="DeltaApp.filterBySpecificDay('${dateKey}'); DeltaApp.hidePeek();" class="flex-1 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs transition-colors flex items-center justify-center gap-1.5 shadow-md cursor-pointer active:scale-95">
+          <i class="fa-solid fa-filter"></i> Isolate Day Trades
+        </button>
+        <button onclick="DeltaApp.hidePeek()" class="px-4 py-2.5 rounded-xl bg-panelDark hover:bg-slate-800 text-slate-300 hover:text-white border border-borderDark text-xs font-semibold transition-colors cursor-pointer active:scale-95">
+          Close
+        </button>
       </div>`;
 
     const peekCard = document.getElementById('peekCard');
@@ -2307,6 +2379,10 @@ window.DeltaApp = (function() {
     checkAndSendTelegramOutcome,
     getTelegramConfig,
     openMonthDetailModal,
-    openMetricExplainerModal
+    openMetricExplainerModal,
+    handleDayClick,
+    handleDayTouchStart,
+    handleDayTouchMove,
+    handleDayTouchEnd
   };
 })();
