@@ -712,6 +712,169 @@
       </section>
     </div>
 
+    <!-- ======================================================== -->
+    <!-- CAPITAL TRAJECTORY & WEALTH HARVEST PROJECTIONS (NEW)    -->
+    <!-- Dynamic Tiered Compounding & Systematic Bank Vault Skims -->
+    <!-- ======================================================== -->
+    <section id="capitalTrajectoryProjectionSection" class="bg-cardDark border border-borderDark/80 p-4 sm:p-5 md:p-6 rounded-2xl shadow-2xl mt-8 mb-6 relative overflow-hidden">
+      <!-- Cybernetic Multi-Color Ambient Glow -->
+      <div class="absolute -top-32 -left-32 w-80 h-80 rounded-full blur-3xl pointer-events-none opacity-15 bg-emerald-500"></div>
+      <div class="absolute -top-32 -right-32 w-80 h-80 rounded-full blur-3xl pointer-events-none opacity-15 bg-indigo-500"></div>
+
+      <!-- Top Row: Header, Inline Editable Capital, Strategy Pill & Controls -->
+      <div class="flex flex-col lg:flex-row lg:items-center justify-between gap-4 pb-5 mb-5 border-b border-borderDark/80 relative z-10">
+        <div class="flex items-start sm:items-center gap-3">
+          <div class="h-11 w-11 rounded-2xl bg-gradient-to-br from-emerald-500/20 to-indigo-500/20 border border-emerald-500/30 flex items-center justify-center text-emerald-400 text-xl shadow-lg shrink-0">
+            <i class="fa-solid fa-vault"></i>
+          </div>
+          <div>
+            <div class="flex items-center gap-2 flex-wrap">
+              <h2 class="font-extrabold text-base sm:text-xl text-white font-sans tracking-tight flex items-center gap-2">
+                Capital Trajectory &amp; Wealth Harvest
+                <span class="text-[10px] font-mono font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-300 border border-emerald-500/30">
+                  <i class="fa-solid fa-bolt text-amber-400"></i> Tiered Profit Skims
+                </span>
+              </h2>
+            </div>
+            <p class="text-xs text-slate-400 mt-0.5">
+              Multiplicative 100% execution pace anchored on Nov 19. Skims excess beyond <strong>₹1.0L</strong> (upgraded to <strong>₹1.5L</strong> at ₹15L profit, <strong>₹2.0L</strong> at ₹20L).
+            </p>
+          </div>
+        </div>
+
+        <!-- Controls: Editable Capital, Scenario Toggle & Confidence Badge -->
+        <div class="flex flex-wrap items-center gap-2.5 sm:gap-3">
+          <!-- Inline Editable Capital Input -->
+          <div class="flex items-center bg-brandDark border border-borderDark rounded-xl px-3 py-1.5 shadow-inner">
+            <span class="text-xs font-mono font-bold text-slate-400 mr-1.5">Capital:</span>
+            <span class="text-xs font-mono text-emerald-400 font-bold">₹</span>
+            <input id="inputRealTradingCapital" type="number" step="1000" min="1000" max="10000000" value="25000" onchange="DeltaApp.updateRealTradingCapital(this.value)" class="w-20 bg-transparent text-xs font-mono font-bold text-white focus:outline-none focus:text-emerald-300 ml-0.5" title="Click to update starting trading capital">
+            <button onclick="DeltaApp.editRealCapitalPrompt()" title="Edit Capital" class="text-slate-400 hover:text-white text-[11px] ml-1">
+              <i class="fa-solid fa-pen-to-square"></i>
+            </button>
+          </div>
+
+          <!-- Scenario Toggle: Full Pace vs Stress-Tested -->
+          <div class="flex items-center bg-brandDark border border-borderDark rounded-xl p-0.5 shadow-inner">
+            <button id="btnPaceMode_FULL" onclick="DeltaApp.setPaceProjectionMode('FULL')" class="px-2.5 py-1 text-[11px] font-bold font-mono rounded-lg transition-all bg-indigo-600 text-white shadow-sm flex items-center gap-1">
+              <i class="fa-solid fa-fire text-amber-300"></i> 100% Engine Pace
+            </button>
+            <button id="btnPaceMode_STRESS" onclick="DeltaApp.setPaceProjectionMode('STRESS')" class="px-2.5 py-1 text-[11px] font-bold font-mono rounded-lg transition-all text-slate-400 hover:text-white bg-transparent flex items-center gap-1">
+              <i class="fa-solid fa-shield-halved text-cyan-400"></i> Stress-Tested
+            </button>
+          </div>
+
+          <!-- Pace Confidence Badge -->
+          <span id="paceConfidenceBadge" class="text-[10px] font-mono font-bold uppercase tracking-wider px-2.5 py-1.5 rounded-xl border flex items-center gap-1.5 bg-amber-500/10 text-amber-300 border-amber-500/30">
+            <i class="fa-solid fa-clock-rotate-left"></i> Early Sample (Nov 19+)
+          </span>
+        </div>
+      </div>
+
+      <!-- Row 2: Live Harvest Status Cards (Active Capital, Bank Vault Withdrawn, Total Wealth) -->
+      <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4 mb-5 relative z-10">
+        <!-- Card 1: Active Trading Capital -->
+        <div class="p-4 rounded-xl bg-gradient-to-br from-brandDark/90 to-brandDark/60 border border-borderDark flex flex-col justify-between">
+          <div>
+            <div class="flex items-center justify-between text-xs text-slate-400 mb-1">
+              <span class="font-sans uppercase tracking-wider font-semibold">Active Exchange Capital</span>
+              <i class="fa-solid fa-microchip text-indigo-400 text-xs"></i>
+            </div>
+            <div id="statActiveExchangeCapital" class="text-2xl sm:text-3xl font-extrabold font-mono text-white tracking-tight my-1">
+              ₹25,000
+            </div>
+          </div>
+          <div class="pt-2.5 border-t border-borderDark/60 flex items-center justify-between text-[11px] font-mono text-slate-400">
+            <span>Current Cap Ceiling:</span>
+            <strong id="statCurrentCapCeiling" class="text-indigo-300">₹1,00,000</strong>
+          </div>
+        </div>
+
+        <!-- Card 2: Cumulative Bank Vault Skims -->
+        <div class="p-4 rounded-xl bg-gradient-to-br from-emerald-950/20 to-brandDark/70 border border-emerald-500/30 flex flex-col justify-between">
+          <div>
+            <div class="flex items-center justify-between text-xs text-emerald-400 mb-1">
+              <span class="font-sans uppercase tracking-wider font-semibold">Safe Bank Vault Skims</span>
+              <i class="fa-solid fa-building-columns text-emerald-400 text-xs"></i>
+            </div>
+            <div id="statCumulativeBankWithdrawn" class="text-2xl sm:text-3xl font-extrabold font-mono text-emerald-400 tracking-tight my-1">
+              ₹0.00
+            </div>
+          </div>
+          <div class="pt-2.5 border-t border-emerald-500/20 flex items-center justify-between text-[11px] font-mono text-slate-400">
+            <span>Extracted to Bank:</span>
+            <strong class="text-emerald-300">100% Risk-Free</strong>
+          </div>
+        </div>
+
+        <!-- Card 3: Total Net Wealth Created -->
+        <div class="p-4 rounded-xl bg-gradient-to-br from-indigo-950/20 to-brandDark/70 border border-indigo-500/30 flex flex-col justify-between">
+          <div>
+            <div class="flex items-center justify-between text-xs text-indigo-300 mb-1">
+              <span class="font-sans uppercase tracking-wider font-semibold">Total Realized Net Wealth</span>
+              <i class="fa-solid fa-chart-line text-indigo-400 text-xs"></i>
+            </div>
+            <div id="statTotalRealizedWealth" class="text-2xl sm:text-3xl font-extrabold font-mono text-indigo-300 tracking-tight my-1">
+              ₹25,000
+            </div>
+          </div>
+          <div class="pt-2.5 border-t border-indigo-500/20 flex items-center justify-between text-[11px] font-mono text-slate-400">
+            <span>Trading Base + Bank:</span>
+            <strong id="statReturnMultiplier" class="text-white">1.0x Base</strong>
+          </div>
+        </div>
+      </div>
+
+      <!-- Row 3: Engine Velocity Metrics Strip -->
+      <div class="grid grid-cols-2 sm:grid-cols-4 gap-2.5 sm:gap-3 p-3 rounded-xl bg-brandDark/70 border border-borderDark/80 mb-5 relative z-10 text-xs font-mono">
+        <div>
+          <span class="text-[10px] text-slate-400 block uppercase font-sans font-medium">Geometric Pace</span>
+          <strong id="metricPacePerTrade" class="text-emerald-400 font-bold text-sm">+76.6% / trade</strong>
+        </div>
+        <div>
+          <span class="text-[10px] text-slate-400 block uppercase font-sans font-medium">Win Rate (Nov 19+)</span>
+          <strong id="metricWinRateNov19" class="text-white font-bold text-sm">100% (2W / 0L)</strong>
+        </div>
+        <div>
+          <span class="text-[10px] text-slate-400 block uppercase font-sans font-medium">Trading Frequency</span>
+          <strong id="metricTradeFrequency" class="text-indigo-300 font-bold text-sm">~1.0 trade / day</strong>
+        </div>
+        <div>
+          <span class="text-[10px] text-slate-400 block uppercase font-sans font-medium">Harvest Rule State</span>
+          <strong id="metricHarvestTierStatus" class="text-amber-400 font-bold text-sm">Tier 1 (&lt; ₹15L)</strong>
+        </div>
+      </div>
+
+      <!-- Row 4: Chronological Month-End Milestones Grid -->
+      <div class="relative z-10 space-y-3">
+        <div class="flex items-center justify-between">
+          <h3 class="text-xs sm:text-sm font-bold text-white uppercase tracking-wider flex items-center gap-2">
+            <i class="fa-solid fa-calendar-check text-emerald-400"></i>
+            Chronological Month-End Harvest Milestones
+          </h3>
+          <span class="text-[10px] text-slate-400 font-mono">Auto-recalculates with every closed trade</span>
+        </div>
+
+        <!-- Milestones Horizontal Grid (Scrollable on small screens if needed) -->
+        <div id="projectionMilestonesContainer" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
+          <!-- Dynamic Milestones injected by DeltaApp.renderCapitalTrajectory() -->
+        </div>
+      </div>
+
+      <!-- Motivation Callout Banner -->
+      <div id="projectionMotivationBanner" class="mt-5 p-3.5 sm:p-4 rounded-xl bg-gradient-to-r from-emerald-950/40 via-brandDark to-indigo-950/40 border border-emerald-500/20 relative z-10 flex items-start gap-3">
+        <div class="h-8 w-8 rounded-lg bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-center text-emerald-400 shrink-0 text-sm">
+          <i class="fa-solid fa-trophy"></i>
+        </div>
+        <div class="space-y-0.5">
+          <h4 class="text-xs font-bold text-white font-sans">The Wealth Harvest Edge: Asymmetry &amp; Capital Extraction</h4>
+          <p id="projectionMotivationText" class="text-[11px] text-slate-300 leading-relaxed font-sans">
+            By strictly capping your active trading balance at ₹1 Lakh and skimming every surplus into your bank vault, you eliminate account blow-up risk forever. You are only ever risking profits that came from the market, while banking life-changing cash flow.
+          </p>
+        </div>
+      </div>
+    </section>
+
     <!-- ========================================== -->
     <!-- ALL-TIME INR REALITY CHECK & DIAGNOSTICS   -->
     <!-- Strictly Unfiltered: All-Time Only         -->

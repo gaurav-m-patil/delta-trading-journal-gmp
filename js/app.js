@@ -738,6 +738,7 @@ window.DeltaApp = (function() {
     renderHoldDurationDiagnostic(currentFilteredTrades);
     renderRiskSentinel(allTrades);
     renderPaginatedTrades();
+    renderCapitalTrajectory();
     renderAllTimeInrRealityCheck();
 
     // If Asset or Coach sub-view is active, keep it in sync
@@ -1438,6 +1439,284 @@ window.DeltaApp = (function() {
         </div>
       </div>
     `;
+  }
+
+  // -------------------------------------------------------------
+  // CAPITAL TRAJECTORY & WEALTH HARVEST PROJECTIONS
+  // Multiplicative compounding with Tiered Vault Skimming
+  // -------------------------------------------------------------
+  let realTradingCapital = parseFloat(localStorage.getItem('dtj_real_trading_capital')) || 25000;
+  let paceProjectionMode = localStorage.getItem('dtj_pace_projection_mode') || 'FULL'; // 'FULL' or 'STRESS'
+
+  function setPaceProjectionMode(mode) {
+    paceProjectionMode = mode;
+    localStorage.setItem('dtj_pace_projection_mode', mode);
+    const btnFull = document.getElementById('btnPaceMode_FULL');
+    const btnStress = document.getElementById('btnPaceMode_STRESS');
+    if (btnFull && btnStress) {
+      if (mode === 'FULL') {
+        btnFull.className = "px-2.5 py-1 text-[11px] font-bold font-mono rounded-lg transition-all bg-indigo-600 text-white shadow-sm flex items-center gap-1";
+        btnStress.className = "px-2.5 py-1 text-[11px] font-bold font-mono rounded-lg transition-all text-slate-400 hover:text-white bg-transparent flex items-center gap-1";
+      } else {
+        btnFull.className = "px-2.5 py-1 text-[11px] font-bold font-mono rounded-lg transition-all text-slate-400 hover:text-white bg-transparent flex items-center gap-1";
+        btnStress.className = "px-2.5 py-1 text-[11px] font-bold font-mono rounded-lg transition-all bg-indigo-600 text-white shadow-sm flex items-center gap-1";
+      }
+    }
+    renderCapitalTrajectory();
+  }
+
+  function updateRealTradingCapital(val) {
+    const parsed = parseFloat(val);
+    if (!isNaN(parsed) && parsed > 0) {
+      realTradingCapital = parsed;
+      localStorage.setItem('dtj_real_trading_capital', parsed);
+      renderCapitalTrajectory();
+    }
+  }
+
+  function editRealCapitalPrompt() {
+    const input = prompt("Enter your active real trading capital in INR (₹):", realTradingCapital);
+    if (input !== null) {
+      updateRealTradingCapital(input);
+      const el = document.getElementById('inputRealTradingCapital');
+      if (el) el.value = realTradingCapital;
+    }
+  }
+
+  function renderCapitalTrajectory() {
+    const section = document.getElementById('capitalTrajectoryProjectionSection');
+    if (!section) return;
+
+    // Sync input field value
+    const capInput = document.getElementById('inputRealTradingCapital');
+    if (capInput && document.activeElement !== capInput) {
+      capInput.value = realTradingCapital;
+    }
+
+    const allTrades = DeltaDB.getTrades() || [];
+    const INR_RATE = 85.0;
+
+    // 1. Isolate Nov 19+ Engine Trades (Strictly Real Trades Only)
+    const nov19Trades = allTrades.filter(t => {
+      if (t.rawDate < '2026-11-19') return false;
+      if (t.isEstimation || t.skipped || t.outcome === 'SKIPPED_CIRCUIT_BREAKER') return false;
+      return true;
+    }).sort((a, b) => a.sortTime - b.sortTime);
+
+    // 2. Compute Engine Performance Pace from Nov 19+ Real History
+    let winCount = 0;
+    let lossCount = 0;
+    let multipliers = [];
+
+    nov19Trades.forEach(t => {
+      const netUsd = t.net_pnl || 0;
+      // Option buying contract cost basis
+      const entryPrice = parseFloat(t.avgEntry || 525);
+      const closedSize = parseFloat(t.size || 215);
+      const contractVal = 0.001; // Delta BTC contract unit
+      const entryCapitalUsd = Math.max(10, entryPrice * closedSize * contractVal);
+      const tradeReturn = netUsd / entryCapitalUsd;
+
+      if (netUsd > 0) {
+        winCount++;
+        multipliers.push(1 + Math.max(-0.95, tradeReturn));
+      } else if (netUsd < 0) {
+        lossCount++;
+        multipliers.push(1 + Math.max(-0.95, tradeReturn));
+      }
+    });
+
+    const totalTradesNov19 = winCount + lossCount;
+    const winRate = totalTradesNov19 > 0 ? Math.round((winCount / totalTradesNov19) * 100) : 100;
+
+    // Geometric Mean Return per trade
+    let geomReturnPerTrade = 0.766; // Fallback calibrated to Nov 19 (+52.4%) & Nov 20 (+104.8%)
+    if (multipliers.length > 0) {
+      const prod = multipliers.reduce((acc, m) => acc * m, 1.0);
+      geomReturnPerTrade = Math.pow(prod, 1 / multipliers.length) - 1;
+    }
+
+    // Days elapsed since Nov 19
+    const startDate = new Date('2026-11-19T00:00:00Z');
+    const today = new Date();
+    const msDiff = Math.max(86400000, today.getTime() - startDate.getTime());
+    const daysElapsed = Math.max(1, Math.round(msDiff / (1000 * 60 * 60 * 24)));
+    const tradesPerDay = totalTradesNov19 > 0 ? (totalTradesNov19 / daysElapsed) : 1.0;
+
+    // Daily pace
+    let effectiveDailyGrowth = Math.pow(1 + geomReturnPerTrade, Math.min(2.0, Math.max(0.5, tradesPerDay))) - 1;
+
+    // Stress-Tested Haircut Mode: Accounts for 1 loss (-30%) every 2 wins + chop
+    if (paceProjectionMode === 'STRESS') {
+      effectiveDailyGrowth = effectiveDailyGrowth * 0.45; // 55% haircut for variance & circuit breaker days
+    }
+
+    // Confidence Badge
+    const badgeEl = document.getElementById('paceConfidenceBadge');
+    if (badgeEl) {
+      if (daysElapsed < 5) {
+        badgeEl.className = "text-[10px] font-mono font-bold uppercase tracking-wider px-2.5 py-1.5 rounded-xl border flex items-center gap-1.5 bg-amber-500/10 text-amber-300 border-amber-500/30";
+        badgeEl.innerHTML = `<i class="fa-solid fa-clock-rotate-left"></i> Early Sample (${daysElapsed}d / ${totalTradesNov19}t)`;
+      } else if (daysElapsed <= 14) {
+        badgeEl.className = "text-[10px] font-mono font-bold uppercase tracking-wider px-2.5 py-1.5 rounded-xl border flex items-center gap-1.5 bg-indigo-500/10 text-indigo-300 border-indigo-500/30";
+        badgeEl.innerHTML = `<i class="fa-solid fa-chart-line"></i> Developing Pace (${daysElapsed}d / ${totalTradesNov19}t)`;
+      } else {
+        badgeEl.className = "text-[10px] font-mono font-bold uppercase tracking-wider px-2.5 py-1.5 rounded-xl border flex items-center gap-1.5 bg-emerald-500/10 text-emerald-300 border-emerald-500/30";
+        badgeEl.innerHTML = `<i class="fa-solid fa-shield-halved"></i> Institutional Confidence (${daysElapsed}d / ${totalTradesNov19}t)`;
+      }
+    }
+
+    // 3. Live Active Capital & Current Realized Profits from Nov 21 Onward
+    // (Nov 19 & 20 are already included in realTradingCapital = ₹25,000 baseline)
+    const subsequentTrades = nov19Trades.filter(t => t.rawDate >= '2026-11-21');
+    let realizedSubsequentNetInr = 0;
+    subsequentTrades.forEach(t => {
+      realizedSubsequentNetInr += (t.net_pnl || 0) * INR_RATE;
+    });
+
+    // 4. Milestone Schedule
+    // Calendar targets: End of Nov 2026, Dec 2026, Jan 2027, Feb 2027, and 6-Month Mark
+    const nowUtc = new Date();
+    const nowEpoch = nowUtc.getTime();
+
+    const milestones = [
+      { id: 'NOV_END', name: 'End of Nov 26', targetDate: new Date('2026-11-30T23:59:59Z') },
+      { id: 'DEC_END', name: 'End of Dec 26', targetDate: new Date('2026-12-31T23:59:59Z') },
+      { id: 'JAN_END', name: 'End of Jan 27', targetDate: new Date('2027-01-31T23:59:59Z') },
+      { id: 'FEB_END', name: 'End of Feb 27', targetDate: new Date('2027-02-28T23:59:59Z') },
+      { id: 'SIX_MONTH', name: '6-Month Mark', targetDate: new Date(nowEpoch + 180 * 86400000) }
+    ];
+
+    // 5. Tiered Vault Skimming Simulator
+    function simulateMilestoneProgression(daysAhead) {
+      let currentActiveCapital = realTradingCapital + realizedSubsequentNetInr;
+      let cumulativeWithdrawnToBank = 0;
+      let cumulativeTotalProfit = 0;
+
+      // Simulate day-by-day
+      for (let day = 1; day <= daysAhead; day++) {
+        // Determine dynamic active cap ceiling based on total cumulative profit
+        let maxActiveCap = 100000; // Tier 1: ₹1,00,000
+        if (cumulativeTotalProfit >= 2000000) {
+          maxActiveCap = 200000; // Tier 3: ₹2,00,000
+        } else if (cumulativeTotalProfit >= 1500000) {
+          maxActiveCap = 150000; // Tier 2: ₹1,50,000
+        }
+
+        // Apply trade gain
+        const dayGain = currentActiveCapital * effectiveDailyGrowth;
+        cumulativeTotalProfit += dayGain;
+        currentActiveCapital += dayGain;
+
+        // Apply Tiered Vault Skim
+        if (currentActiveCapital > maxActiveCap) {
+          const excessSkim = currentActiveCapital - maxActiveCap;
+          cumulativeWithdrawnToBank += excessSkim;
+          currentActiveCapital = maxActiveCap;
+        }
+      }
+
+      const totalRealizedWealth = currentActiveCapital + cumulativeWithdrawnToBank;
+      const netGainOnBase = totalRealizedWealth - realTradingCapital;
+
+      return {
+        activeCapital: currentActiveCapital,
+        withdrawnToBank: cumulativeWithdrawnToBank,
+        totalRealizedWealth: totalRealizedWealth,
+        netGainOnBase: netGainOnBase,
+        multiplier: realTradingCapital > 0 ? (totalRealizedWealth / realTradingCapital).toFixed(1) : '1.0'
+      };
+    }
+
+    // Compute status on immediate Nov end milestone for top cards
+    const daysToNovEnd = Math.max(1, Math.round((milestones[0].targetDate.getTime() - nowEpoch) / (1000 * 60 * 60 * 24)));
+    const immediateSim = simulateMilestoneProgression(daysToNovEnd);
+
+    // Update Top Row & Status Cards
+    const statActiveCapEl = document.getElementById('statActiveExchangeCapital');
+    const statCapCeilingEl = document.getElementById('statCurrentCapCeiling');
+    const statBankWithdrawnEl = document.getElementById('statCumulativeBankWithdrawn');
+    const statTotalWealthEl = document.getElementById('statTotalRealizedWealth');
+    const statMultiplierEl = document.getElementById('statReturnMultiplier');
+
+    if (statActiveCapEl) statActiveCapEl.innerText = formatINR(immediateSim.activeCapital, 0);
+    if (statCapCeilingEl) statCapCeilingEl.innerText = formatINR(immediateSim.activeCapital >= 200000 ? 200000 : (immediateSim.activeCapital >= 150000 ? 150000 : 100000), 0);
+    if (statBankWithdrawnEl) statBankWithdrawnEl.innerText = formatINR(immediateSim.withdrawnToBank, 0);
+    if (statTotalWealthEl) statTotalWealthEl.innerText = formatINR(immediateSim.totalRealizedWealth, 0);
+    if (statMultiplierEl) statMultiplierEl.innerText = `+${immediateSim.multiplier}x Initial Capital`;
+
+    // Engine Pace Strip
+    const metricPaceEl = document.getElementById('metricPacePerTrade');
+    const metricWinRateEl = document.getElementById('metricWinRateNov19');
+    const metricFreqEl = document.getElementById('metricTradeFrequency');
+    const metricTierEl = document.getElementById('metricHarvestTierStatus');
+
+    if (metricPaceEl) {
+      metricPaceEl.innerText = `${effectiveDailyGrowth >= 0 ? '+' : ''}${(effectiveDailyGrowth * 100).toFixed(1)}% / day`;
+      metricPaceEl.className = effectiveDailyGrowth >= 0 ? "text-emerald-400 font-bold text-sm" : "text-rose-400 font-bold text-sm";
+    }
+    if (metricWinRateEl) metricWinRateEl.innerText = `${winRate}% (${winCount}W / ${lossCount}L)`;
+    if (metricFreqEl) metricFreqEl.innerText = `~${tradesPerDay.toFixed(1)} trade / day`;
+    if (metricTierEl) {
+      if (immediateSim.totalRealizedWealth >= 2000000) metricTierEl.innerText = "Tier 3 (₹2L Max Base)";
+      else if (immediateSim.totalRealizedWealth >= 1500000) metricTierEl.innerText = "Tier 2 (₹1.5L Max Base)";
+      else metricTierEl.innerText = "Tier 1 (₹1L Max Base)";
+    }
+
+    // 6. Render Milestone Projection Cards
+    const container = document.getElementById('projectionMilestonesContainer');
+    if (container) {
+      container.innerHTML = milestones.map(m => {
+        const daysLeft = Math.max(1, Math.round((m.targetDate.getTime() - nowEpoch) / (1000 * 60 * 60 * 24)));
+        const sim = simulateMilestoneProgression(daysLeft);
+
+        let tierBadge = `<span class="px-1.5 py-0.5 rounded text-[9px] font-mono bg-slate-800 text-slate-300">Cap: ₹1.0L</span>`;
+        if (sim.totalRealizedWealth >= 2000000) {
+          tierBadge = `<span class="px-1.5 py-0.5 rounded text-[9px] font-mono bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">Cap: ₹2.0L</span>`;
+        } else if (sim.totalRealizedWealth >= 1500000) {
+          tierBadge = `<span class="px-1.5 py-0.5 rounded text-[9px] font-mono bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">Cap: ₹1.5L</span>`;
+        }
+
+        return `
+          <div class="p-3.5 sm:p-4 rounded-xl bg-brandDark/85 border border-borderDark hover:border-emerald-500/40 transition-all shadow-md flex flex-col justify-between space-y-3">
+            <div>
+              <div class="flex items-center justify-between pb-2 border-b border-borderDark/60">
+                <span class="font-bold text-xs text-white font-sans">${m.name}</span>
+                <span class="text-[10px] text-slate-400 font-mono">${daysLeft}d left</span>
+              </div>
+
+              <!-- Withdrawn Cash Hero -->
+              <div class="mt-2.5">
+                <span class="text-[9px] uppercase tracking-wider text-emerald-400 block font-sans font-semibold">
+                  <i class="fa-solid fa-building-columns text-[8px] mr-0.5"></i> Safe in Bank Vault
+                </span>
+                <div class="text-base sm:text-lg font-extrabold font-mono text-emerald-400 truncate">
+                  ${formatINR(sim.withdrawnToBank, 0)}
+                </div>
+              </div>
+
+              <!-- Active Trading Capital -->
+              <div class="mt-2 flex items-center justify-between text-[11px] font-mono">
+                <span class="text-slate-400 font-sans">Active in Delta:</span>
+                <strong class="text-white">${formatINR(sim.activeCapital, 0)}</strong>
+              </div>
+
+              <!-- Total Wealth -->
+              <div class="mt-1 flex items-center justify-between text-[11px] font-mono pt-1.5 border-t border-borderDark/50">
+                <span class="text-slate-300 font-sans font-medium">Total Net Wealth:</span>
+                <strong class="text-indigo-300 font-bold">${formatINR(sim.totalRealizedWealth, 0)}</strong>
+              </div>
+            </div>
+
+            <!-- Tier Status Footer -->
+            <div class="pt-2 border-t border-borderDark/50 flex items-center justify-between">
+              <span class="text-[10px] font-mono font-bold text-emerald-400">+${sim.multiplier}x Gain</span>
+              ${tierBadge}
+            </div>
+          </div>
+        `;
+      }).join('');
+    }
   }
 
   // -------------------------------------------------------------
@@ -2618,6 +2897,10 @@ window.DeltaApp = (function() {
     getTelegramConfig,
     openMonthDetailModal,
     openMetricExplainerModal,
+    setPaceProjectionMode,
+    updateRealTradingCapital,
+    editRealCapitalPrompt,
+    renderCapitalTrajectory,
     handleDayClick,
     handleDayTouchStart,
     handleDayTouchMove,
