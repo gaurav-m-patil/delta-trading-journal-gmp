@@ -135,12 +135,20 @@ window.DeltaMacroSentinel = (function() {
       optionsAdvisory = "Market downside pressure detected. SMC Resistance Rejections (Puts) have high continuation probability. Tighten stops on long exposure; Put gamma favored.";
     }
 
-    // Parse publication time
-    const pubTs = new Date(item.pubDate || item.published_on || Date.now()).getTime();
+    // Parse publication time strictly as UTC (rss2json timestamps like '2026-11-23 14:47:00' are UTC)
+    let rawDateStr = item.pubDate || item.published_on;
+    let pubTs = Date.now();
+    if (rawDateStr) {
+      if (typeof rawDateStr === 'string' && !rawDateStr.endsWith('Z') && !rawDateStr.includes('+')) {
+        pubTs = new Date(rawDateStr.replace(' ', 'T') + 'Z').getTime();
+      } else {
+        pubTs = new Date(rawDateStr).getTime();
+      }
+    }
     const ageHrs = (Date.now() - pubTs) / (1000 * 60 * 60);
 
-    // Only accept news from the last 18 hours
-    if (ageHrs > 18) return null;
+    // Only accept news from the last 24 hours
+    if (ageHrs > 24 || isNaN(ageHrs)) return null;
 
     return {
       guid: item.guid || item.link || item.title,
@@ -298,10 +306,10 @@ ${catalyst.optionsAdvisory}
 
   /**
    * Renders the Dynamic Market Catalyst & Events Ticker
-   * (Strictly on Delta Insights tab #macroCatalystCoachContainer)
+   * (Strictly on Delta Insights tab #macroCatalystContainer)
    */
   function renderMacroBanner() {
-    const el = document.getElementById('macroCatalystCoachContainer');
+    const el = document.getElementById('macroCatalystContainer');
     if (!el) return;
 
     // Filter catalysts: up to 7 major news items + 3 major upcoming events
@@ -345,14 +353,10 @@ ${catalyst.optionsAdvisory}
       return;
     }
 
-    // Build the dynamic ticker with colored impact bullets:
-    // Green bullet = Bullish / Upside trigger
-    // Red bullet = Bearish / Downside trigger
-    // Amber / Cyan = Neutral / High Volatility Event
     const tickerItemsHtml = combinedItems.map((item, idx) => {
       let bulletBg = "bg-amber-400 shadow-[0_0_8px_rgba(251,191,36,0.5)]";
       let badgeCls = "text-amber-300 bg-amber-500/10 border-amber-500/30";
-      let tagText = item.isEvent ? "CALENDAR EVENT" : "CATALYST";
+      let tagText = item.isEvent ? "EVENT" : "CATALYST";
 
       if (item.bias === "BULLISH") {
         bulletBg = "bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.7)]";
@@ -362,11 +366,11 @@ ${catalyst.optionsAdvisory}
         badgeCls = "text-rose-300 bg-rose-500/10 border-rose-500/30";
       }
 
-      const tagOpen = item.link ? `<a href="${item.link}" target="_blank" rel="noopener noreferrer" class="text-xs text-slate-200 font-sans font-medium truncate hover:text-white cursor-pointer">` : `<span class="text-xs text-slate-200 font-sans font-medium truncate">`;
+      const tagOpen = item.link ? `<a href="${item.link}" target="_blank" rel="noopener noreferrer" class="text-xs text-slate-200 font-sans font-medium truncate hover:text-white cursor-pointer select-none">` : `<span class="text-xs text-slate-200 font-sans font-medium truncate select-none">`;
       const tagClose = item.link ? `</a>` : `</span>`;
 
       return `
-        <div class="flex items-center gap-2.5 py-1.5 px-3 min-w-0 transition-colors">
+        <div class="flex items-center gap-2.5 py-1.5 px-3 min-w-0 transition-colors select-none">
           <span class="h-2 w-2 rounded-full shrink-0 ${bulletBg}"></span>
           <span class="text-[9px] font-mono font-bold uppercase tracking-wider px-1.5 py-0.5 rounded border shrink-0 ${badgeCls}">
             ${tagText}
@@ -377,17 +381,16 @@ ${catalyst.optionsAdvisory}
       `;
     }).join('');
 
-    // Duplicate ticker items for smooth seamless vertical infinite scroll marquee
     el.innerHTML = `
       <div class="p-2 sm:p-2.5 rounded-2xl bg-gradient-to-r from-cardDark via-brandDark to-cardDark border border-borderDark/80 shadow-md relative overflow-hidden group">
-        <div class="flex items-center justify-between pb-1.5 mb-1 border-b border-borderDark/60 px-2">
+        <div class="flex items-center justify-between pb-1.5 mb-1 border-b border-borderDark/60 px-2 select-none">
           <div class="flex items-center gap-2">
             <span class="relative flex h-2 w-2">
               <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
               <span class="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
             </span>
             <h3 class="text-xs font-bold text-white font-sans uppercase tracking-wider flex items-center gap-1.5">
-              Market Catalyst Sentinel <span class="text-[9px] font-normal text-slate-400 font-mono">(Live Macro & High-Impact Events)</span>
+              Market Catalyst Sentinel <span class="text-[9px] font-normal text-slate-400 font-mono">(Scroll / Drag to browse)</span>
             </h3>
           </div>
           <div class="flex items-center gap-2 text-[10px] font-mono text-slate-400">
@@ -397,9 +400,9 @@ ${catalyst.optionsAdvisory}
           </div>
         </div>
 
-        <!-- Vertical Slow Auto-Scrolling Marquee Container -->
-        <div class="relative h-[95px] overflow-hidden rounded-xl bg-brandDark/40 border border-borderDark/40">
-          <div class="catalyst-marquee-track space-y-0.5">
+        <!-- Interactive Drag / Touch / Wheel Scrollable Container -->
+        <div id="catalystScrollContainer" class="relative h-[95px] overflow-y-auto no-scrollbar rounded-xl bg-brandDark/40 border border-borderDark/40 cursor-grab active:cursor-grabbing select-none">
+          <div id="catalystTrack" class="catalyst-marquee-track space-y-0.5">
             ${tickerItemsHtml}
             ${tickerItemsHtml}
           </div>
@@ -414,11 +417,94 @@ ${catalyst.optionsAdvisory}
         .catalyst-marquee-track {
           animation: catalystScroll 28s linear infinite;
         }
-        .catalyst-marquee-track:hover {
-          animation-play-state: paused;
+        .catalyst-marquee-track.paused {
+          animation-play-state: paused !important;
         }
       </style>
     `;
+
+    // Interactive Drag / Touch / Wheel Event Handlers
+    attachMarqueeInteractivity();
+  }
+
+  function attachMarqueeInteractivity() {
+    const container = document.getElementById('catalystScrollContainer');
+    const track = document.getElementById('catalystTrack');
+    if (!container || !track) return;
+
+    let isDown = false;
+    let startY = 0;
+    let scrollTop = 0;
+    let pauseTimer = null;
+
+    function pauseAnimation() {
+      track.classList.add('paused');
+    }
+
+    function resumeAnimation() {
+      if (!isDown) {
+        clearTimeout(pauseTimer);
+        pauseTimer = setTimeout(() => {
+          track.classList.remove('paused');
+        }, 1500);
+      }
+    }
+
+    // Hover / mouse enter / leave
+    container.addEventListener('mouseenter', pauseAnimation);
+    container.addEventListener('mouseleave', resumeAnimation);
+
+    // Mouse Dragging
+    container.addEventListener('mousedown', (e) => {
+      isDown = true;
+      pauseAnimation();
+      container.classList.add('active:cursor-grabbing');
+      startY = e.pageY - container.offsetTop;
+      scrollTop = container.scrollTop;
+    });
+
+    window.addEventListener('mouseup', () => {
+      if (isDown) {
+        isDown = false;
+        container.classList.remove('active:cursor-grabbing');
+        resumeAnimation();
+      }
+    });
+
+    container.addEventListener('mousemove', (e) => {
+      if (!isDown) return;
+      e.preventDefault();
+      const y = e.pageY - container.offsetTop;
+      const walk = (y - startY) * 1.5;
+      container.scrollTop = scrollTop - walk;
+    });
+
+    // Mouse Wheel Scroll
+    container.addEventListener('wheel', (e) => {
+      pauseAnimation();
+      container.scrollTop += e.deltaY;
+      resumeAnimation();
+    }, { passive: true });
+
+    // Touch Support for Mobile (6.2 inch phones)
+    container.addEventListener('touchstart', (e) => {
+      isDown = true;
+      pauseAnimation();
+      startY = e.touches[0].pageY - container.offsetTop;
+      scrollTop = container.scrollTop;
+    }, { passive: true });
+
+    container.addEventListener('touchmove', (e) => {
+      if (!isDown) return;
+      const y = e.touches[0].pageY - container.offsetTop;
+      const walk = (y - startY) * 1.5;
+      container.scrollTop = scrollTop - walk;
+    }, { passive: true });
+
+    container.addEventListener('touchend', () => {
+      isDown = false;
+      resumeAnimation();
+    }, { passive: true });
   }
 
   // Auto-scan on load and every 3 minutes
