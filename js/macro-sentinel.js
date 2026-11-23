@@ -343,8 +343,9 @@ ${catalyst.optionsAdvisory}
         link: item.link
       }));
 
-    // Events: sorted chronologically by target date
+    // Events: sorted chronologically by target date (nearest upcoming event first)
     const eventsList = [...UPCOMING_MAJOR_EVENTS]
+      .sort((a, b) => new Date(a.dateStr).getTime() - new Date(b.dateStr).getTime())
       .map(ev => ({
         title: ev.title,
         category: "Macro Calendar Event",
