@@ -1100,52 +1100,49 @@ window.DeltaApp = (function() {
     // If NO trades were taken today: clean slate, 100% risk budget available, zero warnings!
     if (todayTrades.length === 0) {
       container.innerHTML = `
-        <div class="rounded-2xl border border-emerald-500/30 bg-gradient-to-r from-cardDark via-brandDark to-cardDark p-3 sm:p-5 shadow-lg shadow-black/40">
-          <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 pb-2 sm:pb-3 border-b border-borderDark/60">
-            <div class="flex items-center justify-between w-full sm:w-auto gap-2.5">
-              <div class="flex items-center gap-2">
-                <span class="inline-block w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse shrink-0"></span>
-                <h3 class="text-xs sm:text-base font-bold text-white font-sans flex items-center gap-1.5">
-                  <i class="fa-solid fa-shield-halved text-emerald-400"></i>
-                  <span>Capital Defense:</span> <span class="text-emerald-400 font-bold">READY</span>
-                </h3>
-              </div>
-              <!-- Mobile Dropdown Toggle Button -->
-              <button onclick="document.getElementById('sentinelDetailsGrid').classList.toggle('hidden'); this.querySelector('i').classList.toggle('rotate-180')" class="sm:hidden px-2 py-1 text-[10px] rounded-lg bg-panelDark text-slate-300 font-mono flex items-center gap-1">
-                <span>Details</span> <i class="fa-solid fa-chevron-down transition-transform"></i>
-              </button>
+        <div class="rounded-xl border border-emerald-500/30 bg-gradient-to-r from-cardDark via-brandDark to-cardDark p-2.5 sm:p-3 shadow-md">
+          <div class="flex items-center justify-between gap-2">
+            <div class="flex items-center gap-2">
+              <span class="inline-block w-2 h-2 rounded-full bg-emerald-400 animate-pulse shrink-0"></span>
+              <h3 class="text-xs sm:text-sm font-bold text-white font-sans flex items-center gap-1.5">
+                <i class="fa-solid fa-shield-halved text-emerald-400 text-xs"></i>
+                <span>Capital Defense:</span> <span class="text-emerald-400 font-bold">READY</span>
+              </h3>
             </div>
-            <div class="hidden sm:flex items-center gap-2 self-end sm:self-auto">
-              <span class="text-[10px] font-mono text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-2 py-0.5 rounded font-bold">
-                Daily Loss Limit: $${savedMaxLoss} | Stop-Outs: ${savedMaxConsec}
+            <div class="flex items-center gap-1.5">
+              <span class="text-[9px] sm:text-[10px] font-mono text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-2 py-0.5 rounded font-bold">
+                Limit: $${savedMaxLoss} · 0/${savedMaxConsec} SL
               </span>
-              <button onclick="DeltaApp.openSentinelConfigModal()" class="px-2.5 py-1 text-[11px] font-bold rounded-lg bg-panelDark hover:bg-cardDark text-slate-300 hover:text-white border border-borderDark transition-colors">
-                <i class="fa-solid fa-gear mr-1"></i> Edit Limits
+              <button onclick="document.getElementById('sentinelDetailsGrid').classList.toggle('hidden'); this.querySelector('i').classList.toggle('rotate-180')" class="px-2 py-0.5 text-[9px] sm:text-[10px] rounded bg-panelDark text-slate-300 hover:text-white font-mono flex items-center gap-1 border border-borderDark/60">
+                <span>Details</span> <i class="fa-solid fa-chevron-down text-[8px] transition-transform"></i>
+              </button>
+              <button onclick="DeltaApp.openSentinelConfigModal()" class="px-2 py-0.5 text-[9px] sm:text-[10px] font-bold rounded bg-panelDark hover:bg-cardDark text-slate-300 hover:text-white border border-borderDark transition-colors" title="Edit Risk Limits">
+                <i class="fa-solid fa-gear text-[9px]"></i>
               </button>
             </div>
           </div>
 
-          <!-- Standby Metrics Grid (Collapsible on Mobile, Visible on Desktop) -->
-          <div id="sentinelDetailsGrid" class="hidden sm:grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-2.5 mt-2.5 sm:mt-3 font-mono">
-            <div class="bg-panelDark/50 border border-borderDark/60 p-2 sm:p-2.5 rounded-xl">
-              <span class="text-[9px] uppercase tracking-wider text-slate-400 block font-sans">Today's Realized</span>
-              <span class="text-xs sm:text-base font-bold text-white">$0.00</span>
-              <span class="text-[8px] sm:text-[9px] text-slate-500 block mt-0.5">0 closed positions</span>
+          <!-- Standby Metrics Grid (Collapsible on Both Mobile and Desktop) -->
+          <div id="sentinelDetailsGrid" class="hidden grid grid-cols-2 sm:grid-cols-4 gap-1.5 sm:gap-2 mt-2 pt-2 border-t border-borderDark/60 font-mono">
+            <div class="bg-panelDark/50 border border-borderDark/60 p-1.5 sm:p-2 rounded-lg">
+              <span class="text-[8px] sm:text-[9px] uppercase tracking-wider text-slate-400 block font-sans">Today's Realized</span>
+              <span class="text-xs sm:text-sm font-bold text-white">$0.00</span>
+              <span class="text-[8px] text-slate-500 block">0 closed</span>
             </div>
-            <div class="bg-panelDark/50 border border-borderDark/60 p-2 sm:p-2.5 rounded-xl">
-              <span class="text-[9px] uppercase tracking-wider text-slate-400 block font-sans">Available Risk Budget</span>
-              <span class="text-xs sm:text-base font-bold text-emerald-300">$${savedMaxLoss}.00</span>
-              <span class="text-[8px] sm:text-[9px] text-slate-500 block mt-0.5">100% budget intact</span>
+            <div class="bg-panelDark/50 border border-borderDark/60 p-1.5 sm:p-2 rounded-lg">
+              <span class="text-[8px] sm:text-[9px] uppercase tracking-wider text-slate-400 block font-sans">Risk Budget</span>
+              <span class="text-xs sm:text-sm font-bold text-emerald-300">$${savedMaxLoss}.00</span>
+              <span class="text-[8px] text-slate-500 block">100% intact</span>
             </div>
-            <div class="bg-panelDark/50 border border-borderDark/60 p-2 sm:p-2.5 rounded-xl">
-              <span class="text-[9px] uppercase tracking-wider text-slate-400 block font-sans">Consecutive Losses</span>
-              <span class="text-xs sm:text-base font-bold text-slate-300">0 / ${savedMaxConsec}</span>
-              <span class="text-[8px] sm:text-[9px] text-slate-500 block mt-0.5">${savedMaxConsec} stop-outs allowed</span>
+            <div class="bg-panelDark/50 border border-borderDark/60 p-1.5 sm:p-2 rounded-lg">
+              <span class="text-[8px] sm:text-[9px] uppercase tracking-wider text-slate-400 block font-sans">Stop Losses</span>
+              <span class="text-xs sm:text-sm font-bold text-slate-300">0 / ${savedMaxConsec}</span>
+              <span class="text-[8px] text-slate-500 block">${savedMaxConsec} allowed</span>
             </div>
-            <div class="bg-panelDark/50 border border-borderDark/60 p-2 sm:p-2.5 rounded-xl">
-              <span class="text-[9px] uppercase tracking-wider text-slate-400 block font-sans">Desk Status</span>
-              <span class="text-xs sm:text-base font-bold text-emerald-400">CLEAN SLATE</span>
-              <span class="text-[8px] sm:text-[9px] text-slate-500 block mt-0.5">Wait for S/R confirmation</span>
+            <div class="bg-panelDark/50 border border-borderDark/60 p-1.5 sm:p-2 rounded-lg">
+              <span class="text-[8px] sm:text-[9px] uppercase tracking-wider text-slate-400 block font-sans">Desk Status</span>
+              <span class="text-xs sm:text-sm font-bold text-emerald-400">CLEAN SLATE</span>
+              <span class="text-[8px] text-slate-500 block">S/R confirmation</span>
             </div>
           </div>
         </div>
@@ -1449,6 +1446,34 @@ window.DeltaApp = (function() {
   let paceProjectionMode = localStorage.getItem('dtj_pace_projection_mode') || 'FULL'; // 'FULL' or 'STRESS'
   let isCapitalTrajectoryCollapsed = true;
   let activeTrajectoryDetailMonth = null;
+
+  function togglePerformanceTrajectoryCollapse() {
+    const content = document.getElementById('perfTrajectoryCollapseContent');
+    const chevron = document.getElementById('perfTrajectoryChevron');
+    const text = document.getElementById('perfTrajectoryToggleText');
+    if (!content) return;
+
+    const isHidden = content.classList.contains('hidden');
+    if (isHidden) {
+      content.classList.remove('hidden');
+      if (chevron) chevron.className = "fa-solid fa-chevron-up text-[9px]";
+      if (text) text.innerText = "Collapse";
+      // Force echarts resize on container expand
+      setTimeout(() => {
+        if (window.echarts) {
+          const chartDom = document.getElementById('equityChart');
+          if (chartDom) {
+            const instance = echarts.getInstanceByDom(chartDom);
+            if (instance) instance.resize();
+          }
+        }
+      }, 50);
+    } else {
+      content.classList.add('hidden');
+      if (chevron) chevron.className = "fa-solid fa-chevron-down text-[9px]";
+      if (text) text.innerText = "Expand";
+    }
+  }
 
   function toggleCapitalTrajectoryCollapse() {
     isCapitalTrajectoryCollapsed = !isCapitalTrajectoryCollapsed;
@@ -3028,6 +3053,7 @@ window.DeltaApp = (function() {
     toggleTradeLogCollapse,
     toggleAllTimeRealityCollapse,
     toggleCapitalTrajectoryCollapse,
+    togglePerformanceTrajectoryCollapse,
     openTrajectoryMonthDetail,
     closeTrajectoryMonthDetail,
     setTradeFilter,

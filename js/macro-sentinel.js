@@ -423,9 +423,8 @@ ${catalyst.optionsAdvisory}
         </div>
 
         <!-- Interactive Drag / Touch / Wheel Scrollable Container -->
-        <div id="catalystScrollContainer" class="relative h-[110px] overflow-y-auto no-scrollbar rounded-xl bg-brandDark/50 border border-borderDark/40 cursor-grab active:cursor-grabbing select-none">
+        <div id="catalystScrollContainer" class="relative h-[155px] sm:h-[165px] overflow-y-auto no-scrollbar rounded-xl bg-brandDark/50 border border-borderDark/40 cursor-grab active:cursor-grabbing select-none">
           <div id="catalystTrack" class="catalyst-marquee-track space-y-0.5">
-            ${tickerItemsHtml}
             ${tickerItemsHtml}
           </div>
         </div>
@@ -434,10 +433,10 @@ ${catalyst.optionsAdvisory}
       <style>
         @keyframes catalystScroll {
           0% { transform: translateY(0); }
-          100% { transform: translateY(-50%); }
+          100% { transform: translateY(calc(-100% + 140px)); }
         }
         .catalyst-marquee-track {
-          animation: catalystScroll 28s linear infinite;
+          animation: catalystScroll 35s linear infinite alternate;
         }
         .catalyst-marquee-track.paused {
           animation-play-state: paused !important;
