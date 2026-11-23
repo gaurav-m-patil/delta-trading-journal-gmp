@@ -1656,14 +1656,15 @@ window.DeltaApp = (function() {
       { id: 'JAN_END', name: 'End of Jan 27', targetDate: new Date('2027-01-31T23:59:59Z') }
     ];
 
-    // Helper: Dynamic Tiered Sizing (+₹50k capital for every ₹5L cumulative profit beyond ₹10L)
+    // Helper: Dynamic Tiered Sizing (+₹10k capital for every ₹1L cumulative profit beyond ₹10L)
     function resolveDynamicCapCeiling(cumulativeTotalProfit) {
-      if (cumulativeTotalProfit < 1500000) {
+      if (cumulativeTotalProfit <= 1000000) {
         return 100000; // Tier 1: ₹1,00,000 baseline
       }
-      // For ₹15L -> ₹1.5L; ₹20L -> ₹2.0L; ₹25L -> ₹2.5L; ₹30L -> ₹3.0L (+₹50k per ₹5L profit)
-      const additional5LSteps = Math.floor((cumulativeTotalProfit - 1500000) / 500000);
-      return 150000 + (additional5LSteps * 50000);
+      // Beyond ₹10L profit: +₹10k capital per ₹1L additional profit
+      // e.g. ₹11L profit -> ₹1.1L cap; ₹12L -> ₹1.2L; ₹15L -> ₹1.5L; ₹20L -> ₹2.0L
+      const additional1LSteps = Math.floor((cumulativeTotalProfit - 1000000) / 100000);
+      return 100000 + (additional1LSteps * 10000);
     }
 
     // Helper: Build weekday session dates array
