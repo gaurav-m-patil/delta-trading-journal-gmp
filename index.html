@@ -850,31 +850,31 @@
           </div>
 
           <!-- Milestones 3-Column Grid (Strictly 1 horizontal row with 3 boxes) -->
-          <div id="projectionMilestonesContainer" class="grid grid-cols-3 gap-2">
+          <div id="projectionMilestonesContainer" class="grid grid-cols-3 gap-1.5 sm:gap-2">
             <!-- Dynamic 3-Month Milestones injected by DeltaApp.renderCapitalTrajectory() -->
           </div>
         </div>
 
-        <!-- Inline Day-by-Day Extraction Drawer Container (Zero Horizontal Scrolling, Table-Fixed Fit) -->
-        <div id="trajectoryMonthDetailContainer" class="hidden p-2.5 sm:p-3 rounded-xl bg-brandDark/95 border border-indigo-500/40 shadow-xl space-y-2">
+        <!-- Inline Day-by-Day Extraction Drawer Container (Zero Horizontal Scrolling, Clean Mobile Fit) -->
+        <div id="trajectoryMonthDetailContainer" class="hidden p-2 sm:p-2.5 rounded-xl bg-brandDark/95 border border-indigo-500/40 shadow-xl space-y-1.5">
           <div class="flex items-center justify-between pb-1.5 border-b border-borderDark/70">
             <div class="flex items-center gap-1.5">
-              <i class="fa-solid fa-table-list text-indigo-400 text-[11px]"></i>
-              <h4 id="trajectoryDetailTitle" class="text-[11px] font-bold text-white font-sans">Day-by-Day Wealth Harvest Schedule</h4>
+              <i class="fa-solid fa-table-list text-indigo-400 text-[10px]"></i>
+              <h4 id="trajectoryDetailTitle" class="text-[10px] sm:text-[11px] font-bold text-white font-sans">Harvest Schedule</h4>
             </div>
-            <button onclick="DeltaApp.closeTrajectoryMonthDetail()" class="text-slate-400 hover:text-white text-[10px] px-2 py-0.5 rounded bg-panelDark border border-borderDark flex items-center gap-1">
-              <i class="fa-solid fa-xmark text-[9px]"></i> Close
+            <button onclick="DeltaApp.closeTrajectoryMonthDetail()" class="text-slate-400 hover:text-white text-[9px] sm:text-[10px] px-2 py-0.5 rounded bg-panelDark border border-borderDark flex items-center gap-1">
+              <i class="fa-solid fa-xmark text-[8px]"></i> Close
             </button>
           </div>
           <div class="max-h-64 overflow-y-auto pr-0.5">
-            <table class="w-full table-fixed text-left text-[10px] font-mono">
-              <thead class="text-[9px] text-slate-400 uppercase bg-panelDark/95 sticky top-0 border-b border-borderDark/60">
+            <table class="w-full table-fixed text-left text-[9px] sm:text-[10px] font-mono">
+              <thead class="text-[8px] sm:text-[9px] text-slate-400 uppercase bg-panelDark/95 sticky top-0 border-b border-borderDark/60">
                 <tr>
-                  <th class="py-1.5 px-1.5 w-[22%]">Date</th>
-                  <th class="py-1.5 px-1 text-right w-[19%]">Start Cap</th>
-                  <th class="py-1.5 px-1 text-right w-[19%] text-emerald-400">Profit</th>
-                  <th class="py-1.5 px-1 text-right w-[20%] text-amber-300">Bank Swept</th>
-                  <th class="py-1.5 px-1.5 text-right w-[20%] text-indigo-300">End Balance</th>
+                  <th class="py-1 px-1 w-[24%]">Date</th>
+                  <th class="py-1 px-1 text-right w-[19%]">Start</th>
+                  <th class="py-1 px-1 text-right w-[19%] text-emerald-400">Profit</th>
+                  <th class="py-1 px-1 text-right w-[19%] text-amber-300">Sweep</th>
+                  <th class="py-1 px-1 text-right w-[19%] text-indigo-300">Total</th>
                 </tr>
               </thead>
               <tbody id="trajectoryDayByDayBody" class="divide-y divide-borderDark/40 text-slate-300">

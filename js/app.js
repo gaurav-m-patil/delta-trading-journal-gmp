@@ -1529,7 +1529,28 @@ window.DeltaApp = (function() {
     const allTrades = DeltaDB.getTrades() || [];
     const INR_RATE = 85.0;
 
-    // 1. Isolate Nov 19+ Engine Trades (Strictly Real Trades Only)
+    // Helper to format clean integer numbers without ₹ sign (with Indian comma grouping)
+    function formatNum(num) {
+      if (isNaN(num)) return '0';
+      return Math.round(num).toLocaleString('en-IN');
+    }
+
+    // Helper to format compact abbreviated numbers (e.g. 1.25L, 25K) when space is ultra tight
+    function formatCompactINR(num) {
+      if (isNaN(num)) return '0';
+      const absVal = Math.abs(num);
+      const sign = num < 0 ? '-' : '';
+      if (absVal >= 10000000) {
+        return sign + (absVal / 10000000).toFixed(2).replace(/\.00$/, '') + ' Cr';
+      }
+      if (absVal >= 100000) {
+        return sign + (absVal / 100000).toFixed(2).replace(/\.00$/, '') + 'L';
+      }
+      if (absVal >= 1000) {
+        return sign + (absVal / 1000).toFixed(1).replace(/\.0$/, '') + 'k';
+      }
+      return sign + Math.round(absVal).toString();
+    }
     const nov19Trades = allTrades.filter(t => {
       if (t.rawDate < '2026-11-19') return false;
       if (t.isEstimation || t.skipped || t.outcome === 'SKIPPED_CIRCUIT_BREAKER') return false;
@@ -1687,7 +1708,14 @@ window.DeltaApp = (function() {
           currentActiveCapital = maxActiveCap;
         }
 
-        const dateLabel = sessionDates[day - 1] ? sessionDates[day - 1].toLocaleDateString('en-IN', { weekday: 'short', day: '2-digit', month: 'short' }) : `Day ${day}`;
+        let dateLabel = `Day ${day}`;
+        if (sessionDates[day - 1]) {
+          const d = sessionDates[day - 1];
+          const dayNum = String(d.getDate()).padStart(2, '0');
+          const monthStr = d.toLocaleDateString('en-IN', { month: 'short' });
+          const yearShort = String(d.getFullYear()).slice(-2);
+          dateLabel = `${dayNum}/${monthStr}/${yearShort}`;
+        }
 
         dayByDayLog.push({
           dayIndex: day,
@@ -1757,46 +1785,46 @@ window.DeltaApp = (function() {
         const weekdaysLeft = countWeekdaysBetween(nowUtc, m.targetDate);
         const sim = simulateMilestoneProgression(weekdaysLeft, m.targetDate);
 
-        const capLabel = formatINR(sim.currentCapCeiling, 0);
-        const tierBadge = `<span class="px-1.5 py-0.5 rounded text-[8px] sm:text-[9px] font-mono font-bold bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 truncate">Cap: ${capLabel}</span>`;
+        const capLabel = formatCompactINR(sim.currentCapCeiling);
+        const tierBadge = `<span class="px-1 py-0.5 rounded text-[8px] sm:text-[9px] font-mono font-bold bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 whitespace-nowrap">Cap:${capLabel}</span>`;
         const isSelected = activeTrajectoryDetailMonth === m.id;
 
         return `
-          <div onclick="DeltaApp.openTrajectoryMonthDetail('${m.id}')" class="p-2 sm:p-3.5 rounded-xl cursor-pointer bg-gradient-to-br from-brandDark/95 to-brandDark/70 border ${isSelected ? 'border-emerald-400 ring-2 ring-emerald-500/30' : 'border-borderDark hover:border-emerald-500/50'} transition-all shadow-md flex flex-col justify-between space-y-2 active:scale-[0.99] min-w-0">
+          <div onclick="DeltaApp.openTrajectoryMonthDetail('${m.id}')" class="p-2 sm:p-3 rounded-xl cursor-pointer bg-gradient-to-br from-brandDark/95 to-brandDark/70 border ${isSelected ? 'border-emerald-400 ring-2 ring-emerald-500/30' : 'border-borderDark hover:border-emerald-500/50'} transition-all shadow-md flex flex-col justify-between space-y-1.5 active:scale-[0.99] min-w-0">
             <div>
-              <div class="flex flex-col sm:flex-row sm:items-center justify-between pb-1.5 border-b border-borderDark/60 gap-1">
-                <span class="font-extrabold text-[11px] sm:text-xs text-white font-sans truncate">
+              <div class="flex items-center justify-between pb-1 border-b border-borderDark/60 gap-0.5">
+                <span class="font-extrabold text-[10px] sm:text-xs text-white font-sans whitespace-nowrap">
                   ${m.name}
                 </span>
-                <span class="text-[9px] text-slate-400 font-mono bg-panelDark px-1 py-0.5 rounded border border-borderDark/60 whitespace-nowrap self-start sm:self-auto">${weekdaysLeft} sessions</span>
+                <span class="text-[8px] sm:text-[9px] text-slate-400 font-mono bg-panelDark px-1 py-0.5 rounded border border-borderDark/60 whitespace-nowrap">${weekdaysLeft}d</span>
               </div>
 
               <!-- Withdrawn Cash Hero -->
-              <div class="mt-2">
-                <span class="text-[8px] sm:text-[9px] uppercase tracking-wider text-emerald-400 block font-sans font-bold flex items-center gap-1">
-                  <i class="fa-solid fa-building-columns text-[7px] sm:text-[8px]"></i> Bank Vault
+              <div class="mt-1.5">
+                <span class="text-[7.5px] sm:text-[8.5px] uppercase tracking-wider text-emerald-400 block font-sans font-bold flex items-center gap-0.5">
+                  <i class="fa-solid fa-building-columns text-[7px]"></i> Bank Vault
                 </span>
-                <div class="text-sm sm:text-lg font-extrabold font-mono text-emerald-400 tracking-tight my-0.5 truncate">
-                  ${formatINR(sim.withdrawnToBank, 0)}
+                <div class="text-[13px] sm:text-base font-extrabold font-mono text-emerald-400 tracking-tight my-0.5 truncate" title="₹${formatNum(sim.withdrawnToBank)}">
+                  ₹${formatCompactINR(sim.withdrawnToBank)}
                 </div>
               </div>
 
               <!-- Active Trading Capital -->
-              <div class="mt-1.5 flex items-center justify-between text-[9px] sm:text-[10px] font-mono py-0.5 border-t border-borderDark/40">
-                <span class="text-slate-400 font-sans truncate">Active:</span>
-                <strong class="text-white font-bold">${formatINR(sim.activeCapital, 0)}</strong>
+              <div class="mt-1 flex items-center justify-between text-[8.5px] sm:text-[9.5px] font-mono py-0.5 border-t border-borderDark/40">
+                <span class="text-slate-400 font-sans">Active:</span>
+                <strong class="text-white font-bold" title="₹${formatNum(sim.activeCapital)}">₹${formatCompactINR(sim.activeCapital)}</strong>
               </div>
 
               <!-- Total Wealth -->
-              <div class="mt-0.5 flex items-center justify-between text-[9px] sm:text-[10px] font-mono pt-0.5 border-t border-borderDark/60">
-                <span class="text-slate-300 font-sans font-semibold truncate">Total Wealth:</span>
-                <strong class="text-indigo-300 font-extrabold text-[10px] sm:text-xs">${formatINR(sim.totalRealizedWealth, 0)}</strong>
+              <div class="mt-0.5 flex items-center justify-between text-[8.5px] sm:text-[9.5px] font-mono pt-0.5 border-t border-borderDark/60">
+                <span class="text-slate-300 font-sans font-semibold">Wealth:</span>
+                <strong class="text-indigo-300 font-extrabold text-[9px] sm:text-[11px]" title="₹${formatNum(sim.totalRealizedWealth)}">₹${formatCompactINR(sim.totalRealizedWealth)}</strong>
               </div>
             </div>
 
             <!-- Tier Status Footer -->
-            <div class="pt-1.5 border-t border-borderDark/60 flex items-center justify-between gap-1">
-              <span class="text-[9px] sm:text-[10px] font-mono font-extrabold text-emerald-400 whitespace-nowrap">+${sim.multiplier}x</span>
+            <div class="pt-1 border-t border-borderDark/60 flex items-center justify-between gap-0.5">
+              <span class="text-[8.5px] sm:text-[9.5px] font-mono font-extrabold text-emerald-400 whitespace-nowrap">+${sim.multiplier}x</span>
               ${tierBadge}
             </div>
           </div>
@@ -1815,23 +1843,23 @@ window.DeltaApp = (function() {
       const detailedSim = simulateMilestoneProgression(weekdaysLeft, selectedMilestone.targetDate);
 
       if (detailTitle) {
-        detailTitle.innerHTML = `<span class="text-emerald-400">${selectedMilestone.name}</span> Day-by-Day Wealth Harvest Schedule (${weekdaysLeft} Weekday Sessions)`;
+        detailTitle.innerHTML = `<span class="text-emerald-400">${selectedMilestone.name}</span> Daily Harvest Schedule (${weekdaysLeft} Sessions)`;
       }
 
       detailTbody.innerHTML = detailedSim.dayByDayLog.map(row => {
         const hasSkim = row.skim > 0;
         return `
           <tr class="hover:bg-panelDark/60 transition-colors ${hasSkim ? 'bg-emerald-500/5' : ''}">
-            <td class="py-1.5 px-1.5 font-bold text-white whitespace-nowrap truncate">
+            <td class="py-1.5 px-1 font-bold text-white whitespace-nowrap text-[9px] sm:text-[10px]">
               ${row.dateLabel}
-              ${hasSkim ? '<span class="ml-1 text-[8px] font-sans px-1 py-0.2 rounded bg-amber-500/20 text-amber-300 border border-amber-500/30">SWEPT</span>' : ''}
+              ${hasSkim ? '<span class="ml-0.5 text-[7px] font-sans px-1 py-0.2 rounded bg-amber-500/20 text-amber-300 border border-amber-500/30">SWEEP</span>' : ''}
             </td>
-            <td class="py-1.5 px-1 text-right text-slate-300 font-mono truncate">${formatINR(row.startCap, 0)}</td>
-            <td class="py-1.5 px-1 text-right font-bold text-emerald-400 font-mono truncate">+${formatINR(row.gain, 0)}</td>
-            <td class="py-1.5 px-1 text-right font-bold font-mono truncate ${hasSkim ? 'text-amber-300' : 'text-slate-600'}">
-              ${hasSkim ? `+${formatINR(row.skim, 0)}` : '₹0'}
+            <td class="py-1.5 px-1 text-right text-slate-300 font-mono text-[9px] sm:text-[10px]">${formatNum(row.startCap)}</td>
+            <td class="py-1.5 px-1 text-right font-bold text-emerald-400 font-mono text-[9px] sm:text-[10px]">+${formatNum(row.gain)}</td>
+            <td class="py-1.5 px-1 text-right font-bold font-mono text-[9px] sm:text-[10px] ${hasSkim ? 'text-amber-300' : 'text-slate-600'}">
+              ${hasSkim ? `+${formatNum(row.skim)}` : '0'}
             </td>
-            <td class="py-1.5 px-1.5 text-right font-bold text-indigo-300 font-mono truncate">${formatINR(row.cumBank + row.endCap, 0)}</td>
+            <td class="py-1.5 px-1 text-right font-bold text-indigo-300 font-mono text-[9px] sm:text-[10px]">${formatNum(row.cumBank + row.endCap)}</td>
           </tr>
         `;
       }).join('');
