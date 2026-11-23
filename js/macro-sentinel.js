@@ -91,9 +91,9 @@ window.DeltaMacroSentinel = (function() {
     }
   ];
 
-  // Bullish vs Bearish Sentiment Keywords
-  const BULLISH_KEYWORDS = /\b(cut|cooler|cooling|surged|surge|soars|record inflow|approved|approval|adoption|easing|bullish|reserve bill|inflows hit)\b/i;
-  const BEARISH_KEYWORDS = /\b(hacked|stolen|drain|drained|hotter|hike|hikes|lawsuit|indictment|probe|depeg|dump|crash|ban|outflow|record outflow|fraud|freeze)\b/i;
+  // Bullish vs Bearish Sentiment Keywords (Enhanced with Leadership, Tech & Equity Catalysts)
+  const BULLISH_KEYWORDS = /\b(cut|cooler|cooling|surged|surge|soars|record inflow|approved|approval|adoption|easing|bullish|reserve bill|inflows hit|returns|reinstates|reinstated|jump|jumps|rally|rebounds|climbs|soaring|partnership|recovery)\b/i;
+  const BEARISH_KEYWORDS = /\b(hacked|stolen|drain|drained|hotter|hike|hikes|lawsuit|indictment|depeg|dump|crash|ban|outflow|record outflow|fraud|freeze|probe|investigation|subpoena|breach)\b/i;
 
   /**
    * Evaluates raw news text and extracts institutional relevance
@@ -114,25 +114,34 @@ window.DeltaMacroSentinel = (function() {
 
     if (!matchedRule || highestScore < 7) return null;
 
-    // Determine Directional Bias
-    const isBull = BULLISH_KEYWORDS.test(text);
-    const isBear = BEARISH_KEYWORDS.test(text);
-
+    // Explicit override for Jensen Huang & Leadership returns (decisively Bullish market catalyst)
     let bias = "NEUTRAL_VOLATILITY";
     let biasLabel = "⚠️ HIGH VOLATILITY EVENT";
     let biasColor = "text-amber-400 bg-amber-500/10 border-amber-500/30";
     let optionsAdvisory = "Elevated implied volatility. Exercise caution with open contracts and ensure tight stop loss orders on Delta India options.";
 
-    if (isBull && !isBear) {
+    const isJensenNvidiaRally = /\b(jensen|jensen huang|nvidia)\b/i.test(text) && /\b(returns|reinstates|reinstated|rally|jump|soar|climbs)\b/i.test(text);
+
+    if (isJensenNvidiaRally) {
       bias = "BULLISH";
       biasLabel = "🟢 BULLISH CATALYST (CALLS FAVORED)";
       biasColor = "text-emerald-400 bg-emerald-500/10 border-emerald-500/30";
-      optionsAdvisory = "Macro tailwinds support upside follow-through. SMC Support Bounces (Calls) have institutional momentum. Favor ATM Calls targeting +50% profit.";
-    } else if (isBear) {
-      bias = "BEARISH";
-      biasLabel = "🔴 BEARISH CATALYST (PUTS FAVORED)";
-      biasColor = "text-rose-400 bg-rose-500/10 border-rose-500/30";
-      optionsAdvisory = "Market downside pressure detected. SMC Resistance Rejections (Puts) have high continuation probability. Tighten stops on long exposure; Put gamma favored.";
+      optionsAdvisory = "Mega-cap tech liquidity injection boosts risk appetite and crypto beta. Favor Bullish Call momentum.";
+    } else {
+      const isBull = BULLISH_KEYWORDS.test(text);
+      const isBear = BEARISH_KEYWORDS.test(text);
+
+      if (isBull && !isBear) {
+        bias = "BULLISH";
+        biasLabel = "🟢 BULLISH CATALYST (CALLS FAVORED)";
+        biasColor = "text-emerald-400 bg-emerald-500/10 border-emerald-500/30";
+        optionsAdvisory = "Macro tailwinds support upside follow-through. SMC Support Bounces (Calls) have institutional momentum. Favor ATM Calls targeting +50% profit.";
+      } else if (isBear && !isBull) {
+        bias = "BEARISH";
+        biasLabel = "🔴 BEARISH CATALYST (PUTS FAVORED)";
+        biasColor = "text-rose-400 bg-rose-500/10 border-rose-500/30";
+        optionsAdvisory = "Market downside pressure detected. SMC Resistance Rejections (Puts) have high continuation probability. Tighten stops on long exposure; Put gamma favored.";
+      }
     }
 
     // Parse publication time strictly as UTC (rss2json timestamps like '2026-11-23 14:47:00' are UTC)
@@ -304,6 +313,14 @@ ${catalyst.optionsAdvisory}
     }
   ];
 
+  // Active tab state: 'NEWS' or 'EVENTS'
+  let activeCatalystTab = 'NEWS';
+
+  function setCatalystTab(tab) {
+    activeCatalystTab = tab;
+    renderMacroBanner();
+  }
+
   /**
    * Renders the Dynamic Market Catalyst & Events Ticker
    * (Strictly on Delta Insights tab #macroCatalystContainer)
@@ -312,35 +329,34 @@ ${catalyst.optionsAdvisory}
     const el = document.getElementById('macroCatalystContainer');
     if (!el) return;
 
-    // Filter catalysts: up to 7 major news items + 3 major upcoming events
-    const newsList = currentCatalysts.slice(0, 7);
-    const eventsList = UPCOMING_MAJOR_EVENTS.slice(0, 10 - newsList.length);
-
-    // Merge into combined 10 dynamic items
-    const combinedItems = [];
-    newsList.forEach(item => {
-      combinedItems.push({
+    // 1. Separate News and Events strictly into their respective categories
+    // News: sorted chronologically newest-first (based on pubTs)
+    const newsList = [...currentCatalysts]
+      .sort((a, b) => (b.pubTs || 0) - (a.pubTs || 0))
+      .slice(0, 10)
+      .map(item => ({
         title: item.title,
         category: item.category,
         bias: item.bias,
         isEvent: false,
         timeOrDate: item.timeAgoStr,
         link: item.link
-      });
-    });
+      }));
 
-    eventsList.forEach(ev => {
-      combinedItems.push({
+    // Events: sorted chronologically by target date
+    const eventsList = [...UPCOMING_MAJOR_EVENTS]
+      .map(ev => ({
         title: ev.title,
-        category: "Upcoming Macro Event",
+        category: "Macro Calendar Event",
         bias: ev.bias,
         isEvent: true,
         timeOrDate: ev.dateStr,
         note: ev.note
-      });
-    });
+      }));
 
-    if (combinedItems.length === 0) {
+    const activeItems = activeCatalystTab === 'NEWS' ? newsList : eventsList;
+
+    if (activeItems.length === 0) {
       el.innerHTML = `
         <div class="px-3 py-2 rounded-xl bg-cardDark/60 border border-borderDark/60 flex items-center justify-between text-xs font-mono text-slate-400">
           <span class="flex items-center gap-2">
@@ -353,8 +369,8 @@ ${catalyst.optionsAdvisory}
       return;
     }
 
-    const tickerItemsHtml = combinedItems.map((item, idx) => {
-      let bulletBg = "bg-amber-400 shadow-[0_0_8px_rgba(251,191,36,0.5)]";
+    const tickerItemsHtml = activeItems.map((item) => {
+      let bulletBg = "bg-amber-400 shadow-[0_0_8px_rgba(251,191,36,0.6)]";
       let badgeCls = "text-amber-300 bg-amber-500/10 border-amber-500/30";
       let tagText = item.isEvent ? "EVENT" : "CATALYST";
 
@@ -366,42 +382,48 @@ ${catalyst.optionsAdvisory}
         badgeCls = "text-rose-300 bg-rose-500/10 border-rose-500/30";
       }
 
-      const tagOpen = item.link ? `<a href="${item.link}" target="_blank" rel="noopener noreferrer" class="text-xs text-slate-200 font-sans font-medium truncate hover:text-white cursor-pointer select-none">` : `<span class="text-xs text-slate-200 font-sans font-medium truncate select-none">`;
+      const tagOpen = item.link ? `<a href="${item.link}" target="_blank" rel="noopener noreferrer" class="text-xs text-slate-200 font-sans font-medium hover:text-white cursor-pointer select-none leading-snug break-words">` : `<span class="text-xs text-slate-200 font-sans font-medium select-none leading-snug break-words">`;
       const tagClose = item.link ? `</a>` : `</span>`;
 
       return `
-        <div class="flex items-center gap-2.5 py-1.5 px-3 min-w-0 transition-colors select-none">
-          <span class="h-2 w-2 rounded-full shrink-0 ${bulletBg}"></span>
-          <span class="text-[9px] font-mono font-bold uppercase tracking-wider px-1.5 py-0.5 rounded border shrink-0 ${badgeCls}">
+        <div class="flex items-start gap-2 py-1.5 px-2.5 transition-colors select-none border-b border-borderDark/30 last:border-b-0">
+          <span class="h-2 w-2 rounded-full shrink-0 mt-1 ${bulletBg}"></span>
+          <span class="text-[8px] sm:text-[9px] font-mono font-bold uppercase tracking-wider px-1.5 py-0.5 rounded border shrink-0 mt-0.5 ${badgeCls}">
             ${tagText}
           </span>
-          <span class="text-[10px] text-slate-400 font-mono shrink-0">${item.timeOrDate}</span>
-          ${tagOpen}${item.title} ${item.note ? `<span class="text-[10px] text-slate-400 font-normal">(${item.note})</span>` : ''}${tagClose}
+          <span class="text-[9px] sm:text-[10px] text-slate-400 font-mono shrink-0 mt-0.5 whitespace-nowrap">${item.timeOrDate}</span>
+          <div class="flex-1 min-w-0">
+            ${tagOpen}${item.title}${tagClose}
+            ${item.note ? `<span class="block text-[10px] text-slate-400 font-normal mt-0.5">${item.note}</span>` : ''}
+          </div>
         </div>
       `;
     }).join('');
 
     el.innerHTML = `
       <div class="p-2 sm:p-2.5 rounded-2xl bg-gradient-to-r from-cardDark via-brandDark to-cardDark border border-borderDark/80 shadow-md relative overflow-hidden group">
-        <div class="flex items-center justify-between pb-1.5 mb-1 border-b border-borderDark/60 px-2 select-none">
-          <div class="flex items-center gap-2">
-            <span class="relative flex h-2 w-2">
-              <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-              <span class="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
-            </span>
-            <h3 class="text-xs font-bold text-white font-sans uppercase tracking-wider flex items-center gap-1.5">
-              Market Catalyst Sentinel <span class="text-[9px] font-normal text-slate-400 font-mono">(Scroll / Drag to browse)</span>
-            </h3>
+        <!-- Compact, High-Density Header Bar -->
+        <div class="flex items-center justify-between pb-1.5 mb-1 border-b border-borderDark/60 px-1 select-none gap-1">
+          <!-- Left: Tab Switcher (News vs Events) -->
+          <div class="flex items-center bg-brandDark/80 border border-borderDark/80 rounded-lg p-0.5">
+            <button onclick="DeltaMacroSentinel.setCatalystTab('NEWS')" class="px-2 py-0.5 text-[10px] font-bold font-mono rounded transition-all ${activeCatalystTab === 'NEWS' ? 'bg-indigo-600 text-white shadow-sm' : 'text-slate-400 hover:text-white'}">
+              <i class="fa-solid fa-newspaper text-[9px] mr-1"></i>News (${newsList.length})
+            </button>
+            <button onclick="DeltaMacroSentinel.setCatalystTab('EVENTS')" class="px-2 py-0.5 text-[10px] font-bold font-mono rounded transition-all ${activeCatalystTab === 'EVENTS' ? 'bg-indigo-600 text-white shadow-sm' : 'text-slate-400 hover:text-white'}">
+              <i class="fa-solid fa-calendar-check text-[9px] mr-1"></i>Events (${eventsList.length})
+            </button>
           </div>
-          <div class="flex items-center gap-2 text-[10px] font-mono text-slate-400">
-            <span class="flex items-center gap-1"><span class="h-1.5 w-1.5 rounded-full bg-emerald-400"></span> Bullish</span>
-            <span class="flex items-center gap-1"><span class="h-1.5 w-1.5 rounded-full bg-rose-500"></span> Bearish</span>
-            <span class="flex items-center gap-1"><span class="h-1.5 w-1.5 rounded-full bg-amber-400"></span> Event</span>
+
+          <!-- Right: Compact Legend -->
+          <div class="flex items-center gap-1.5 text-[9px] font-mono text-slate-400">
+            <span class="flex items-center gap-1"><span class="h-1.5 w-1.5 rounded-full bg-emerald-400"></span> Bull</span>
+            <span class="flex items-center gap-1"><span class="h-1.5 w-1.5 rounded-full bg-rose-500"></span> Bear</span>
+            <span class="flex items-center gap-1"><span class="h-1.5 w-1.5 rounded-full bg-amber-400"></span> Vol</span>
           </div>
         </div>
 
         <!-- Interactive Drag / Touch / Wheel Scrollable Container -->
-        <div id="catalystScrollContainer" class="relative h-[95px] overflow-y-auto no-scrollbar rounded-xl bg-brandDark/40 border border-borderDark/40 cursor-grab active:cursor-grabbing select-none">
+        <div id="catalystScrollContainer" class="relative h-[110px] overflow-y-auto no-scrollbar rounded-xl bg-brandDark/50 border border-borderDark/40 cursor-grab active:cursor-grabbing select-none">
           <div id="catalystTrack" class="catalyst-marquee-track space-y-0.5">
             ${tickerItemsHtml}
             ${tickerItemsHtml}
@@ -438,21 +460,23 @@ ${catalyst.optionsAdvisory}
     let pauseTimer = null;
 
     function pauseAnimation() {
+      clearTimeout(pauseTimer);
       track.classList.add('paused');
     }
 
-    function resumeAnimation() {
-      if (!isDown) {
-        clearTimeout(pauseTimer);
-        pauseTimer = setTimeout(() => {
+    // Hold/touch pauses scroll for at least 5 seconds after release
+    function scheduleResume(delay = 5000) {
+      clearTimeout(pauseTimer);
+      pauseTimer = setTimeout(() => {
+        if (!isDown) {
           track.classList.remove('paused');
-        }, 1500);
-      }
+        }
+      }, delay);
     }
 
     // Hover / mouse enter / leave
     container.addEventListener('mouseenter', pauseAnimation);
-    container.addEventListener('mouseleave', resumeAnimation);
+    container.addEventListener('mouseleave', () => scheduleResume(2000));
 
     // Mouse Dragging
     container.addEventListener('mousedown', (e) => {
@@ -467,7 +491,7 @@ ${catalyst.optionsAdvisory}
       if (isDown) {
         isDown = false;
         container.classList.remove('active:cursor-grabbing');
-        resumeAnimation();
+        scheduleResume(5000);
       }
     });
 
@@ -483,7 +507,7 @@ ${catalyst.optionsAdvisory}
     container.addEventListener('wheel', (e) => {
       pauseAnimation();
       container.scrollTop += e.deltaY;
-      resumeAnimation();
+      scheduleResume(5000);
     }, { passive: true });
 
     // Touch Support for Mobile (6.2 inch phones)
@@ -503,7 +527,7 @@ ${catalyst.optionsAdvisory}
 
     container.addEventListener('touchend', () => {
       isDown = false;
-      resumeAnimation();
+      scheduleResume(5000); // Guarantees 5 full seconds of pause upon release
     }, { passive: true });
   }
 
@@ -517,6 +541,7 @@ ${catalyst.optionsAdvisory}
     fetchBreakingCatalysts,
     renderMacroBanner,
     checkAndSendTelegramNews,
+    setCatalystTab,
     getLatestCatalyst: () => currentCatalysts[0] || null
   };
 })();
