@@ -1822,17 +1822,16 @@ window.DeltaApp = (function() {
         const hasSkim = row.skim > 0;
         return `
           <tr class="hover:bg-panelDark/60 transition-colors ${hasSkim ? 'bg-emerald-500/5' : ''}">
-            <td class="py-2 px-2.5 font-bold text-white flex items-center gap-1.5">
+            <td class="py-1.5 px-1.5 font-bold text-white whitespace-nowrap truncate">
               ${row.dateLabel}
-              ${hasSkim ? '<span class="text-[8px] font-sans px-1.5 py-0.2 rounded bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">SKIM</span>' : ''}
+              ${hasSkim ? '<span class="ml-1 text-[8px] font-sans px-1 py-0.2 rounded bg-amber-500/20 text-amber-300 border border-amber-500/30">SWEPT</span>' : ''}
             </td>
-            <td class="py-2 px-2 text-slate-300 font-mono">${formatINR(row.startCap, 0)}</td>
-            <td class="py-2 px-2 text-right font-bold text-emerald-400 font-mono">+${formatINR(row.gain, 0)}</td>
-            <td class="py-2 px-2 text-right font-bold font-mono ${hasSkim ? 'text-emerald-300' : 'text-slate-500'}">
+            <td class="py-1.5 px-1 text-right text-slate-300 font-mono truncate">${formatINR(row.startCap, 0)}</td>
+            <td class="py-1.5 px-1 text-right font-bold text-emerald-400 font-mono truncate">+${formatINR(row.gain, 0)}</td>
+            <td class="py-1.5 px-1 text-right font-bold font-mono truncate ${hasSkim ? 'text-amber-300' : 'text-slate-600'}">
               ${hasSkim ? `+${formatINR(row.skim, 0)}` : '₹0'}
             </td>
-            <td class="py-2 px-2 text-right font-bold text-white font-mono">${formatINR(row.endCap, 0)}</td>
-            <td class="py-2 px-2 text-right font-bold text-indigo-300 font-mono">${formatINR(row.cumBank, 0)}</td>
+            <td class="py-1.5 px-1.5 text-right font-bold text-indigo-300 font-mono truncate">${formatINR(row.cumBank + row.endCap, 0)}</td>
           </tr>
         `;
       }).join('');
