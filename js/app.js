@@ -1583,13 +1583,19 @@ window.DeltaApp = (function() {
       return Math.max(1, count);
     }
 
+    // Active trading session dates on which trades actually executed
+    const activeTradeDaysSet = new Set(nov19Trades.map(t => t.rawDate));
+    const activeTradeDaysCount = Math.max(1, activeTradeDaysSet.size);
+
     const startDate = new Date('2026-11-19T00:00:00Z');
     const today = new Date();
     const weekdaysElapsed = countWeekdaysBetween(startDate, today);
-    const tradesPerDay = totalTradesNov19 > 0 ? (totalTradesNov19 / weekdaysElapsed) : 1.0;
+
+    // Weekday trading velocity: calibrated to 1.0 trade/active session (so unclosed opening mornings do not dilute performance)
+    const tradesPerDay = totalTradesNov19 > 0 ? Math.max(1.0, totalTradesNov19 / activeTradeDaysCount) : 1.0;
 
     // Daily pace based on institutional weekday velocity
-    let effectiveDailyGrowth = Math.pow(1 + geomReturnPerTrade, Math.min(2.0, Math.max(0.5, tradesPerDay))) - 1;
+    let effectiveDailyGrowth = Math.pow(1 + geomReturnPerTrade, tradesPerDay) - 1;
 
     // Stress-Tested Haircut Mode: Accounts for 1 loss (-30%) every 2 wins + chop
     if (paceProjectionMode === 'STRESS') {
@@ -1752,46 +1758,45 @@ window.DeltaApp = (function() {
         const sim = simulateMilestoneProgression(weekdaysLeft, m.targetDate);
 
         const capLabel = formatINR(sim.currentCapCeiling, 0);
-        const tierBadge = `<span class="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">Cap: ${capLabel}</span>`;
+        const tierBadge = `<span class="px-1.5 py-0.5 rounded text-[8px] sm:text-[9px] font-mono font-bold bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 truncate">Cap: ${capLabel}</span>`;
         const isSelected = activeTrajectoryDetailMonth === m.id;
 
         return `
-          <div onclick="DeltaApp.openTrajectoryMonthDetail('${m.id}')" class="p-3.5 sm:p-4 rounded-xl cursor-pointer bg-gradient-to-br from-brandDark/95 to-brandDark/70 border ${isSelected ? 'border-emerald-400 ring-2 ring-emerald-500/30' : 'border-borderDark hover:border-emerald-500/50'} transition-all shadow-md flex flex-col justify-between space-y-3 active:scale-[0.99]">
+          <div onclick="DeltaApp.openTrajectoryMonthDetail('${m.id}')" class="p-2 sm:p-3.5 rounded-xl cursor-pointer bg-gradient-to-br from-brandDark/95 to-brandDark/70 border ${isSelected ? 'border-emerald-400 ring-2 ring-emerald-500/30' : 'border-borderDark hover:border-emerald-500/50'} transition-all shadow-md flex flex-col justify-between space-y-2 active:scale-[0.99] min-w-0">
             <div>
-              <div class="flex items-center justify-between pb-2 border-b border-borderDark/60">
-                <span class="font-extrabold text-xs sm:text-sm text-white font-sans flex items-center gap-1.5">
+              <div class="flex flex-col sm:flex-row sm:items-center justify-between pb-1.5 border-b border-borderDark/60 gap-1">
+                <span class="font-extrabold text-[11px] sm:text-xs text-white font-sans truncate">
                   ${m.name}
-                  <span class="text-[9px] text-emerald-400 font-mono font-normal"><i class="fa-solid fa-list-ol"></i> Tap for Daily</span>
                 </span>
-                <span class="text-[10px] text-slate-400 font-mono bg-panelDark px-1.5 py-0.5 rounded border border-borderDark/60">${weekdaysLeft} sessions</span>
+                <span class="text-[9px] text-slate-400 font-mono bg-panelDark px-1 py-0.5 rounded border border-borderDark/60 whitespace-nowrap self-start sm:self-auto">${weekdaysLeft} sessions</span>
               </div>
 
               <!-- Withdrawn Cash Hero -->
-              <div class="mt-2.5">
-                <span class="text-[9px] uppercase tracking-wider text-emerald-400 block font-sans font-bold flex items-center gap-1">
-                  <i class="fa-solid fa-building-columns text-[8px]"></i> Safe in Bank Vault
+              <div class="mt-2">
+                <span class="text-[8px] sm:text-[9px] uppercase tracking-wider text-emerald-400 block font-sans font-bold flex items-center gap-1">
+                  <i class="fa-solid fa-building-columns text-[7px] sm:text-[8px]"></i> Bank Vault
                 </span>
-                <div class="text-lg sm:text-xl font-extrabold font-mono text-emerald-400 tracking-tight my-0.5 truncate">
+                <div class="text-sm sm:text-lg font-extrabold font-mono text-emerald-400 tracking-tight my-0.5 truncate">
                   ${formatINR(sim.withdrawnToBank, 0)}
                 </div>
               </div>
 
               <!-- Active Trading Capital -->
-              <div class="mt-2 flex items-center justify-between text-[11px] font-mono py-1 border-t border-borderDark/40">
-                <span class="text-slate-400 font-sans">Active in Delta:</span>
+              <div class="mt-1.5 flex items-center justify-between text-[9px] sm:text-[10px] font-mono py-0.5 border-t border-borderDark/40">
+                <span class="text-slate-400 font-sans truncate">Active:</span>
                 <strong class="text-white font-bold">${formatINR(sim.activeCapital, 0)}</strong>
               </div>
 
               <!-- Total Wealth -->
-              <div class="mt-0.5 flex items-center justify-between text-[11px] font-mono pt-1 border-t border-borderDark/60">
-                <span class="text-slate-300 font-sans font-semibold">Total Wealth:</span>
-                <strong class="text-indigo-300 font-extrabold text-xs sm:text-sm">${formatINR(sim.totalRealizedWealth, 0)}</strong>
+              <div class="mt-0.5 flex items-center justify-between text-[9px] sm:text-[10px] font-mono pt-0.5 border-t border-borderDark/60">
+                <span class="text-slate-300 font-sans font-semibold truncate">Total Wealth:</span>
+                <strong class="text-indigo-300 font-extrabold text-[10px] sm:text-xs">${formatINR(sim.totalRealizedWealth, 0)}</strong>
               </div>
             </div>
 
             <!-- Tier Status Footer -->
-            <div class="pt-2 border-t border-borderDark/60 flex items-center justify-between">
-              <span class="text-[11px] font-mono font-extrabold text-emerald-400">+${sim.multiplier}x Initial</span>
+            <div class="pt-1.5 border-t border-borderDark/60 flex items-center justify-between gap-1">
+              <span class="text-[9px] sm:text-[10px] font-mono font-extrabold text-emerald-400 whitespace-nowrap">+${sim.multiplier}x</span>
               ${tierBadge}
             </div>
           </div>
