@@ -362,8 +362,8 @@ ${catalyst.optionsAdvisory}
         badgeCls = "text-rose-300 bg-rose-500/10 border-rose-500/30";
       }
 
-      const linkAttr = item.link ? `href="${item.link}" target="_blank" rel="noopener noreferrer"` : '';
-      const cursorCls = item.link ? 'hover:text-white cursor-pointer' : '';
+      const tagOpen = item.link ? `<a href="${item.link}" target="_blank" rel="noopener noreferrer" class="text-xs text-slate-200 font-sans font-medium truncate hover:text-white cursor-pointer">` : `<span class="text-xs text-slate-200 font-sans font-medium truncate">`;
+      const tagClose = item.link ? `</a>` : `</span>`;
 
       return `
         <div class="flex items-center gap-2.5 py-1.5 px-3 min-w-0 transition-colors">
@@ -372,9 +372,7 @@ ${catalyst.optionsAdvisory}
             ${tagText}
           </span>
           <span class="text-[10px] text-slate-400 font-mono shrink-0">${item.timeOrDate}</span>
-          <${item.link ? 'a' : 'span'} ${linkAttr} class="text-xs text-slate-200 font-sans font-medium truncate ${cursorCls}">
-            ${item.title} ${item.note ? `<span class="text-[10px] text-slate-400 font-normal">(${item.note})</span>` : ''}
-          </${item.link ? 'a'}>
+          ${tagOpen}${item.title} ${item.note ? `<span class="text-[10px] text-slate-400 font-normal">(${item.note})</span>` : ''}${tagClose}
         </div>
       `;
     }).join('');
