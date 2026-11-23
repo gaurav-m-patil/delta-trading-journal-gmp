@@ -18,7 +18,7 @@ window.DeltaMacroSentinel = (function() {
 
   // High-Impact Macro & Security Dictionaries
   const HIGH_IMPACT_DICTIONARY = [
-    // 1. Central Banks & Macro
+    // 1. Central Banks, Macro, Tech & Mega-Cap Catalysts
     {
       pattern: /\b(cpi|inflation|consumer price index)\b/i,
       category: "US Inflation / CPI Release",
@@ -35,6 +35,12 @@ window.DeltaMacroSentinel = (function() {
       pattern: /\b(nonfarm payroll|non-farm payroll|nfp|us jobs report|unemployment rate)\b/i,
       category: "US Labor & Employment Data",
       baseScore: 8,
+      type: "MACRO"
+    },
+    {
+      pattern: /\b(nvidia|jensen|jensen huang|nasdaq|semiconductor|ai chip|mag 7|magnificent 7)\b/i,
+      category: "Tech & Macro Liquidity Catalyst",
+      baseScore: 9,
       type: "MACRO"
     },
 
@@ -76,6 +82,12 @@ window.DeltaMacroSentinel = (function() {
       category: "Regulatory / Enforcement Action",
       baseScore: 8,
       type: "REGULATORY"
+    },
+    {
+      pattern: /\b(bitcoin|btc|crypto|etf|options|liquidation|liquidations|rally|rebound|soar)\b/i,
+      category: "Crypto Market Action",
+      baseScore: 7,
+      type: "MARKET"
     }
   ];
 
@@ -248,67 +260,167 @@ ${catalyst.optionsAdvisory}
     console.log(`[MacroSentinel] High-impact catalyst detected: ${catalyst.title} (Cloud Sentinel handles Telegram dispatch).`);
   }
 
+  // Key Macro Calendar Events Calendar for crypto/equities
+  const UPCOMING_MAJOR_EVENTS = [
+    {
+      title: "FOMC Federal Reserve Interest Rate Decision & Powell Press Conference",
+      dateStr: "Dec 18, 2026",
+      impact: "HIGH",
+      bias: "NEUTRAL",
+      type: "EVENT",
+      note: "Markets pricing high volatility on 2027 rate path guidance"
+    },
+    {
+      title: "US Core PCE Price Index (Fed's Preferred Inflation Gauge)",
+      dateStr: "Nov 27, 2026",
+      impact: "HIGH",
+      bias: "NEUTRAL",
+      type: "EVENT",
+      note: "Critical catalyst for rate cut odds"
+    },
+    {
+      title: "US Nonfarm Payrolls (NFP) & Unemployment Rate",
+      dateStr: "Dec 06, 2026",
+      impact: "HIGH",
+      bias: "NEUTRAL",
+      type: "EVENT",
+      note: "Major labor market trigger for global liquidity"
+    },
+    {
+      title: "Delta Exchange & Deribit Monthly BTC/ETH Options Expiry ($6.2B Notional)",
+      dateStr: "Nov 27, 2026",
+      impact: "HIGH",
+      bias: "BULLISH",
+      type: "EVENT",
+      note: "Max-pain pin at $61,500; post-expiry volatility expansion expected"
+    }
+  ];
+
   /**
-   * Renders the Macro Sentinel banner into the UI
+   * Renders the Dynamic Market Catalyst & Events Ticker
+   * (Strictly on Delta Insights tab #macroCatalystCoachContainer)
    */
   function renderMacroBanner() {
-    const containers = [
-      document.getElementById('macroCatalystContainer'),
-      document.getElementById('macroCatalystCoachContainer')
-    ];
+    const el = document.getElementById('macroCatalystCoachContainer');
+    if (!el) return;
 
-    const active = currentCatalysts.length > 0 ? currentCatalysts[0] : null;
+    // Filter catalysts: up to 7 major news items + 3 major upcoming events
+    const newsList = currentCatalysts.slice(0, 7);
+    const eventsList = UPCOMING_MAJOR_EVENTS.slice(0, 10 - newsList.length);
 
-    containers.forEach(el => {
-      if (!el) return;
+    // Merge into combined 10 dynamic items
+    const combinedItems = [];
+    newsList.forEach(item => {
+      combinedItems.push({
+        title: item.title,
+        category: item.category,
+        bias: item.bias,
+        isEvent: false,
+        timeOrDate: item.timeAgoStr,
+        link: item.link
+      });
+    });
 
-      if (!active) {
-        // In standby/normal flow, render an ultra-compact single line banner
-        el.innerHTML = `
-          <div class="px-2.5 py-1 sm:px-3 sm:py-1.5 rounded-xl bg-cardDark/60 border border-borderDark/40 flex items-center justify-between text-[10px] sm:text-xs font-mono text-slate-400">
-            <span class="flex items-center gap-1.5 sm:gap-2 truncate">
-              <span class="h-1.5 w-1.5 rounded-full bg-emerald-400 shrink-0"></span>
-              <span class="truncate">Macro: <strong class="text-slate-300">Normal Flow</strong> (No black swan / emergency Fed disruptions)</span>
-            </span>
-            <span class="text-[9px] text-slate-500 font-sans hidden sm:inline shrink-0">18h Clear</span>
-          </div>
-        `;
-        return;
-      }
+    eventsList.forEach(ev => {
+      combinedItems.push({
+        title: ev.title,
+        category: "Upcoming Macro Event",
+        bias: ev.bias,
+        isEvent: true,
+        timeOrDate: ev.dateStr,
+        note: ev.note
+      });
+    });
 
-      const isBull = active.bias === "BULLISH";
-      const isBear = active.bias === "BEARISH";
-      const borderCls = isBull ? "border-winGreen/50 bg-winGreen/10" : (isBear ? "border-rose-500/50 bg-rose-950/20" : "border-amber-500/50 bg-amber-950/20");
-      const icon = isBull ? "fa-arrow-trend-up text-winGreen" : (isBear ? "fa-triangle-exclamation text-rose-400" : "fa-bolt text-amber-400");
-
+    if (combinedItems.length === 0) {
       el.innerHTML = `
-        <div class="p-3.5 rounded-2xl border ${borderCls} shadow-lg space-y-2 font-mono">
-          <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-1.5 pb-2 border-b border-borderDark/40">
-            <div class="flex items-center gap-2">
-              <i class="fa-solid ${icon} text-sm"></i>
-              <span class="text-xs font-bold text-white tracking-wide">MARKET CATALYST: ${active.category}</span>
-              <span class="text-[9px] px-2 py-0.5 rounded font-bold ${active.biasColor}">
-                ${active.biasLabel}
-              </span>
-            </div>
-            <span class="text-[10px] text-slate-400">${active.timeAgoStr}</span>
-          </div>
-
-          <div class="text-xs text-slate-200 font-sans font-medium leading-relaxed">
-            "${active.title}"
-          </div>
-
-          <div class="p-2.5 rounded-xl bg-brandDark/80 border border-borderDark/60 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 text-[11px]">
-            <div class="text-slate-300">
-              <span class="text-indigo-300 font-bold">Options Advisory:</span> ${active.optionsAdvisory}
-            </div>
-            <a href="${active.link}" target="_blank" rel="noopener noreferrer" class="text-[10px] font-bold text-indigo-400 hover:text-white shrink-0 flex items-center gap-1">
-              Read Source <i class="fa-solid fa-arrow-up-right-from-square text-[9px]"></i>
-            </a>
-          </div>
+        <div class="px-3 py-2 rounded-xl bg-cardDark/60 border border-borderDark/60 flex items-center justify-between text-xs font-mono text-slate-400">
+          <span class="flex items-center gap-2">
+            <span class="h-2 w-2 rounded-full bg-emerald-400 animate-pulse"></span>
+            <span>Market Catalyst Radar: Scanning live global macro and institutional crypto feeds...</span>
+          </span>
+          <span class="text-[10px] text-slate-500">Live Sentinel</span>
         </div>
       `;
-    });
+      return;
+    }
+
+    // Build the dynamic ticker with colored impact bullets:
+    // Green bullet = Bullish / Upside trigger
+    // Red bullet = Bearish / Downside trigger
+    // Amber / Cyan = Neutral / High Volatility Event
+    const tickerItemsHtml = combinedItems.map((item, idx) => {
+      let bulletBg = "bg-amber-400 shadow-[0_0_8px_rgba(251,191,36,0.5)]";
+      let badgeCls = "text-amber-300 bg-amber-500/10 border-amber-500/30";
+      let tagText = item.isEvent ? "CALENDAR EVENT" : "CATALYST";
+
+      if (item.bias === "BULLISH") {
+        bulletBg = "bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.7)]";
+        badgeCls = "text-emerald-300 bg-emerald-500/10 border-emerald-500/30";
+      } else if (item.bias === "BEARISH") {
+        bulletBg = "bg-rose-500 shadow-[0_0_8px_rgba(244,63,94,0.7)]";
+        badgeCls = "text-rose-300 bg-rose-500/10 border-rose-500/30";
+      }
+
+      const linkAttr = item.link ? `href="${item.link}" target="_blank" rel="noopener noreferrer"` : '';
+      const cursorCls = item.link ? 'hover:text-white cursor-pointer' : '';
+
+      return `
+        <div class="flex items-center gap-2.5 py-1.5 px-3 min-w-0 transition-colors">
+          <span class="h-2 w-2 rounded-full shrink-0 ${bulletBg}"></span>
+          <span class="text-[9px] font-mono font-bold uppercase tracking-wider px-1.5 py-0.5 rounded border shrink-0 ${badgeCls}">
+            ${tagText}
+          </span>
+          <span class="text-[10px] text-slate-400 font-mono shrink-0">${item.timeOrDate}</span>
+          <${item.link ? 'a' : 'span'} ${linkAttr} class="text-xs text-slate-200 font-sans font-medium truncate ${cursorCls}">
+            ${item.title} ${item.note ? `<span class="text-[10px] text-slate-400 font-normal">(${item.note})</span>` : ''}
+          </${item.link ? 'a'}>
+        </div>
+      `;
+    }).join('');
+
+    // Duplicate ticker items for smooth seamless vertical infinite scroll marquee
+    el.innerHTML = `
+      <div class="p-2 sm:p-2.5 rounded-2xl bg-gradient-to-r from-cardDark via-brandDark to-cardDark border border-borderDark/80 shadow-md relative overflow-hidden group">
+        <div class="flex items-center justify-between pb-1.5 mb-1 border-b border-borderDark/60 px-2">
+          <div class="flex items-center gap-2">
+            <span class="relative flex h-2 w-2">
+              <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+              <span class="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+            </span>
+            <h3 class="text-xs font-bold text-white font-sans uppercase tracking-wider flex items-center gap-1.5">
+              Market Catalyst Sentinel <span class="text-[9px] font-normal text-slate-400 font-mono">(Live Macro & High-Impact Events)</span>
+            </h3>
+          </div>
+          <div class="flex items-center gap-2 text-[10px] font-mono text-slate-400">
+            <span class="flex items-center gap-1"><span class="h-1.5 w-1.5 rounded-full bg-emerald-400"></span> Bullish</span>
+            <span class="flex items-center gap-1"><span class="h-1.5 w-1.5 rounded-full bg-rose-500"></span> Bearish</span>
+            <span class="flex items-center gap-1"><span class="h-1.5 w-1.5 rounded-full bg-amber-400"></span> Event</span>
+          </div>
+        </div>
+
+        <!-- Vertical Slow Auto-Scrolling Marquee Container -->
+        <div class="relative h-[95px] overflow-hidden rounded-xl bg-brandDark/40 border border-borderDark/40">
+          <div class="catalyst-marquee-track space-y-0.5">
+            ${tickerItemsHtml}
+            ${tickerItemsHtml}
+          </div>
+        </div>
+      </div>
+
+      <style>
+        @keyframes catalystScroll {
+          0% { transform: translateY(0); }
+          100% { transform: translateY(-50%); }
+        }
+        .catalyst-marquee-track {
+          animation: catalystScroll 28s linear infinite;
+        }
+        .catalyst-marquee-track:hover {
+          animation-play-state: paused;
+        }
+      </style>
+    `;
   }
 
   // Auto-scan on load and every 3 minutes
