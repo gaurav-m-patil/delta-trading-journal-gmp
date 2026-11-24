@@ -1075,6 +1075,17 @@ def evaluate_smc_setup(candles, htf_trend=None, asset="BTC"):
             print(f"[Sentinel] 🚀 Capitulation V-Bottom Sweep detected! Allowing LONG reversal despite 1H {htf_bias} bias.")
             trade["htf_trend"] = htf_trend
             trade["rationale"]["htfAlignment"] = f"Capitulation Absorption (1H: {htf_bias})"
+        elif is_ob_rejection_candle:
+            # Order Block / S/R Rejections are counter-trend structural pivots that occur at range boundaries;
+            # allow them in NEUTRAL or trend-pullback regimes, only blocking strictly violent opposing trends
+            if trade["direction"] == "LONG" and htf_bias == "BEARISH" and rsi > 45:
+                print(f"[Sentinel] ⚠️ Filtered out LONG OB setup {trade['id']}: 1H {asset} is Bearish and RSI not oversold.")
+                return None
+            elif trade["direction"] == "SHORT" and htf_bias == "BULLISH" and rsi < 55:
+                print(f"[Sentinel] ⚠️ Filtered out SHORT OB setup {trade['id']}: 1H {asset} is Bullish and RSI not overbought.")
+                return None
+            trade["htf_trend"] = htf_trend
+            trade["rationale"]["htfAlignment"] = f"Order Block S/R Pivot (1H: {htf_bias})"
         elif htf_bias == "NEUTRAL":
             print(f"[Sentinel] ⚠️ Filtered out setup {trade['id']}: 1H {asset} Macro Trend is NEUTRAL / RANGEBOUND (Chop Zone).")
             return None

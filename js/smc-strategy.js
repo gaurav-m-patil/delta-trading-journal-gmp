@@ -398,6 +398,42 @@ window.DeltaSMCStrategy = (function() {
     }
 
     const lookback = options.lookback || 24;
+    const activeAsset = (options.asset || 'BTC').toUpperCase();
+
+    // Asset-specific Regime Calibration (BTC step 200, ETH step 50, XAUT step 10)
+    const ASSET_REGIMES = {
+      BTC: {
+        strikeStep: 200,
+        minRiskPts: 180,
+        maxRiskPts: 650,
+        minFvgGap: 60,
+        optRatio: 0.0033,
+        symbolPrefixCall: 'C-BTC-',
+        symbolPrefixPut: 'P-BTC-',
+        atrMult: 0.10
+      },
+      ETH: {
+        strikeStep: 50,
+        minRiskPts: 12,
+        maxRiskPts: 60,
+        minFvgGap: 8,
+        optRatio: 0.0040,
+        symbolPrefixCall: 'C-ETH-',
+        symbolPrefixPut: 'P-ETH-',
+        atrMult: 0.20
+      },
+      XAUT: {
+        strikeStep: 10,
+        minRiskPts: 8,
+        maxRiskPts: 45,
+        minFvgGap: 6,
+        optRatio: 0.0025,
+        symbolPrefixCall: 'C-XAUT-',
+        symbolPrefixPut: 'P-XAUT-',
+        atrMult: 0.08
+      }
+    };
+    const assetCfg = ASSET_REGIMES[activeAsset] || ASSET_REGIMES.BTC;
 
     // Technical Indicators
     const ema20 = calcEMA(candles, 20);
@@ -514,18 +550,18 @@ window.DeltaSMCStrategy = (function() {
 
       if (isBreakdown && isBearMomentum && isBearExpansionVol && isTrendOrMacroBear && ker >= 0.22) {
         const entry = cur.close;
-        // Dynamic Stop based on breakdown high or 1.2x ATR
+        // Dynamic Stop based on breakdown high or ATR buffer
         const rawSl = Math.max(prev.high, cur.high) + (curAtr * 0.5);
         const sl = Math.round(rawSl * 10) / 10;
         const slDist = sl - entry;
 
-        // Dynamic crypto options volatility buffer (120 to 650 pts)
-        if (slDist >= 120 && slDist <= 650) {
+        // Dynamic asset-calibrated options volatility buffer
+        if (slDist >= assetCfg.minRiskPts && slDist <= assetCfg.maxRiskPts) {
           // Dynamic 2.0R Target to capture multi-hundred/thousand point expansion
-          const targetDist = Math.round(Math.max(260, slDist * 2.0) * 10) / 10;
+          const targetDist = Math.round(Math.max(assetCfg.minRiskPts * 1.5, slDist * 2.0) * 10) / 10;
           const tp = Math.round((entry - targetDist) * 10) / 10;
-          const atmStrike = Math.round(entry / 200) * 200;
-          const entryOptEst = Math.round((entry * 0.003) * 10) / 10;
+          const atmStrike = Math.round(entry / assetCfg.strikeStep) * assetCfg.strikeStep;
+          const entryOptEst = Math.round((entry * assetCfg.optRatio) * 10) / 10;
           const dynTarget = calcDynamicOptionTarget(entryOptEst, targetDist);
           const targetOptEst = dynTarget.targetPrice;
           const targetGainPct = dynTarget.gainPctStr;
@@ -533,9 +569,10 @@ window.DeltaSMCStrategy = (function() {
           setup = {
             id: `TRD_BOS_PUT_${cur.time}_${Math.round(entry)}`,
             strategyId: "TREND_BREAKDOWN_PUT",
-            name: "Institutional Breakdown (BOS)",
+            name: `${activeAsset} Institutional Breakdown (BOS)`,
             direction: "SHORT",
             type: "TREND_BREAKDOWN",
+            asset: activeAsset,
             index: i,
             time: cur.time,
             entry,
@@ -554,7 +591,7 @@ window.DeltaSMCStrategy = (function() {
             entryOptEst,
             targetOptEst,
             targetGainPct,
-            optionRecommendation: `Buy P-BTC-${atmStrike} (ATM Put) @ ~$${entryOptEst.toFixed(1)} -> Target $${targetOptEst.toFixed(1)} (${targetGainPct} Profit)`,
+            optionRecommendation: `Buy ${assetCfg.symbolPrefixPut}${atmStrike} (ATM Put) @ ~$${entryOptEst.toFixed(1)} -> Target $${targetOptEst.toFixed(1)} (${targetGainPct} Profit)`,
             invalidationReason: `Price reclaims above breakdown candle high at $${sl.toLocaleString()}`,
             meta: {
               sHigh,
@@ -582,11 +619,11 @@ window.DeltaSMCStrategy = (function() {
         const sl = Math.round(rawSl * 10) / 10;
         const slDist = entry - sl;
 
-        if (slDist >= 120 && slDist <= 650) {
-          const targetDist = Math.round(Math.max(260, slDist * 2.0) * 10) / 10;
+        if (slDist >= assetCfg.minRiskPts && slDist <= assetCfg.maxRiskPts) {
+          const targetDist = Math.round(Math.max(assetCfg.minRiskPts * 1.5, slDist * 2.0) * 10) / 10;
           const tp = Math.round((entry + targetDist) * 10) / 10;
-          const atmStrike = Math.round(entry / 200) * 200;
-          const entryOptEst = Math.round((entry * 0.003) * 10) / 10;
+          const atmStrike = Math.round(entry / assetCfg.strikeStep) * assetCfg.strikeStep;
+          const entryOptEst = Math.round((entry * assetCfg.optRatio) * 10) / 10;
           const dynTarget = calcDynamicOptionTarget(entryOptEst, targetDist);
           const targetOptEst = dynTarget.targetPrice;
           const targetGainPct = dynTarget.gainPctStr;
@@ -594,9 +631,10 @@ window.DeltaSMCStrategy = (function() {
           setup = {
             id: `TRD_BOS_CALL_${cur.time}_${Math.round(entry)}`,
             strategyId: "TREND_BREAKOUT_CALL",
-            name: "Institutional Breakout (BOS)",
+            name: `${activeAsset} Institutional Breakout (BOS)`,
             direction: "LONG",
             type: "TREND_BREAKOUT",
+            asset: activeAsset,
             index: i,
             time: cur.time,
             entry,
@@ -615,7 +653,7 @@ window.DeltaSMCStrategy = (function() {
             entryOptEst,
             targetOptEst,
             targetGainPct,
-            optionRecommendation: `Buy C-BTC-${atmStrike} (ATM Call) @ ~$${entryOptEst.toFixed(1)} -> Target $${targetOptEst.toFixed(1)} (${targetGainPct} Profit)`,
+            optionRecommendation: `Buy ${assetCfg.symbolPrefixCall}${atmStrike} (ATM Call) @ ~$${entryOptEst.toFixed(1)} -> Target $${targetOptEst.toFixed(1)} (${targetGainPct} Profit)`,
             invalidationReason: `Price slips below breakout candle low at $${sl.toLocaleString()}`,
             meta: {
               sHigh,
@@ -656,24 +694,25 @@ window.DeltaSMCStrategy = (function() {
           const recentHighs = swingHighs.slice(-5).map(sh => sh.price);
           for (const shPrice of recentHighs) {
             if (cur.high > shPrice && cur.close < shPrice && (curUpperWick / curRng) >= 0.25 && cur.close <= cur.open) {
-              const risk = Math.max(180, (cur.high * 1.002) - cur.close);
-              const tp = Math.round(cur.close - (risk * 2.2));
-              const sl = Math.round(cur.high + (risk * 0.1));
+              const risk = Math.max(assetCfg.minRiskPts, (cur.high * 1.002) - cur.close);
+              const tp = Math.round((cur.close - (risk * 2.2)) * 10) / 10;
+              const sl = Math.round((cur.high + (risk * 0.1)) * 10) / 10;
               const slDist = sl - cur.close;
               const targetDist = cur.close - tp;
-              const atmStrike = Math.round(cur.close / 200) * 200;
-              const entryOptEst = Math.round((cur.close * 0.003) * 10) / 10;
+              const atmStrike = Math.round(cur.close / assetCfg.strikeStep) * assetCfg.strikeStep;
+              const entryOptEst = Math.round((cur.close * assetCfg.optRatio) * 10) / 10;
               const dynTarget = calcDynamicOptionTarget(entryOptEst, targetDist);
 
               setup = {
                 id: `cloud_bear_${cur.time}`,
                 strategyId: "ORDER_BLOCK_REJECT_PUT",
-                name: "Bearish Order Block Resistance Rejection",
+                name: `${activeAsset} Bearish Order Block Resistance Rejection`,
                 direction: "SHORT",
                 type: "LIQUIDITY_SWEEP",
+                asset: activeAsset,
                 index: i,
                 time: cur.time,
-                entry: Math.round(cur.close),
+                entry: Math.round(cur.close * 10) / 10,
                 sl,
                 tp,
                 targetDist,
@@ -691,7 +730,7 @@ window.DeltaSMCStrategy = (function() {
                 targetGainPct: dynTarget.gainPctStr,
                 tp1Price: dynTarget.tp1Price,
                 tp1GainPct: dynTarget.tp1PctStr,
-                optionRecommendation: `Buy P-BTC-${atmStrike} (ATM Put) @ ~$${entryOptEst.toFixed(1)} -> Target $${dynTarget.targetPrice.toFixed(1)} (${dynTarget.gainPctStr} Profit)`,
+                optionRecommendation: `Buy ${assetCfg.symbolPrefixPut}${atmStrike} (ATM Put) @ ~$${entryOptEst.toFixed(1)} -> Target $${dynTarget.targetPrice.toFixed(1)} (${dynTarget.gainPctStr} Profit)`,
                 invalidationReason: `Price breaks above rejection wick at $${sl.toLocaleString()}`,
                 meta: { sHigh, sLow, shPrice }
               };
@@ -708,24 +747,25 @@ window.DeltaSMCStrategy = (function() {
           const recentLows = swingLows.slice(-5).map(sl => sl.price);
           for (const slPrice of recentLows) {
             if (cur.low < slPrice && cur.close > slPrice && (curLowerWick / curRng) >= 0.25 && cur.close >= cur.open) {
-              const risk = Math.max(180, cur.close - (cur.low * 0.998));
-              const tp = Math.round(cur.close + (risk * 2.2));
-              const sl = Math.round(cur.low - (risk * 0.1));
+              const risk = Math.max(assetCfg.minRiskPts, cur.close - (cur.low * 0.998));
+              const tp = Math.round((cur.close + (risk * 2.2)) * 10) / 10;
+              const sl = Math.round((cur.low - (risk * 0.1)) * 10) / 10;
               const slDist = cur.close - sl;
               const targetDist = tp - cur.close;
-              const atmStrike = Math.round(cur.close / 200) * 200;
-              const entryOptEst = Math.round((cur.close * 0.003) * 10) / 10;
+              const atmStrike = Math.round(cur.close / assetCfg.strikeStep) * assetCfg.strikeStep;
+              const entryOptEst = Math.round((cur.close * assetCfg.optRatio) * 10) / 10;
               const dynTarget = calcDynamicOptionTarget(entryOptEst, targetDist);
 
               setup = {
                 id: `cloud_bull_${cur.time}`,
                 strategyId: isCapitulationSweep ? "CAPITULATION_V_SWEEP_CALL" : "ORDER_BLOCK_SWEEP_CALL",
-                name: isCapitulationSweep ? "Institutional Capitulation V-Bottom Sweep" : "Bullish Order Block Liquidity Sweep",
+                name: isCapitulationSweep ? `${activeAsset} Institutional Capitulation V-Bottom Sweep` : `${activeAsset} Bullish Order Block Liquidity Sweep`,
                 direction: "LONG",
                 type: "LIQUIDITY_SWEEP",
+                asset: activeAsset,
                 index: i,
                 time: cur.time,
-                entry: Math.round(cur.close),
+                entry: Math.round(cur.close * 10) / 10,
                 sl,
                 tp,
                 targetDist,
@@ -743,7 +783,7 @@ window.DeltaSMCStrategy = (function() {
                 targetGainPct: dynTarget.gainPctStr,
                 tp1Price: dynTarget.tp1Price,
                 tp1GainPct: dynTarget.tp1PctStr,
-                optionRecommendation: `Buy C-BTC-${atmStrike} (ATM Call) @ ~$${entryOptEst.toFixed(1)} -> Target $${dynTarget.targetPrice.toFixed(1)} (${dynTarget.gainPctStr} Profit)`,
+                optionRecommendation: `Buy ${assetCfg.symbolPrefixCall}${atmStrike} (ATM Call) @ ~$${entryOptEst.toFixed(1)} -> Target $${dynTarget.targetPrice.toFixed(1)} (${dynTarget.gainPctStr} Profit)`,
                 invalidationReason: `Price slips below liquidity sweep low at $${sl.toLocaleString()}`,
                 meta: { sHigh, sLow, slPrice }
               };
@@ -757,24 +797,25 @@ window.DeltaSMCStrategy = (function() {
         if (!setup && activePdlInfo && activePdlInfo.pdl && (macroBias !== "BEARISH" && !isBearTrend)) {
           const pdlLevel = activePdlInfo.pdl;
           if (cur.low < pdlLevel && cur.close > pdlLevel && (curLowerWick / curRng) >= 0.25 && cur.close >= cur.open && curRvol >= 1.1) {
-            const risk = Math.max(180, cur.close - (cur.low * 0.998));
-            const tp = Math.round(cur.close + (risk * 2.2));
-            const sl = Math.round(cur.low - (risk * 0.1));
+            const risk = Math.max(assetCfg.minRiskPts, cur.close - (cur.low * 0.998));
+            const tp = Math.round((cur.close + (risk * 2.2)) * 10) / 10;
+            const sl = Math.round((cur.low - (risk * 0.1)) * 10) / 10;
             const slDist = cur.close - sl;
             const targetDist = tp - cur.close;
-            const atmStrike = Math.round(cur.close / 200) * 200;
-            const entryOptEst = Math.round((cur.close * 0.003) * 10) / 10;
+            const atmStrike = Math.round(cur.close / assetCfg.strikeStep) * assetCfg.strikeStep;
+            const entryOptEst = Math.round((cur.close * assetCfg.optRatio) * 10) / 10;
             const dynTarget = calcDynamicOptionTarget(entryOptEst, targetDist);
 
             setup = {
               id: `pdl_sweep_call_${cur.time}`,
               strategyId: "PDL_LIQUIDITY_SWEEP_CALL",
-              name: "A+ Confluence: Prior Day Low (PDL) Liquidity Sweep",
+              name: `A+ Confluence: ${activeAsset} Prior Day Low (PDL) Liquidity Sweep`,
               direction: "LONG",
               type: "LIQUIDITY_SWEEP",
+              asset: activeAsset,
               index: i,
               time: cur.time,
-              entry: Math.round(cur.close),
+              entry: Math.round(cur.close * 10) / 10,
               sl,
               tp,
               targetDist,
@@ -792,7 +833,7 @@ window.DeltaSMCStrategy = (function() {
               targetGainPct: dynTarget.gainPctStr,
               tp1Price: dynTarget.tp1Price,
               tp1GainPct: dynTarget.tp1PctStr,
-              optionRecommendation: `Buy C-BTC-${atmStrike} (ATM Call) @ ~$${entryOptEst.toFixed(1)} -> Target $${dynTarget.targetPrice.toFixed(1)} (${dynTarget.gainPctStr} Profit)`,
+              optionRecommendation: `Buy ${assetCfg.symbolPrefixCall}${atmStrike} (ATM Call) @ ~$${entryOptEst.toFixed(1)} -> Target $${dynTarget.targetPrice.toFixed(1)} (${dynTarget.gainPctStr} Profit)`,
               invalidationReason: `Price breaks below Prior Day Low sweep wick at $${sl.toLocaleString()}`,
               meta: { sHigh, sLow, pdlLevel, sessionDate: activePdlInfo.date }
             };
@@ -804,24 +845,25 @@ window.DeltaSMCStrategy = (function() {
         if (!setup && activePdlInfo && activePdlInfo.pdh && macroBias !== "BULLISH") {
           const pdhLevel = activePdlInfo.pdh;
           if (cur.high > pdhLevel && cur.close < pdhLevel && (curUpperWick / curRng) >= 0.25 && cur.close <= cur.open && curRvol >= 1.1) {
-            const risk = Math.max(180, (cur.high * 1.002) - cur.close);
-            const tp = Math.round(cur.close - (risk * 2.2));
-            const sl = Math.round(cur.high + (risk * 0.1));
+            const risk = Math.max(assetCfg.minRiskPts, (cur.high * 1.002) - cur.close);
+            const tp = Math.round((cur.close - (risk * 2.2)) * 10) / 10;
+            const sl = Math.round((cur.high + (risk * 0.1)) * 10) / 10;
             const slDist = sl - cur.close;
             const targetDist = cur.close - tp;
-            const atmStrike = Math.round(cur.close / 200) * 200;
-            const entryOptEst = Math.round((cur.close * 0.003) * 10) / 10;
+            const atmStrike = Math.round(cur.close / assetCfg.strikeStep) * assetCfg.strikeStep;
+            const entryOptEst = Math.round((cur.close * assetCfg.optRatio) * 10) / 10;
             const dynTarget = calcDynamicOptionTarget(entryOptEst, targetDist);
 
             setup = {
               id: `pdh_sweep_put_${cur.time}`,
               strategyId: "PDH_LIQUIDITY_SWEEP_PUT",
-              name: "A+ Confluence: Prior Day High (PDH) Liquidity Sweep",
+              name: `A+ Confluence: ${activeAsset} Prior Day High (PDH) Liquidity Sweep`,
               direction: "SHORT",
               type: "LIQUIDITY_SWEEP",
+              asset: activeAsset,
               index: i,
               time: cur.time,
-              entry: Math.round(cur.close),
+              entry: Math.round(cur.close * 10) / 10,
               sl,
               tp,
               targetDist,
@@ -839,7 +881,7 @@ window.DeltaSMCStrategy = (function() {
               targetGainPct: dynTarget.gainPctStr,
               tp1Price: dynTarget.tp1Price,
               tp1GainPct: dynTarget.tp1PctStr,
-              optionRecommendation: `Buy P-BTC-${atmStrike} (ATM Put) @ ~$${entryOptEst.toFixed(1)} -> Target $${dynTarget.targetPrice.toFixed(1)} (${dynTarget.gainPctStr} Profit)`,
+              optionRecommendation: `Buy ${assetCfg.symbolPrefixPut}${atmStrike} (ATM Put) @ ~$${entryOptEst.toFixed(1)} -> Target $${dynTarget.targetPrice.toFixed(1)} (${dynTarget.gainPctStr} Profit)`,
               invalidationReason: `Price breaks above Prior Day High sweep wick at $${sl.toLocaleString()}`,
               meta: { sHigh, sLow, pdhLevel, sessionDate: activePdlInfo.date }
             };
@@ -856,26 +898,27 @@ window.DeltaSMCStrategy = (function() {
         const c2 = candles[i - 1];
 
         // Bullish FVG Mitigation: Gap between c1.high and cur.low
-        if (c1.high < c2.low && (c2.low - c1.high) >= 60 && cur.close > cur.open && macroBias !== "BEARISH") {
+        if (c1.high < c2.low && (c2.low - c1.high) >= assetCfg.minFvgGap && cur.close > cur.open && macroBias !== "BEARISH") {
           const fvgMid = (c1.high + c2.low) / 2;
           if (cur.low <= c2.low && cur.close >= fvgMid) {
             const entry = cur.close;
-            const sl = Math.round((c1.high - 30) * 10) / 10;
+            const sl = Math.round((c1.high - (assetCfg.minRiskPts * 0.3)) * 10) / 10;
             const slDist = entry - sl;
 
-            if (slDist >= 90 && slDist <= Math.max(1200, curAtr * 4.5)) {
-              const targetDist = Math.round(Math.max(220, slDist * 2.0) * 10) / 10;
+            if (slDist >= assetCfg.minRiskPts && slDist <= Math.max(assetCfg.maxRiskPts, curAtr * 4.5)) {
+              const targetDist = Math.round(Math.max(assetCfg.minRiskPts * 1.5, slDist * 2.0) * 10) / 10;
               const tp = Math.round((entry + targetDist) * 10) / 10;
-              const atmStrike = Math.round(entry / 200) * 200;
-              const entryOptEst = Math.round((entry * 0.003) * 10) / 10;
+              const atmStrike = Math.round(entry / assetCfg.strikeStep) * assetCfg.strikeStep;
+              const entryOptEst = Math.round((entry * assetCfg.optRatio) * 10) / 10;
               const dynTarget = calcDynamicOptionTarget(entryOptEst, targetDist);
 
               setup = {
                 id: `cloud_fvg_bull_${cur.time}`,
                 strategyId: "FVG_MITIGATION_CALL",
-                name: "Bullish Fair Value Gap (FVG) Mitigation",
+                name: `${activeAsset} Bullish Fair Value Gap (FVG) Mitigation`,
                 direction: "LONG",
                 type: "FVG_MITIGATION",
+                asset: activeAsset,
                 index: i,
                 time: cur.time,
                 entry,
@@ -896,7 +939,7 @@ window.DeltaSMCStrategy = (function() {
                 targetGainPct: dynTarget.gainPctStr,
                 tp1Price: dynTarget.tp1Price,
                 tp1GainPct: dynTarget.tp1PctStr,
-                optionRecommendation: `Buy C-BTC-${atmStrike} (ATM Call) @ ~$${entryOptEst.toFixed(1)} -> Target $${dynTarget.targetPrice.toFixed(1)} (${dynTarget.gainPctStr} Profit)`,
+                optionRecommendation: `Buy ${assetCfg.symbolPrefixCall}${atmStrike} (ATM Call) @ ~$${entryOptEst.toFixed(1)} -> Target $${dynTarget.targetPrice.toFixed(1)} (${dynTarget.gainPctStr} Profit)`,
                 invalidationReason: `Price slips below FVG floor at $${sl.toLocaleString()}`,
                 meta: { sHigh, sLow, fvgMid }
               };
@@ -904,26 +947,27 @@ window.DeltaSMCStrategy = (function() {
           }
         }
         // Bearish FVG Mitigation: Gap between c2.high and c1.low
-        else if (c1.low > c2.high && (c1.low - c2.high) >= 60 && cur.close < cur.open && macroBias !== "BULLISH") {
+        else if (c1.low > c2.high && (c1.low - c2.high) >= assetCfg.minFvgGap && cur.close < cur.open && macroBias !== "BULLISH") {
           const fvgMid = (c1.low + c2.high) / 2;
           if (cur.high >= c2.high && cur.close <= fvgMid) {
             const entry = cur.close;
-            const sl = Math.round((c1.low + 30) * 10) / 10;
+            const sl = Math.round((c1.low + (assetCfg.minRiskPts * 0.3)) * 10) / 10;
             const slDist = sl - entry;
 
-            if (slDist >= 90 && slDist <= Math.max(1200, curAtr * 4.5)) {
-              const targetDist = Math.round(Math.max(220, slDist * 2.0) * 10) / 10;
+            if (slDist >= assetCfg.minRiskPts && slDist <= Math.max(assetCfg.maxRiskPts, curAtr * 4.5)) {
+              const targetDist = Math.round(Math.max(assetCfg.minRiskPts * 1.5, slDist * 2.0) * 10) / 10;
               const tp = Math.round((entry - targetDist) * 10) / 10;
-              const atmStrike = Math.round(entry / 200) * 200;
-              const entryOptEst = Math.round((entry * 0.003) * 10) / 10;
+              const atmStrike = Math.round(entry / assetCfg.strikeStep) * assetCfg.strikeStep;
+              const entryOptEst = Math.round((entry * assetCfg.optRatio) * 10) / 10;
               const dynTarget = calcDynamicOptionTarget(entryOptEst, targetDist);
 
               setup = {
                 id: `cloud_fvg_bear_${cur.time}`,
                 strategyId: "FVG_MITIGATION_PUT",
-                name: "Bearish Fair Value Gap (FVG) Mitigation",
+                name: `${activeAsset} Bearish Fair Value Gap (FVG) Mitigation`,
                 direction: "SHORT",
                 type: "FVG_MITIGATION",
+                asset: activeAsset,
                 index: i,
                 time: cur.time,
                 entry,
@@ -944,7 +988,7 @@ window.DeltaSMCStrategy = (function() {
                 targetGainPct: dynTarget.gainPctStr,
                 tp1Price: dynTarget.tp1Price,
                 tp1GainPct: dynTarget.tp1PctStr,
-                optionRecommendation: `Buy P-BTC-${atmStrike} (ATM Put) @ ~$${entryOptEst.toFixed(1)} -> Target $${dynTarget.targetPrice.toFixed(1)} (${dynTarget.gainPctStr} Profit)`,
+                optionRecommendation: `Buy ${assetCfg.symbolPrefixPut}${atmStrike} (ATM Put) @ ~$${entryOptEst.toFixed(1)} -> Target $${dynTarget.targetPrice.toFixed(1)} (${dynTarget.gainPctStr} Profit)`,
                 invalidationReason: `Price surges above FVG roof at $${sl.toLocaleString()}`,
                 meta: { sHigh, sLow, fvgMid }
               };

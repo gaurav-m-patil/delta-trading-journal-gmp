@@ -232,25 +232,12 @@ window.DeltaLiveChart = (function() {
    * Ensures 100% direction-matched arrows without shape or position inversion
    */
   function applyVerifiedChartMarkers(trades) {
-    if (!trades || trades.length === 0) {
-      // If Firestore has no verified trades yet, retain high-conviction SMC backtested markers
-      // so verified chart setups do not flash and disappear
-      if (currentAnalysis && currentAnalysis.markers && currentAnalysis.markers.length > 0) {
-        if (candleSeries) {
-          try {
-            candleSeries.setMarkers(sanitizeMarkersNoOverlap(currentAnalysis.markers));
-          } catch (e) {}
-        }
-      } else if (candleSeries) {
-        candleSeries.setMarkers([]);
-      }
-      return;
-    }
+    const rawTrades = (trades && Array.isArray(trades)) ? trades : [];
 
     // 1. Sort ascending chronologically
-    const chronTrades = [...trades].sort((a, b) => a.time - b.time);
+    const chronTrades = [...rawTrades].sort((a, b) => a.time - b.time);
 
-    // 2. Anti-Clustering Deduplication:
+    // 2. Anti-Clustering Deduplication for incoming recorded trades:
     // In institutional SMC trading, clustered signals within 4 candles (3600s / 1 hour) in the same
     // direction are redundant retests of the same level. Keep only the primary anchor setup.
     const distinctTrades = [];
@@ -316,8 +303,36 @@ window.DeltaLiveChart = (function() {
       });
     });
 
+    // 3. Robust Hybrid Marker Fusion:
+    // Sanitize verified markers against active candleData window.
+    // If verifiedMarkers yield 0 visible markers in the current candle view (e.g., Firestore signals are from earlier days),
+    // or to ensure the user never sees verified chart setups flash and vanish, blend in the client SMC engine's
+    // high-conviction markers (currentAnalysis.markers) so that high-conviction intraday setups are ALWAYS clearly visible on the chart!
+    let sanitizedVerified = sanitizeMarkersNoOverlap(verifiedMarkers);
+    
+    if (currentAnalysis && currentAnalysis.markers && currentAnalysis.markers.length > 0) {
+      const clientMarkers = sanitizeMarkersNoOverlap(currentAnalysis.markers);
+      if (sanitizedVerified.length === 0) {
+        sanitizedVerified = clientMarkers;
+      } else {
+        // Merge without duplicate timestamps: preserve Firestore verified trades if on same bar
+        const mergedTimes = new Set(sanitizedVerified.map(m => m.time));
+        clientMarkers.forEach(cm => {
+          if (!mergedTimes.has(cm.time)) {
+            // Also enforce 1-hour anti-clustering with existing verified markers
+            const hasCluster = sanitizedVerified.some(vm => Math.abs(vm.time - cm.time) < 3600);
+            if (!hasCluster) {
+              sanitizedVerified.push(cm);
+              mergedTimes.add(cm.time);
+            }
+          }
+        });
+        sanitizedVerified.sort((a, b) => a.time - b.time);
+      }
+    }
+
     if (candleSeries) {
-      candleSeries.setMarkers(sanitizeMarkersNoOverlap(verifiedMarkers));
+      candleSeries.setMarkers(sanitizedVerified);
     }
   }
 
@@ -2689,6 +2704,7 @@ Expected Profit: +50% Option Gross / +40% Net`;
 
     // Run Algorithmic Multi-Regime Confluence Engine to detect structural zones & levels
     currentAnalysis = DeltaSMCStrategy.runBacktest(candleData, {
+      asset: activeAsset,
       lookback: activeTimeframe === '1m' ? 30 : 24,
       highConvictionOnly: true,
       macroCatalyst: macroCatalyst
