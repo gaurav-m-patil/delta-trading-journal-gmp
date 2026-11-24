@@ -554,10 +554,10 @@ window.DeltaSMCStrategy = (function() {
       // -------------------------------------------------------------
       // SETUP 1: INSTITUTIONAL BREAKDOWN & TREND EXPANSION (BOS PUT)
       // Captures fast 1,000 - 3,000 pt market crashes (e.g. yesterday's selloff!)
-      // Filter out low-efficiency chop consolidation & RSI oversold exhaustion (>28)
+      // Filter out low-efficiency chop consolidation & RSI oversold exhaustion (>30)
       // Note: Gold (XAUT) is mean-reverting commodity; trend breakdown chasing is disabled
       // -------------------------------------------------------------
-      const isBreakdown = ((cur.close < sLow * 0.9992) || (prev.close <= sLow && cur.close < prev.close)) && curRsi > 28 && activeAsset !== "XAUT";
+      const isBreakdown = ((cur.close < sLow * 0.9992) || (prev.close <= sLow && cur.close < prev.close)) && curRsi > 30 && activeAsset !== "XAUT";
       const isBearMomentum = (cur.close < cur.open) && (cur.close < prev.close) && (cur.close <= cur.low + (cur.high - cur.low) * 0.35);
       const isBearExpansionVol = (curRvol >= 1.25) || (atrRatio >= 1.25);
       const isTrendOrMacroBear = isBearTrend || macroBias === "BEARISH";
@@ -1254,6 +1254,8 @@ window.DeltaSMCStrategy = (function() {
         trades.push(setup);
 
         // Institutional Chart Markers: Clear Percentage & Potential Display
+        // High-conviction filter: Only plot winning expansion trades and live active positions.
+        // Purge scratch/timeout sideways noise from cluttering chart candles.
         const isWin = outcome === "WIN";
         const isBeWin = outcome === "BE_WIN";
         const isLoss = outcome === "LOSS";
@@ -1261,40 +1263,33 @@ window.DeltaSMCStrategy = (function() {
         const isCall = setup.direction === "LONG";
         const dirSymbol = isCall ? "▲" : "▼";
 
-        let labelText = `${dirSymbol} ${isCall ? "CALL" : "PUT"}`;
-        let markerColor = isCall ? "#38bdf8" : "#818cf8";
+        if (isWin || isBeWin || isActive) {
+          let labelText = `${dirSymbol} ${isCall ? "CALL" : "PUT"}`;
+          let markerColor = isCall ? "#38bdf8" : "#818cf8";
 
-        if (isActive) {
-          labelText = `${dirSymbol} LIVE`;
-          markerColor = "#38bdf8";
-        } else if (isWin) {
-          const rawPct = setup.optionPnlPct || "+72%";
-          const cleanPct = rawPct.startsWith('+') ? rawPct : `+${rawPct}`;
-          labelText = `${dirSymbol} ${cleanPct}`;
-          markerColor = "#10b981";
-        } else if (isBeWin) {
-          labelText = `${dirSymbol} +25%`;
-          markerColor = "#10b981";
-        } else if (isLoss) {
-          labelText = `${dirSymbol} -30%`;
-          markerColor = "#f43f5e";
-        } else if (outcome === "TIMEOUT") {
-          labelText = `${dirSymbol} SCR`;
-          markerColor = "#64748b";
-        } else {
-          labelText = `${dirSymbol} ${isCall ? "CALL" : "PUT"}`;
-          markerColor = "#38bdf8";
+          if (isActive) {
+            labelText = `${dirSymbol} LIVE`;
+            markerColor = "#38bdf8";
+          } else if (isWin) {
+            const rawPct = setup.optionPnlPct || "+72%";
+            const cleanPct = rawPct.startsWith('+') ? rawPct : `+${rawPct}`;
+            labelText = `${dirSymbol} ${cleanPct}`;
+            markerColor = "#10b981";
+          } else if (isBeWin) {
+            labelText = `${dirSymbol} +25%`;
+            markerColor = "#10b981";
+          }
+
+          markers.push({
+            time: cur.time,
+            position: isCall ? "belowBar" : "aboveBar",
+            color: markerColor,
+            shape: isCall ? "arrowUp" : "arrowDown",
+            text: labelText,
+            size: 1,
+            tradeRef: setup
+          });
         }
-
-        markers.push({
-          time: cur.time,
-          position: isCall ? "belowBar" : "aboveBar",
-          color: markerColor,
-          shape: isCall ? "arrowUp" : "arrowDown",
-          text: labelText,
-          size: 1,
-          tradeRef: setup
-        });
 
         // Fast-forward loop past trade duration to prevent overlapping duplicates (min 8 bars / 2 hours spacing)
         i += Math.max(8, barsHeld);

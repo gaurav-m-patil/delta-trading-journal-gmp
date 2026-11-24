@@ -263,44 +263,38 @@ window.DeltaLiveChart = (function() {
       const isActive = st.outcome === "ACTIVE";
       const isEstimation = st.outcome === "SKIPPED_CIRCUIT_BREAKER" || st.skipped || st.isEstimation;
 
-      let markerText = `${dirSymbol} ${isCall ? 'CALL' : 'PUT'}`;
-      let markerColor = isCall ? "#38bdf8" : "#818cf8";
-      let markerPos = isCall ? "belowBar" : "aboveBar";
-      let markerShape = isCall ? "arrowUp" : "arrowDown";
+      // Strict High-Conviction Filter:
+      // Only plot verified WIN, BE_WIN, and LIVE ACTIVE trades.
+      // Do not clutter chart candles with loss or scratch/timeout markers.
+      if (isWin || isBeWin || isActive) {
+        let markerText = `${dirSymbol} ${isCall ? 'CALL' : 'PUT'}`;
+        let markerColor = isCall ? "#38bdf8" : "#818cf8";
+        let markerPos = isCall ? "belowBar" : "aboveBar";
+        let markerShape = isCall ? "arrowUp" : "arrowDown";
 
-      if (isActive) {
-        markerText = `${dirSymbol} LIVE`;
-        markerColor = "#38bdf8";
-      } else if (isWin) {
-        const runnerPct = st.optionPnlPct || (st.realOption && st.realOption.targetGainPct) || "+72%";
-        const cleanPct = runnerPct.startsWith('+') ? runnerPct : `+${runnerPct}`;
-        markerText = `${dirSymbol} ${cleanPct}`;
-        markerColor = "#10b981";
-      } else if (isBeWin) {
-        markerText = `${dirSymbol} +25%`;
-        markerColor = "#10b981";
-      } else if (isLoss) {
-        markerText = `${dirSymbol} -30%`;
-        markerColor = "#f43f5e";
-      } else if (isEstimation) {
-        const estPct = st.optionPnlPct || (st.realOption && st.realOption.targetGainPct) || "+50%";
-        const cleanEst = estPct.startsWith('+') ? estPct : `+${estPct}`;
-        markerText = `${dirSymbol} EST (${cleanEst})`;
-        markerColor = "#f59e0b";
-      } else {
-        markerText = `${dirSymbol} SCR`;
-        markerColor = "#64748b";
+        if (isActive) {
+          markerText = `${dirSymbol} LIVE`;
+          markerColor = "#38bdf8";
+        } else if (isWin) {
+          const runnerPct = st.optionPnlPct || (st.realOption && st.realOption.targetGainPct) || "+72%";
+          const cleanPct = runnerPct.startsWith('+') ? runnerPct : `+${runnerPct}`;
+          markerText = `${dirSymbol} ${cleanPct}`;
+          markerColor = "#10b981";
+        } else if (isBeWin) {
+          markerText = `${dirSymbol} +25%`;
+          markerColor = "#10b981";
+        }
+
+        verifiedMarkers.push({
+          time: st.time,
+          position: markerPos,
+          color: markerColor,
+          shape: markerShape,
+          text: markerText,
+          size: 1,
+          tradeRef: st
+        });
       }
-
-      verifiedMarkers.push({
-        time: st.time,
-        position: markerPos,
-        color: markerColor,
-        shape: markerShape,
-        text: markerText,
-        size: 1,
-        tradeRef: st
-      });
     });
 
     // 3. Robust Hybrid Marker Fusion:
@@ -1061,7 +1055,7 @@ window.DeltaLiveChart = (function() {
       legendEl.className = "absolute top-1.5 left-2 sm:top-2 sm:left-3 z-20 pointer-events-none flex flex-wrap items-center gap-x-2 sm:gap-x-3 gap-y-0.5 text-[9px] sm:text-[11px] font-mono text-slate-300 max-w-[calc(100%-80px)]";
       legendEl.innerHTML = `
         <div class="flex items-center gap-1 sm:gap-1.5 font-bold text-white shrink-0">
-          <span class="text-white">${ACTIVE_ASSETS[activeAsset]?.binanceSymbol || 'BTCUSDT'}</span>
+          <span class="text-white">${ASSET_CONFIGS[activeAsset]?.binanceSymbol || 'BTCUSDT'}</span>
           <span class="text-[8px] sm:text-[9px] px-1 py-0.2 rounded bg-indigo-500/20 text-indigo-300 border border-indigo-500/30" id="legendTfLabel">${activeTimeframe || '15m'}</span>
         </div>
         <div class="flex items-center gap-1.5 sm:gap-2 text-[8.5px] sm:text-[11px] flex-wrap" id="legendMetrics">
