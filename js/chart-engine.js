@@ -233,7 +233,17 @@ window.DeltaLiveChart = (function() {
    */
   function applyVerifiedChartMarkers(trades) {
     if (!trades || trades.length === 0) {
-      if (candleSeries) candleSeries.setMarkers([]);
+      // If Firestore has no verified trades yet, retain high-conviction SMC backtested markers
+      // so verified chart setups do not flash and disappear
+      if (currentAnalysis && currentAnalysis.markers && currentAnalysis.markers.length > 0) {
+        if (candleSeries) {
+          try {
+            candleSeries.setMarkers(sanitizeMarkersNoOverlap(currentAnalysis.markers));
+          } catch (e) {}
+        }
+      } else if (candleSeries) {
+        candleSeries.setMarkers([]);
+      }
       return;
     }
 

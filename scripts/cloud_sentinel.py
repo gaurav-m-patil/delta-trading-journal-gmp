@@ -815,12 +815,23 @@ def evaluate_smc_setup(candles, htf_trend=None, asset="BTC"):
     upper_wick = high - max(open_p, close_p)
 
     # 🛡️ INSTITUTIONAL CHOP FILTERS (Zero-Tolerance for Sideways Drift)
-    # 1. Hard RVOL Gate: Smart money does NOT enter without at least relative volume
-    if rvol < rvol_gate:
+    # Check if candle qualifies as an Institutional Order Block (OB) Rejection / Absorption:
+    # Requires: Swept a fractal swing level, closed red/green with >= 25% wick, and normal volume (RVOL >= 0.95)
+    is_ob_rejection_candle = (
+        ((close_p <= open_p and (upper_wick / rng) >= 0.25) or (close_p >= open_p and (lower_wick / rng) >= 0.25))
+        and rvol >= 0.95
+    )
+
+    # 1. Calibrated RVOL Gate: Smart money does NOT enter without at least relative volume
+    # Order block retests are institutional limit absorptions that occur at normal session volume (>=0.95x).
+    # Breakouts, BOS, and momentum continuations require >= 1.40x RVOL.
+    effective_min_rvol = 0.95 if is_ob_rejection_candle else rvol_gate
+    if rvol < effective_min_rvol:
         return None
 
     # 2. RSI Dead Zone Gate: 42 to 58 indicates absence of directional momentum (chop)
-    if 42.0 <= rsi <= 58.0:
+    # Order block rejections on swing high/low retests are structural pivots; other setups require directional momentum
+    if not is_ob_rejection_candle and (42.0 <= rsi <= 58.0):
         return None
 
     # 3. Minimum Candle Size: Reject micro dojis/indecision candles (< 0.40x ATR)
