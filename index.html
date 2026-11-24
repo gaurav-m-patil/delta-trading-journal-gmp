@@ -1010,14 +1010,14 @@
     <section class="bg-cardDark border border-borderDark p-4 sm:p-5 rounded-2xl shadow-md space-y-4">
       <!-- Terminal Header: Row 1 - Asset Title & Live Price -->
       <div class="flex items-center justify-between gap-2 pb-2.5 border-b border-borderDark/80">
-        <div class="flex items-center gap-2 sm:gap-3 min-w-0">
-          <div id="coachAssetIconBox" class="h-8 w-8 sm:h-9 sm:w-9 rounded-xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center text-amber-400 font-bold text-sm sm:text-base shrink-0">
+        <div class="flex items-center gap-2 sm:gap-3 min-w-0 flex-1">
+          <div id="coachAssetIconBox" class="h-7 w-7 sm:h-9 sm:w-9 rounded-xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center text-amber-400 font-bold text-xs sm:text-base shrink-0">
             <i id="coachAssetIcon" class="fa-brands fa-bitcoin"></i>
           </div>
           <div class="min-w-0">
             <div class="flex items-center gap-1.5 sm:gap-2">
-              <h2 id="coachTerminalAssetTitle" class="font-bold text-sm sm:text-lg text-white font-mono tracking-tight truncate">BTC/USD Live Terminal</h2>
-              <span id="wsLiveBadge" class="px-1.5 sm:px-2 py-0.5 rounded text-[9px] sm:text-[10px] font-mono font-bold bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 flex items-center gap-1 shrink-0">
+              <h2 id="coachTerminalAssetTitle" class="font-bold text-xs sm:text-lg text-white font-mono tracking-tight truncate">BTC/USD Live</h2>
+              <span id="wsLiveBadge" class="px-1.5 sm:px-2 py-0.5 rounded text-[8.5px] sm:text-[10px] font-mono font-bold bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 flex items-center gap-1 shrink-0 whitespace-nowrap">
                 <span class="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-ping"></span> Live
               </span>
             </div>
@@ -1119,41 +1119,41 @@
       <!-- Chart Card Wrapper (Supports Fullscreen Maximize & Popout) -->
       <div id="chartCardWrapper" class="space-y-2 transition-all">
         <!-- TradingView Top Toolbar: Timeframe on Left, Overlays & Snap/Clear on Right -->
-        <div class="flex items-center justify-between gap-1.5 px-0.5 font-mono">
+        <div class="flex flex-wrap sm:flex-nowrap items-center justify-between gap-1.5 px-0.5 font-mono">
           <!-- Left: TradingView-Style Timeframe Tabs (1m, 5m, 15m, 1h, 4h, 1D) -->
-          <div class="flex items-center bg-brandDark/80 border border-borderDark/80 rounded-xl p-0.5 gap-0.5 overflow-x-auto no-scrollbar">
-            <button onclick="DeltaLiveChart.loadTimeframe('1m')" id="btnTf_1m" class="px-2 py-0.5 text-[11px] font-bold rounded-lg text-slate-400 hover:text-white bg-panelDark font-mono">1m</button>
-            <button onclick="DeltaLiveChart.loadTimeframe('5m')" id="btnTf_5m" class="px-2 py-0.5 text-[11px] font-bold rounded-lg text-slate-400 hover:text-white bg-panelDark font-mono">5m</button>
-            <button onclick="DeltaLiveChart.loadTimeframe('15m')" id="btnTf_15m" class="px-2 py-0.5 text-[11px] font-bold rounded-lg bg-indigo-600 text-white font-mono shadow-sm">15m</button>
-            <button onclick="DeltaLiveChart.loadTimeframe('1h')" id="btnTf_1h" class="px-2 py-0.5 text-[11px] font-bold rounded-lg text-slate-400 hover:text-white bg-panelDark font-mono">1h</button>
-            <button onclick="DeltaLiveChart.loadTimeframe('4h')" id="btnTf_4h" class="px-2 py-0.5 text-[11px] font-bold rounded-lg text-slate-400 hover:text-white bg-panelDark font-mono">4h</button>
-            <button onclick="DeltaLiveChart.loadTimeframe('1D')" id="btnTf_1D" class="px-2 py-0.5 text-[11px] font-bold rounded-lg text-slate-400 hover:text-white bg-panelDark font-mono">1D</button>
+          <div class="flex items-center bg-brandDark/80 border border-borderDark/80 rounded-xl p-0.5 gap-0.5 shrink-0">
+            <button onclick="DeltaLiveChart.loadTimeframe('1m')" id="btnTf_1m" class="px-1.5 sm:px-2 py-0.5 text-[10px] sm:text-[11px] font-bold rounded-lg text-slate-400 hover:text-white bg-panelDark font-mono">1m</button>
+            <button onclick="DeltaLiveChart.loadTimeframe('5m')" id="btnTf_5m" class="px-1.5 sm:px-2 py-0.5 text-[10px] sm:text-[11px] font-bold rounded-lg text-slate-400 hover:text-white bg-panelDark font-mono">5m</button>
+            <button onclick="DeltaLiveChart.loadTimeframe('15m')" id="btnTf_15m" class="px-1.5 sm:px-2 py-0.5 text-[10px] sm:text-[11px] font-bold rounded-lg bg-indigo-600 text-white font-mono shadow-sm">15m</button>
+            <button onclick="DeltaLiveChart.loadTimeframe('1h')" id="btnTf_1h" class="px-1.5 sm:px-2 py-0.5 text-[10px] sm:text-[11px] font-bold rounded-lg text-slate-400 hover:text-white bg-panelDark font-mono">1h</button>
+            <button onclick="DeltaLiveChart.loadTimeframe('4h')" id="btnTf_4h" class="px-1.5 sm:px-2 py-0.5 text-[10px] sm:text-[11px] font-bold rounded-lg text-slate-400 hover:text-white bg-panelDark font-mono">4h</button>
+            <button onclick="DeltaLiveChart.loadTimeframe('1D')" id="btnTf_1D" class="px-1.5 sm:px-2 py-0.5 text-[10px] sm:text-[11px] font-bold rounded-lg text-slate-400 hover:text-white bg-panelDark font-mono">1D</button>
           </div>
 
           <!-- Right: FVG / OB / Asia Overlay Toggles & Snap / Clear -->
-          <div class="flex items-center gap-1 shrink-0">
+          <div class="flex items-center gap-1 shrink-0 overflow-x-auto no-scrollbar">
             <!-- Overlays -->
             <div class="flex items-center bg-brandDark/80 border border-borderDark/80 rounded-xl p-0.5 gap-0.5">
-              <button id="btnToggleFvg" onclick="DeltaLiveChart.toggleOverlay('fvg')" class="text-[10px] px-2 py-0.5 rounded-lg bg-panelDark text-slate-400 border border-borderDark font-mono font-semibold hover:border-cyan-500/30 transition-all opacity-40" title="Toggle Fair Value Gap Imbalance Zones">
+              <button id="btnToggleFvg" onclick="DeltaLiveChart.toggleOverlay('fvg')" class="text-[9px] sm:text-[10px] px-1.5 sm:px-2 py-0.5 rounded-lg bg-panelDark text-slate-400 border border-borderDark font-mono font-semibold hover:border-cyan-500/30 transition-all opacity-40" title="Toggle Fair Value Gap Imbalance Zones">
                 FVG
               </button>
-              <button id="btnToggleOb" onclick="DeltaLiveChart.toggleOverlay('ob')" class="text-[10px] px-2 py-0.5 rounded-lg bg-panelDark text-slate-400 border border-borderDark font-mono font-semibold hover:border-amber-500/30 transition-all opacity-40" title="Toggle Order Block Liquidity Bands">
+              <button id="btnToggleOb" onclick="DeltaLiveChart.toggleOverlay('ob')" class="text-[9px] sm:text-[10px] px-1.5 sm:px-2 py-0.5 rounded-lg bg-panelDark text-slate-400 border border-borderDark font-mono font-semibold hover:border-amber-500/30 transition-all opacity-40" title="Toggle Order Block Liquidity Bands">
                 OB
               </button>
-              <button id="btnToggleAsia" onclick="DeltaLiveChart.toggleOverlay('asia')" class="text-[10px] px-2 py-0.5 rounded-lg bg-panelDark text-slate-400 border border-borderDark font-mono font-semibold hover:border-sky-500/30 transition-all opacity-40" title="Toggle Asian Session Liquidity High/Low">
+              <button id="btnToggleAsia" onclick="DeltaLiveChart.toggleOverlay('asia')" class="text-[9px] sm:text-[10px] px-1.5 sm:px-2 py-0.5 rounded-lg bg-panelDark text-slate-400 border border-borderDark font-mono font-semibold hover:border-sky-500/30 transition-all opacity-40" title="Toggle Asian Session Liquidity High/Low">
                 Asia
               </button>
-              <button id="btnToggleLevels" onclick="DeltaLiveChart.toggleOverlay('levels')" class="text-[10px] px-2 py-0.5 rounded-lg bg-panelDark text-slate-400 border border-borderDark font-mono font-semibold hover:border-emerald-500/30 transition-all opacity-40" title="Toggle Prior Day High (PDH) & Prior Day Low (PDL) Levels">
+              <button id="btnToggleLevels" onclick="DeltaLiveChart.toggleOverlay('levels')" class="text-[9px] sm:text-[10px] px-1.5 sm:px-2 py-0.5 rounded-lg bg-panelDark text-slate-400 border border-borderDark font-mono font-semibold hover:border-emerald-500/30 transition-all opacity-40" title="Toggle Prior Day High (PDH) & Prior Day Low (PDL) Levels">
                 Levels
               </button>
             </div>
 
             <!-- Snap & Sound Quick Actions -->
-            <button onclick="DeltaLiveChart.showLatestTrade()" title="Snap Position Box to Latest Setup" class="text-[10px] px-2 py-1 rounded-lg bg-indigo-600/30 hover:bg-indigo-600 text-indigo-300 hover:text-white font-mono font-bold transition-colors border border-indigo-500/30 flex items-center gap-1">
-              <i class="fa-solid fa-crosshairs text-[9px]"></i> <span class="hidden sm:inline">Snap</span>
+            <button onclick="DeltaLiveChart.showLatestTrade()" title="Snap Position Box to Latest Setup" class="text-[9px] sm:text-[10px] px-1.5 sm:px-2 py-1 rounded-lg bg-indigo-600/30 hover:bg-indigo-600 text-indigo-300 hover:text-white font-mono font-bold transition-colors border border-indigo-500/30 flex items-center gap-1">
+              <i class="fa-solid fa-crosshairs text-[8px] sm:text-[9px]"></i> <span class="hidden sm:inline">Snap</span>
             </button>
-            <button onclick="DeltaLiveChart.toggleAudioChime()" id="chartAudioChimeBtn" class="text-[10px] px-2 py-1 rounded-lg bg-panelDark text-slate-400 hover:text-white border border-borderDark font-mono transition-colors" title="Toggle Chimes">
-              <i class="fa-solid fa-volume-high text-indigo-400 text-[10px]"></i>
+            <button onclick="DeltaLiveChart.toggleAudioChime()" id="chartAudioChimeBtn" class="text-[9px] sm:text-[10px] px-1.5 sm:px-2 py-1 rounded-lg bg-panelDark text-slate-400 hover:text-white border border-borderDark font-mono transition-colors" title="Toggle Chimes">
+              <i class="fa-solid fa-volume-high text-indigo-400 text-[9px] sm:text-[10px]"></i>
             </button>
           </div>
         </div>
@@ -1237,7 +1237,7 @@
                   <th class="py-2 px-2 w-[13%]">Time (IST)</th>
                   <th class="py-2 px-2 w-[21%]">Setup / Type</th>
                   <th class="py-2 px-2 w-[24%]">Option Strike & Prices</th>
-                  <th class="py-2 px-2 w-[18%]">BTC Trigger &rarr; Close</th>
+                  <th id="btTradesColAssetTrigger" class="py-2 px-2 w-[18%]">Spot Trigger &rarr; Close</th>
                   <th class="py-2 px-2 w-[14%]">₹100k Impact</th>
                   <th class="py-2 px-1 text-right w-[10%]">Action</th>
                 </tr>

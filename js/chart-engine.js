@@ -1058,13 +1058,13 @@ window.DeltaLiveChart = (function() {
     if (!legendEl) {
       legendEl = document.createElement('div');
       legendEl.setAttribute('id', 'tvChartLegend');
-      legendEl.className = "absolute top-2 left-3 z-20 pointer-events-none flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] font-mono text-slate-300";
+      legendEl.className = "absolute top-1.5 left-2 sm:top-2 sm:left-3 z-20 pointer-events-none flex flex-wrap items-center gap-x-2 sm:gap-x-3 gap-y-0.5 text-[9px] sm:text-[11px] font-mono text-slate-300 max-w-[calc(100%-80px)]";
       legendEl.innerHTML = `
-        <div class="flex items-center gap-1.5 font-bold text-white">
-          <span class="text-white">BTCUSDT</span>
-          <span class="text-[9px] px-1 py-0.2 rounded bg-indigo-500/20 text-indigo-300 border border-indigo-500/30" id="legendTfLabel">${activeTimeframe || '15m'}</span>
+        <div class="flex items-center gap-1 sm:gap-1.5 font-bold text-white shrink-0">
+          <span class="text-white">${ACTIVE_ASSETS[activeAsset]?.binanceSymbol || 'BTCUSDT'}</span>
+          <span class="text-[8px] sm:text-[9px] px-1 py-0.2 rounded bg-indigo-500/20 text-indigo-300 border border-indigo-500/30" id="legendTfLabel">${activeTimeframe || '15m'}</span>
         </div>
-        <div class="flex items-center gap-2 text-[10px] sm:text-[11px]" id="legendMetrics">
+        <div class="flex items-center gap-1.5 sm:gap-2 text-[8.5px] sm:text-[11px] flex-wrap" id="legendMetrics">
           <span>O <strong class="font-normal text-white" id="legendO">--</strong></span>
           <span>H <strong class="font-normal text-white" id="legendH">--</strong></span>
           <span>L <strong class="font-normal text-white" id="legendL">--</strong></span>
@@ -3477,7 +3477,7 @@ Expected Profit: +50% Option Gross / +40% Net`;
     }
     const coachTerminalAssetTitle = document.getElementById('coachTerminalAssetTitle');
     if (coachTerminalAssetTitle) {
-      coachTerminalAssetTitle.innerText = `${cfg.asset}/USD Live Terminal`;
+      coachTerminalAssetTitle.innerText = `${cfg.asset}/USD`;
     }
     const coachAssetIcon = document.getElementById('coachAssetIcon');
     if (coachAssetIcon) {
@@ -3498,6 +3498,13 @@ Expected Profit: +50% Option Gross / +40% Net`;
     if (legendSym) {
       legendSym.innerText = cfg.binanceSymbol;
     }
+    // Update Trade History Table Header for active asset
+    const colHeader = document.getElementById('btTradesColAssetTrigger');
+    if (colHeader) {
+      colHeader.innerHTML = `${assetKey} Trigger &rarr; Close`;
+    }
+    // Reset legend values immediately so old asset's prices don't linger
+    updateChartLegend(null);
 
     // 4. Update Price Scale Precision for Candlesticks
     if (candleSeries) {

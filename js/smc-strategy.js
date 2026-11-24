@@ -410,7 +410,9 @@ window.DeltaSMCStrategy = (function() {
         optRatio: 0.0033,
         symbolPrefixCall: 'C-BTC-',
         symbolPrefixPut: 'P-BTC-',
-        atrMult: 0.10
+        atrMult: 0.10,
+        defaultAtr: 150,
+        minAtrFloor: 30
       },
       ETH: {
         strikeStep: 50,
@@ -420,7 +422,9 @@ window.DeltaSMCStrategy = (function() {
         optRatio: 0.0040,
         symbolPrefixCall: 'C-ETH-',
         symbolPrefixPut: 'P-ETH-',
-        atrMult: 0.20
+        atrMult: 0.20,
+        defaultAtr: 15,
+        minAtrFloor: 3
       },
       XAUT: {
         strikeStep: 10,
@@ -430,7 +434,9 @@ window.DeltaSMCStrategy = (function() {
         optRatio: 0.0025,
         symbolPrefixCall: 'C-XAUT-',
         symbolPrefixPut: 'P-XAUT-',
-        atrMult: 0.08
+        atrMult: 0.08,
+        defaultAtr: 8,
+        minAtrFloor: 1.5
       }
     };
     const assetCfg = ASSET_REGIMES[activeAsset] || ASSET_REGIMES.BTC;
@@ -494,7 +500,7 @@ window.DeltaSMCStrategy = (function() {
       const curEma20 = ema20[i];
       const curEma50 = ema50[i];
       const curEma200 = ema200[i] || curEma50;
-      const curAtr = Math.max(30, atr[i] || 150);
+      const curAtr = Math.max(assetCfg.minAtrFloor || 3, atr[i] || assetCfg.defaultAtr || 150);
       const baselineAtr = smaAtr[i] || curAtr;
       const atrRatio = Number((curAtr / (baselineAtr || 1)).toFixed(2));
 
@@ -523,7 +529,7 @@ window.DeltaSMCStrategy = (function() {
       } else if (isBullTrend) {
         regime = "TREND_BULL";
       }
-      if (ker < 0.22) {
+      if (ker < 0.28) {
         regime = "CHOP_CONSOLIDATION";
       }
 
@@ -537,18 +543,26 @@ window.DeltaSMCStrategy = (function() {
       const prevLowerWick = Math.min(prev.open, prev.close) - prev.low;
 
       let setup = null;
+      // High-Conviction Institutional Anti-Chop & Regime Gates
+      const isChop = regime === "CHOP_CONSOLIDATION" || ker < 0.28;
+      const rsiInDeadZone = (curRsi >= 44 && curRsi <= 56);
+      const isOversoldImpulse = curRsi <= 44;
+      const isOverboughtImpulse = curRsi >= 56;
+      const currentSession = getTradingSession(cur.time);
+      const isGoldActiveSession = activeAsset !== "XAUT" || (currentSession.code === "LONDON" || currentSession.code === "NEW_YORK");
 
       // -------------------------------------------------------------
       // SETUP 1: INSTITUTIONAL BREAKDOWN & TREND EXPANSION (BOS PUT)
       // Captures fast 1,000 - 3,000 pt market crashes (e.g. yesterday's selloff!)
-      // Filter out low-efficiency chop consolidation
+      // Filter out low-efficiency chop consolidation & RSI oversold exhaustion (>28)
+      // Note: Gold (XAUT) is mean-reverting commodity; trend breakdown chasing is disabled
       // -------------------------------------------------------------
-      const isBreakdown = (cur.close < sLow * 0.9992) || (prev.close <= sLow && cur.close < prev.close);
+      const isBreakdown = ((cur.close < sLow * 0.9992) || (prev.close <= sLow && cur.close < prev.close)) && curRsi > 28 && activeAsset !== "XAUT";
       const isBearMomentum = (cur.close < cur.open) && (cur.close < prev.close) && (cur.close <= cur.low + (cur.high - cur.low) * 0.35);
-      const isBearExpansionVol = (curRvol >= 1.1) || (atrRatio >= 1.15);
+      const isBearExpansionVol = (curRvol >= 1.25) || (atrRatio >= 1.25);
       const isTrendOrMacroBear = isBearTrend || macroBias === "BEARISH";
 
-      if (isBreakdown && isBearMomentum && isBearExpansionVol && isTrendOrMacroBear && ker >= 0.22) {
+      if (isBreakdown && isBearMomentum && isBearExpansionVol && isTrendOrMacroBear && !isChop && isGoldActiveSession) {
         const entry = cur.close;
         // Dynamic Stop based on breakdown high or ATR buffer
         const rawSl = Math.max(prev.high, cur.high) + (curAtr * 0.5);
@@ -606,14 +620,15 @@ window.DeltaSMCStrategy = (function() {
       // -------------------------------------------------------------
       // SETUP 2: INSTITUTIONAL BREAKOUT & TREND EXPANSION (BOS CALL)
       // Captures strong bullish momentum expansions
-      // Filter out low-efficiency chop consolidation
+      // Filter out low-efficiency chop consolidation & RSI overbought exhaustion (<82)
+      // Note: Gold (XAUT) is mean-reverting commodity; trend breakout chasing is disabled
       // -------------------------------------------------------------
-      const isBreakout = (cur.close > sHigh * 1.0008) || (prev.close >= sHigh && cur.close > prev.close);
+      const isBreakout = ((cur.close > sHigh * 1.0008) || (prev.close >= sHigh && cur.close > prev.close)) && curRsi < 82 && activeAsset !== "XAUT";
       const isBullMomentum = (cur.close > cur.open) && (cur.close > prev.close) && (cur.close >= cur.high - (cur.high - cur.low) * 0.35);
-      const isBullExpansionVol = (curRvol >= 1.1) || (atrRatio >= 1.15);
+      const isBullExpansionVol = (curRvol >= 1.25) || (atrRatio >= 1.25);
       const isTrendOrMacroBull = isBullTrend || macroBias === "BULLISH";
 
-      if (!setup && isBreakout && isBullMomentum && isBullExpansionVol && isTrendOrMacroBull && macroBias !== "BEARISH" && ker >= 0.22) {
+      if (!setup && isBreakout && isBullMomentum && isBullExpansionVol && isTrendOrMacroBull && macroBias !== "BEARISH" && !isChop && isGoldActiveSession) {
         const entry = cur.close;
         const rawSl = Math.min(prev.low, cur.low) - (curAtr * 0.5);
         const sl = Math.round(rawSl * 10) / 10;
@@ -689,8 +704,9 @@ window.DeltaSMCStrategy = (function() {
         const curUpperWick = cur.high - Math.max(cur.open, cur.close);
 
         // 3A. Bearish Order Block Resistance Rejection (PUT)
-        // Upper wick sweeps above recent swing high, candle rejects and closes red below it
-        if (!setup && macroBias !== "BULLISH") {
+        // High-conviction institutional requirements:
+        // Exclude chop consolidation, RSI dead zone (44-56), require relative volume >= 1.05 and bearish rejection
+        if (!setup && !isChop && !rsiInDeadZone && isOverboughtImpulse && curRvol >= 1.05 && macroBias !== "BULLISH" && isGoldActiveSession) {
           const recentHighs = swingHighs.slice(-5).map(sh => sh.price);
           for (const shPrice of recentHighs) {
             if (cur.high > shPrice && cur.close < shPrice && (curUpperWick / curRng) >= 0.25 && cur.close <= cur.open) {
@@ -743,7 +759,7 @@ window.DeltaSMCStrategy = (function() {
         // Lower wick sweeps below recent swing low, candle absorbs and closes green above it
         // Or extreme Capitulation V-Bottom Absorption: Oversold (RSI < 35), High RVOL (>=1.3x) with major lower wick (>=35%)
         const isCapitulationSweep = (curRsi < 35 && curRvol >= 1.3 && (curLowerWick / curRng) >= 0.35);
-        if (!setup && (isCapitulationSweep || (macroBias !== "BEARISH" && !isBearTrend))) {
+        if (!setup && (isCapitulationSweep || (!isChop && !rsiInDeadZone && isOversoldImpulse && curRvol >= 1.05 && macroBias !== "BEARISH" && !isBearTrend && isGoldActiveSession))) {
           const recentLows = swingLows.slice(-5).map(sl => sl.price);
           for (const slPrice of recentLows) {
             if (cur.low < slPrice && cur.close > slPrice && (curLowerWick / curRng) >= 0.25 && cur.close >= cur.open) {
@@ -794,9 +810,9 @@ window.DeltaSMCStrategy = (function() {
         // 3C. Additive A+ Confluence: Prior Day Low (PDL) Liquidity Sweep (CALL)
         // Price wicks below yesterday's session low, triggers institutional absorption, and closes green above PDL
         const activePdlInfo = priorDayLevelsByTime.get(cur.time);
-        if (!setup && activePdlInfo && activePdlInfo.pdl && (macroBias !== "BEARISH" && !isBearTrend)) {
+        if (!setup && activePdlInfo && activePdlInfo.pdl && !isChop && !rsiInDeadZone && isOversoldImpulse && (macroBias !== "BEARISH" && !isBearTrend) && isGoldActiveSession) {
           const pdlLevel = activePdlInfo.pdl;
-          if (cur.low < pdlLevel && cur.close > pdlLevel && (curLowerWick / curRng) >= 0.25 && cur.close >= cur.open && curRvol >= 1.1) {
+          if (cur.low < pdlLevel && cur.close > pdlLevel && (curLowerWick / curRng) >= 0.25 && cur.close >= cur.open && curRvol >= 1.15) {
             const risk = Math.max(assetCfg.minRiskPts, cur.close - (cur.low * 0.998));
             const tp = Math.round((cur.close + (risk * 2.2)) * 10) / 10;
             const sl = Math.round((cur.low - (risk * 0.1)) * 10) / 10;
@@ -842,9 +858,9 @@ window.DeltaSMCStrategy = (function() {
 
         // 3D. Additive A+ Confluence: Prior Day High (PDH) Liquidity Sweep (PUT)
         // Price wicks above yesterday's session high, traps breakout buyers, and closes red below PDH
-        if (!setup && activePdlInfo && activePdlInfo.pdh && macroBias !== "BULLISH") {
+        if (!setup && activePdlInfo && activePdlInfo.pdh && !isChop && !rsiInDeadZone && isOverboughtImpulse && macroBias !== "BULLISH" && isGoldActiveSession) {
           const pdhLevel = activePdlInfo.pdh;
-          if (cur.high > pdhLevel && cur.close < pdhLevel && (curUpperWick / curRng) >= 0.25 && cur.close <= cur.open && curRvol >= 1.1) {
+          if (cur.high > pdhLevel && cur.close < pdhLevel && (curUpperWick / curRng) >= 0.25 && cur.close <= cur.open && curRvol >= 1.15) {
             const risk = Math.max(assetCfg.minRiskPts, (cur.high * 1.002) - cur.close);
             const tp = Math.round((cur.close - (risk * 2.2)) * 10) / 10;
             const sl = Math.round((cur.high + (risk * 0.1)) * 10) / 10;
@@ -898,7 +914,7 @@ window.DeltaSMCStrategy = (function() {
         const c2 = candles[i - 1];
 
         // Bullish FVG Mitigation: Gap between c1.high and cur.low
-        if (c1.high < c2.low && (c2.low - c1.high) >= assetCfg.minFvgGap && cur.close > cur.open && macroBias !== "BEARISH") {
+        if (!setup && !isChop && !rsiInDeadZone && isOversoldImpulse && curRvol >= 1.15 && c1.high < c2.low && (c2.low - c1.high) >= assetCfg.minFvgGap && cur.close > cur.open && macroBias !== "BEARISH" && isGoldActiveSession) {
           const fvgMid = (c1.high + c2.low) / 2;
           if (cur.low <= c2.low && cur.close >= fvgMid) {
             const entry = cur.close;
@@ -947,7 +963,7 @@ window.DeltaSMCStrategy = (function() {
           }
         }
         // Bearish FVG Mitigation: Gap between c2.high and c1.low
-        else if (c1.low > c2.high && (c1.low - c2.high) >= assetCfg.minFvgGap && cur.close < cur.open && macroBias !== "BULLISH") {
+        else if (!setup && !isChop && !rsiInDeadZone && isOverboughtImpulse && curRvol >= 1.15 && c1.low > c2.high && (c1.low - c2.high) >= assetCfg.minFvgGap && cur.close < cur.open && macroBias !== "BULLISH" && isGoldActiveSession) {
           const fvgMid = (c1.low + c2.high) / 2;
           if (cur.high >= c2.high && cur.close <= fvgMid) {
             const entry = cur.close;
@@ -1280,8 +1296,8 @@ window.DeltaSMCStrategy = (function() {
           tradeRef: setup
         });
 
-        // Fast-forward loop past trade duration to prevent overlapping duplicates (min 6 bars / 90 mins spacing)
-        i += Math.max(6, barsHeld);
+        // Fast-forward loop past trade duration to prevent overlapping duplicates (min 8 bars / 2 hours spacing)
+        i += Math.max(8, barsHeld);
       } else {
         i++;
       }

@@ -838,14 +838,27 @@ def evaluate_smc_setup(candles, htf_trend=None, asset="BTC"):
     if rng < (atr14 * 0.40):
         return None
 
-    # 4. Kaufman Efficiency Ratio (KER): Reject low-efficiency chop drift (< 0.22)
+    # 4. Kaufman Efficiency Ratio (KER): Reject low-efficiency chop drift (< 0.28)
     if len(candles) >= 16:
         net_chg = abs(close_p - candles[-16]["close"])
         path_sum = sum(abs(candles[k]["close"] - candles[k-1]["close"]) for k in range(len(candles)-15, len(candles)-1))
         ker = round(net_chg / max(0.01, path_sum), 2)
-        if ker < 0.22:
-            print(f"[Sentinel] ⚠️ Chop filter active for {asset} (KER: {ker} < 0.22). Sideways noise; skipping.")
+        if ker < 0.28:
+            print(f"[Sentinel] ⚠️ Chop filter active for {asset} (KER: {ker} < 0.28). Sideways noise; skipping.")
             return None
+
+    # 4B. RSI Dead Zone Gate (44 - 56): Zero directional velocity / noise zone
+    rsi_in_dead_zone = (rsi >= 44.0 and rsi <= 56.0)
+
+    # 4C. Trading Session Calibration for Gold (XAUT):
+    # Commodities like XAUT Gold fail in Asia sessions (thin liquidity fakeouts); require London or NY session
+    ist_now = datetime.now(timezone(timedelta(hours=5, minutes=30)))
+    total_mins = ist_now.hour * 60 + ist_now.minute
+    is_gold_active_session = asset != "XAUT" or (total_mins >= 810 or total_mins < 150) # 13:30 to 02:30 IST
+
+    if not is_gold_active_session:
+        print(f"[Sentinel] ⚠️ Gold (XAUT) session filter active (Outside London/NY 13:30-02:30 IST). Skipping.")
+        return None
 
     trade = None
 
@@ -855,6 +868,11 @@ def evaluate_smc_setup(candles, htf_trend=None, asset="BTC"):
         if low < sl_price and close_p > sl_price and (lower_wick / rng) >= 0.25 and close_p >= open_p:
             # Check if this is an extreme capitulation V-bottom absorption (RSI < 35, high RVOL, deep wick)
             is_capitulation_v = (rsi < 35.0 and rvol >= 1.3 and (lower_wick / rng) >= 0.35)
+
+            # High-Conviction Gate: Exclude RSI dead zone and require volume footprint (RVOL >= 1.05) unless extreme capitulation
+            if not is_capitulation_v and (rsi_in_dead_zone or rsi > 44.0 or rvol < 1.05):
+                continue
+
             # Dynamic ATR-based risk buffer
             risk = max(min_risk_pts, (close_p - low) + (atr14 * (atr_buffer_mult * 1.5)))
             tp = round(close_p + (risk * 2.2), 2 if asset in ["ETH", "XAUT"] else 0)
@@ -889,6 +907,10 @@ def evaluate_smc_setup(candles, htf_trend=None, asset="BTC"):
         recent_highs = [sh["price"] for sh in swing_highs[-5:]] if swing_highs else []
         for sh_price in recent_highs:
             if high > sh_price and close_p < sh_price and (upper_wick / rng) >= 0.25 and close_p <= open_p:
+                # High-Conviction Gate: Exclude RSI dead zone, require overbought impulse (RSI >= 56) and volume footprint (RVOL >= 1.05)
+                if rsi_in_dead_zone or rsi < 56.0 or rvol < 1.05:
+                    continue
+
                 # Dynamic ATR-based risk buffer
                 risk = max(min_risk_pts, (high - close_p) + (atr14 * (atr_buffer_mult * 1.5)))
                 tp = round(close_p - (risk * 2.2), 2 if asset in ["ETH", "XAUT"] else 0)
