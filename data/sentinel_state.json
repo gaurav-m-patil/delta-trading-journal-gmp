@@ -21,7 +21,7 @@
       "time": 1795591800,
       "entry": 1640.2,
       "tp": 1604.12,
-      "sl": 1640.2,
+      "sl": 1623.96,
       "rr": "1:1.4",
       "rsi": 30.1,
       "rvol": 3.87,
@@ -66,7 +66,8 @@
       "outcome": "ACTIVE",
       "optionEntryLockedMark": 7.3,
       "reached_tp1": true,
-      "trailed_stop": 1640.2
+      "trailed_stop": 1623.96,
+      "locked_tier2": true
     },
     "XAUT": {
       "id": "cloud_xaut_bos_down_1795613400",

@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-11-25 14:36:24 UTC",
+  "generated_at": "2026-11-25 14:42:24 UTC",
   "wallet_txs": [
     {
       "balance": "0.00001255",
@@ -18,6 +18,112 @@
     }
   ],
   "orders": [
+    {
+      "side": "sell",
+      "order_type": "limit_order",
+      "state": "closed",
+      "cancellation_reason": null,
+      "product_symbol": "P-XAUT-3480-251126",
+      "actual_fee_rate": null,
+      "margin_mode": "isolated",
+      "gst_rate": null,
+      "mmp": "disabled",
+      "options_premium_cap": null,
+      "bracket_take_profit_price": null,
+      "bracket_trail_amount": null,
+      "scalper_size": null,
+      "bracket_stop_loss_limit_price": null,
+      "commission": "0",
+      "post_offers_fee_rate": null,
+      "options_index_price": null,
+      "final_fee": null,
+      "bracket_stop_loss_price": null,
+      "stop_price": null,
+      "stop_order_type": null,
+      "fees_calculated": null,
+      "options_premium_amount": null,
+      "limit_price": "25",
+      "time_in_force": "gtc",
+      "bracket_order": null,
+      "client_order_id": null,
+      "average_fill_price": "25",
+      "meta_data": {
+        "avg_exit_price": "25",
+        "cashflow": "346.55",
+        "entry_price": "11.50000000",
+        "exit_price_with_size": [
+          {
+            "price": "25.00000000",
+            "size": "9896"
+          },
+          {
+            "price": "25.00000000",
+            "size": "3966"
+          }
+        ],
+        "fills_pnl_with_margin": [
+          {
+            "margin": "113.8040000000000000000000000",
+            "pnl": "133.59600000"
+          },
+          {
+            "margin": "45.60900000000000000000000000",
+            "pnl": "53.54100000"
+          }
+        ],
+        "ip": "2404:bd00:3:deec:f834:4e3c:a59c:e417",
+        "net_pnl": "181.48481505",
+        "otc": false,
+        "pnl": "187.137",
+        "roe": "117.3913043478260869565217391",
+        "source": "mobile_app"
+      },
+      "fee_by_voucher": null,
+      "size": 13862,
+      "applied_fee_rate": null,
+      "referral_fee_discount": null,
+      "reduce_only": true,
+      "updated_at": "2026-11-25T14:42:01.511362Z",
+      "stop_trigger_method": null,
+      "id": 1715029746,
+      "quote_size": null,
+      "trail_amount": null,
+      "product_id": 166653,
+      "unfilled_size": 0,
+      "paid_commission": "5.65218495",
+      "fee_reason": null,
+      "bracket_take_profit_limit_price": null,
+      "product": {
+        "id": 166653,
+        "symbol": "P-XAUT-3480-251126",
+        "tick_size": "0.01",
+        "quoting_asset": {
+          "symbol": "USD",
+          "precision": 8,
+          "minimum_precision": 2
+        },
+        "underlying_asset": {
+          "symbol": "XAUT",
+          "precision": 8,
+          "minimum_precision": 3
+        },
+        "contract_type": "put_options",
+        "contract_value": "0.001",
+        "notional_type": "vanilla",
+        "settling_asset": {
+          "symbol": "USD",
+          "precision": 8,
+          "minimum_precision": 2
+        },
+        "spot_index": {
+          "symbol": ".DEXAUTUSD"
+        },
+        "contract_unit_currency": "XAUT"
+      },
+      "created_at": "2026-11-25T14:39:57.507831Z",
+      "user_id": 27404882,
+      "credits_used": "0"
+    },
     {
       "time_in_force": "gtc",
       "state": "cancelled",
