@@ -2866,15 +2866,24 @@ Expected Profit: +50% Option Gross / +40% Net`;
       if (expEl) expEl.innerText = `+${stats.expectancyR}R`;
       if (countEl) countEl.innerText = `${stats.totalTrades} setups (${stats.wins}W - ${stats.losses}L - ${stats.timeouts}T${stats.active > 0 ? ` - ${stats.active} Active` : ''})`;
     } else if (initialTrades.length > 0) {
-      const vWins = initialTrades.filter(t => t.outcome === "WIN" || t.outcome === "BE_WIN").length;
-      const vLosses = initialTrades.filter(t => t.outcome === "LOSS").length;
-      const vTotal = vWins + vLosses;
-      const vWr = vTotal > 0 ? Math.round((vWins / vTotal) * 100) : 0;
-      if (wrEl) wrEl.innerText = `${vWr}%`;
-      if (pfEl) pfEl.innerText = vWins > 0 ? "2.40" : "0.00";
-      if (ddEl) ddEl.innerText = `-${vLosses}R`;
-      if (expEl) expEl.innerText = `+${(vWr > 50 ? 1.2 : 0.4)}R`;
-      if (countEl) countEl.innerText = `${initialTrades.length} verified setups (${vWins}W - ${vLosses}L)`;
+      const assetTrades = filterTradesForActiveAsset(initialTrades);
+      if (assetTrades.length > 0) {
+        const vWins = assetTrades.filter(t => t.outcome === "WIN" || t.outcome === "BE_WIN").length;
+        const vLosses = assetTrades.filter(t => t.outcome === "LOSS").length;
+        const vTotal = vWins + vLosses;
+        const vWr = vTotal > 0 ? Math.round((vWins / vTotal) * 100) : 0;
+        if (wrEl) wrEl.innerText = `${vWr}%`;
+        if (pfEl) pfEl.innerText = vWins > 0 ? "2.40" : "0.00";
+        if (ddEl) ddEl.innerText = `-${vLosses}R`;
+        if (expEl) expEl.innerText = `+${(vWr > 50 ? 1.2 : 0.4)}R`;
+        if (countEl) countEl.innerText = `${assetTrades.length} verified setups (${vWins}W - ${vLosses}L)`;
+      } else {
+        if (wrEl) wrEl.innerText = `0%`;
+        if (pfEl) pfEl.innerText = `0.00`;
+        if (ddEl) ddEl.innerText = `-0R`;
+        if (expEl) expEl.innerText = `+0.0R`;
+        if (countEl) countEl.innerText = `0 setups (Capital Protected)`;
+      }
     }
   }
 
