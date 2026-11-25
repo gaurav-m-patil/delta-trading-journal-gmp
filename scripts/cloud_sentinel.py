@@ -15,6 +15,8 @@ import os
 import sys
 import time
 import json
+import hmac
+import hashlib
 import requests
 from datetime import datetime, timezone, timedelta
 
@@ -25,6 +27,83 @@ STATE_FILE = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file
 
 DELTA_BASE = "https://api.india.delta.exchange"
 BINANCE_BASE = "https://api.binance.com"
+RAW_DATA_PATH = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "data", "raw_data.json")
+
+
+def sync_delta_account_trades_if_new(state):
+    """
+    Event-Driven Delta Trade Sync:
+    Directly checks Delta Exchange India order fills for new trades.
+    If new filled orders exist that aren't in raw_data.json, it merges them,
+    updates raw_data.json, commits the updated metrics to Firestore,
+    and updates the webapp in real time with zero redundant commits.
+    """
+    api_key = os.environ.get("DELTA_API_KEY", "").strip()
+    api_secret = os.environ.get("DELTA_API_SECRET", "").strip()
+    proxy = os.environ.get("PROXY_URL", "").strip()
+    proxies = {"http": proxy, "https": proxy} if proxy else None
+
+    if not api_key or not api_secret:
+        return
+
+    try:
+        # Load known orders from raw_data.json
+        known_raw = {}
+        if os.path.exists(RAW_DATA_PATH):
+            try:
+                with open(RAW_DATA_PATH, "r") as f:
+                    known_raw = json.load(f)
+            except Exception:
+                known_raw = {}
+
+        existing_orders = known_raw.get("orders", [])
+        seen_order_ids = set(str(o.get("id")) for o in existing_orders if o.get("id"))
+
+        # Fetch latest closed orders from Delta Exchange
+        path = "/v2/orders/history"
+        timestamp = str(int(time.time()))
+        query = "page_size=25"
+        msg = "GET" + timestamp + path + f"?{query}"
+        signature = hmac.new(api_secret.encode('utf-8'), msg.encode('utf-8'), hashlib.sha256).hexdigest()
+        headers = {
+            "api-key": api_key,
+            "signature": signature,
+            "timestamp": timestamp
+        }
+
+        url = f"{DELTA_BASE}{path}?{query}"
+        res = requests.get(url, headers=headers, proxies=proxies, timeout=10)
+        if res.status_code != 200:
+            return
+
+        batch = res.json().get("result", [])
+        new_orders = [o for o in batch if str(o.get("id")) not in seen_order_ids]
+
+        if not new_orders:
+            print("[Sentinel Sync] No new filled trades in Delta account. Journal up to date.")
+            return
+
+        print(f"[Sentinel Sync] 🚀 Detected {len(new_orders)} new trade orders on Delta! Syncing to journal...")
+        # Merge new orders at head of list
+        all_orders = new_orders + existing_orders
+        known_raw["orders"] = all_orders
+        known_raw["generated_at"] = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC")
+
+        # Save to raw_data.json
+        os.makedirs(os.path.dirname(RAW_DATA_PATH), exist_ok=True)
+        with open(RAW_DATA_PATH, "w") as f:
+            json.dump(known_raw, f, indent=2)
+
+        # Sync trades to Firestore GP_DTJ_trades collection
+        try:
+            from fetch_delta import sync_trades_to_firestore
+            sync_trades_to_firestore(all_orders, force_full=False, window_days=4)
+        except Exception as se:
+            print(f"[Sentinel Sync] Firestore batch sync notice: {se}")
+
+        print(f"[Sentinel Sync] ✅ Synced {len(new_orders)} new trades into raw_data.json and Firestore.")
+    except Exception as e:
+        print(f"[Sentinel Sync] Notice checking Delta orders: {e}")
 
 
 def get_telegram_config():
@@ -605,7 +684,10 @@ def fetch_delta_option_contract(direction, spot_price, spot_dist=1200, asset="BT
                         expiry_dt = datetime(year, month, day, 12, 0, 0, tzinfo=timezone.utc)
                         if expiry_dt > now_utc:
                             time_to_expiry_sec = (expiry_dt - now_utc).total_seconds()
-                            is_near_expiry = time_to_expiry_sec <= (105 * 60) # 105 mins theta safety buffer
+                            # 210 mins (3.5 hours) theta safety buffer:
+                            # If within 3.5 hrs of 5:30 PM IST expiry, daily option suffers extreme gamma/theta burn
+                            # Flag it so Sentinel automatically routes to next-day (1-DTE) contract for safe trading!
+                            is_near_expiry = time_to_expiry_sec <= (210 * 60)
                             active_with_expiry.append({
                                 "ticker": t,
                                 "symbol": sym,
@@ -614,7 +696,8 @@ def fetch_delta_option_contract(direction, spot_price, spot_dist=1200, asset="BT
                                 "best_bid": float(t.get("best_bid", 0) or mark),
                                 "best_ask": float(t.get("best_ask", 0) or mark),
                                 "expiry_dt": expiry_dt,
-                                "is_near_expiry": is_near_expiry
+                                "is_near_expiry": is_near_expiry,
+                                "hours_to_expiry": max(0.5, time_to_expiry_sec / 3600.0)
                             })
                     except Exception:
                         continue
@@ -652,14 +735,24 @@ def fetch_delta_option_contract(direction, spot_price, spot_dist=1200, asset="BT
                 norm_denom = 4000.0 if asset == "BTC" else (200.0 if asset == "ETH" else 80.0)
                 eff_delta = min(0.85, max(0.50, 0.50 + (spot_dist / norm_denom) * 0.35))
                 proj_pts = round(spot_dist * eff_delta, 1)
-                gain_pct_full = round((proj_pts / max(mark, 1.0)) * 100, 1)
-                if gain_pct_full < 65.0:
-                    gain_pct_full = 65.0
-                    proj_pts = round(mark * 0.65, 1)
-                target_full = round(mark + proj_pts, 1)
 
-                # Dynamic TP1 Option Target: 55% of the projected spot-move delta gain (min +40%, calibrated to underlying R:R)
-                tp1_opt_pct_val = max(40.0, round(gain_pct_full * 0.55, 1))
+                # Theta Decay Calibration:
+                # Factor in expected theta decay over trade execution horizon (~45 mins)
+                hours_to_exp = best.get("hours_to_expiry", 24.0)
+                # Hourly theta decay proportion increases drastically as expiry nears
+                hourly_theta_ratio = 0.045 if hours_to_exp <= 8.0 else (0.025 if hours_to_exp <= 24.0 else 0.012)
+                expected_theta_loss = round(mark * hourly_theta_ratio * 0.75, 1) # ~45 min trade hold
+                realistic_proj_pts = max(round(mark * 0.25, 1), proj_pts - expected_theta_loss)
+
+                gain_pct_full = round((realistic_proj_pts / max(mark, 1.0)) * 100, 1)
+                if gain_pct_full < 50.0:
+                    gain_pct_full = 50.0
+                    realistic_proj_pts = round(mark * 0.50, 1)
+                target_full = round(mark + realistic_proj_pts, 1)
+
+                # Dynamic TP1 Option Target: Theta-adjusted to ensure 100% realistic limit order fills
+                # Min +30% to +35% (readily achievable before theta dampening), max based on delta expansion
+                tp1_opt_pct_val = max(30.0, round(gain_pct_full * 0.50, 1))
                 target_tp1 = round(mark * (1.0 + (tp1_opt_pct_val / 100.0)), 1)
                 if target_full <= target_tp1:
                     target_full = round(mark * (1.0 + ((tp1_opt_pct_val + 20.0) / 100.0)), 1)
@@ -1290,12 +1383,27 @@ def run_sentinel():
 
             progress_pct = favorable / max(1.0, spot_dist)
 
-            # 1. Full TP2 Win Evaluation
-            if favorable >= spot_dist or (cur_high >= tp if direction == "LONG" else cur_low <= tp):
+            # Check live option ticker directly for dual limit/spot trigger
+            live_opt_mark = 0.0
+            live_opt_ask = 0.0
+            live_opt_bid = 0.0
+            try:
+                t_url = f"{DELTA_BASE}/v2/tickers/{contract}"
+                t_res = requests.get(t_url, timeout=3)
+                if t_res.status_code == 200:
+                    t_data = t_res.json().get("result", {})
+                    live_opt_mark = float(t_data.get("mark_price") or 0)
+                    live_opt_ask = float(t_data.get("best_ask") or live_opt_mark)
+                    live_opt_bid = float(t_data.get("best_bid") or live_opt_mark)
+            except Exception:
+                pass
+
+            # 1. Full TP2 Win Evaluation (Spot target cleared OR option reached full target)
+            if favorable >= spot_dist or (cur_high >= tp if direction == "LONG" else cur_low <= tp) or (live_opt_mark >= target_p and target_p > 0):
                 is_win = True
 
-            # 2. TP1 Derisk Evaluation (45% expansion)
-            elif not reached_tp1 and favorable >= tp1_dist:
+            # 2. TP1 Derisk Evaluation (45% spot expansion cleared OR option limit price reached)
+            elif not reached_tp1 and (favorable >= tp1_dist or (live_opt_mark >= tp1_p and tp1_p > 0)):
                 is_tp1_derisk = True
 
             # 3. Method 3: Milestone Tier 2 Profit Lock (>= 70% expansion reached)
@@ -1344,34 +1452,31 @@ def run_sentinel():
                 active_trade["reached_tp1"] = True
                 active_trade["sl"] = entry # Breakeven
                 active_trade["trailed_stop"] = entry
-                tp1_pct_str = active_trade.get("option", {}).get("tp1_pct", "+50.0%")
+                tp1_pct_str = active_trade.get("option", {}).get("tp1_pct", "+40.0%")
                 est_prefix = "🛡️ <b>[ESTIMATION]</b> " if is_est else ""
                 alloc_info = calculate_trade_allocation(asset, buy_p)
 
-                # Fetch live contract ticker to verify current option mark & ask
-                live_opt_str = f"${tp1_p:.1f}"
-                try:
-                    t_url = f"{DELTA_BASE}/v2/tickers/{contract}"
-                    t_res = requests.get(t_url, timeout=4)
-                    if t_res.status_code == 200:
-                        t_data = t_res.json().get("result", {})
-                        opt_mark = float(t_data.get("mark_price") or 0)
-                        if opt_mark > 0:
-                            live_opt_str = f"${opt_mark:.1f} (Target: ${tp1_p:.1f})"
-                except Exception:
-                    pass
+                # Realized option mark at trigger vs original target
+                realized_opt_p = live_opt_mark if live_opt_mark > 0 else tp1_p
+                opt_fill_note = f"${realized_opt_p:.1f}"
+                action_advice = f"SELL {alloc_info['half_contracts']} Contracts ({alloc_info['half_qty']} {alloc_info['unit_name']})"
+
+                # Theta decay safety check: if spot hit TP1 but option limit order has not filled yet
+                if live_opt_mark > 0 and live_opt_mark < (tp1_p * 0.96):
+                    opt_fill_note = f"${live_opt_mark:.1f} (Limit Target: ${tp1_p:.1f})"
+                    action_advice = f"MARKET EXIT {alloc_info['half_contracts']} Contracts (Close at market if limit not filled)"
                 
                 # Estimated profit booked in INR on 50% position
-                tp1_gross_profit_usd = (tp1_p - buy_p) * alloc_info["half_qty"]
+                tp1_gross_profit_usd = (realized_opt_p - buy_p) * alloc_info["half_qty"]
                 tp1_booked_inr = round(tp1_gross_profit_usd * 85.0)
 
                 tp1_msg = f"""🎯 <b>TARGET 1 HIT · {asset} ({tp1_pct_str})</b>
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 <pre>
 CONTRACT   : {contract}
-OPTION FILL: {live_opt_str}
+OPTION FILL: {opt_fill_note}
 PROFIT     : +₹{tp1_booked_inr:,} INR (50% Scalp Booked)
-ACTION     : SELL {alloc_info['half_contracts']} Contracts ({alloc_info['half_qty']} {alloc_info['unit_name']})
+ACTION     : {action_advice}
 STOP LOSS  : Trailed to Breakeven ({entry_str})
 
 {asset} SPOT PROGRESS:
@@ -1857,6 +1962,10 @@ EXECUTION TARGETS:
             if send_telegram_message(bot_token, chat_id, news_msg):
                 state["last_alerted_catalyst_guid"] = guid
                 save_sentinel_state(state)
+
+    # 7. Event-Driven Delta Account Trades & Fills Sync
+    # Checks Delta Exchange directly for any newly executed trade orders and syncs them to raw_data.json & Firestore
+    sync_delta_account_trades_if_new(state)
 
     print("=" * 60)
     print("24/7 DELTA CLOUD SENTINEL RUN COMPLETED")
