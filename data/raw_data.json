@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-11-25 02:11:30 UTC",
+  "generated_at": "2026-11-25 02:39:46 UTC",
   "wallet_txs": [
     {
       "balance": "0.00001255",
@@ -10,9 +10,9 @@
       "user_id": 27404882,
       "uuid": "41c88781819647838d67a8907a33ac22",
       "asset_id": 14,
+      "product_id": null,
       "asset_symbol": "USD",
       "created_at": "2026-11-24T11:34:43.093282Z",
-      "product_id": null,
       "fund_id": null,
       "transaction_type": "withdrawal"
     }
