@@ -1649,10 +1649,13 @@ window.DeltaLiveChart = (function() {
         const isCall = trade.direction === "LONG";
         const isEstimation = trade.outcome === "SKIPPED_CIRCUIT_BREAKER" || trade.skipped || trade.isEstimation;
 
-        const entryVal = trade.entry;
-        const slVal = trade.sl;
-        const tp2Val = trade.tp2 || trade.tp;
-        const tp1Val = trade.tp1 || (isCall ? Math.round(entryVal + (tp2Val - entryVal) * 0.45) : Math.round(entryVal - (entryVal - tp2Val) * 0.45));
+        const isCryptoPrec = (activeAsset === 'ETH' || activeAsset === 'XAUT');
+        const prec = isCryptoPrec ? 2 : 0;
+        const entryVal = Number(trade.entry);
+        const slVal = Number(trade.sl);
+        const tp2Val = Number(trade.tp2 || trade.tp);
+        const rawTp1 = trade.tp1 || (isCall ? (entryVal + (tp2Val - entryVal) * 0.45) : (entryVal - (entryVal - tp2Val) * 0.45));
+        const tp1Val = isCryptoPrec ? Number(rawTp1.toFixed(2)) : Math.round(rawTp1);
 
         const yEntry = candleSeries.priceToCoordinate(entryVal);
         const ySl = candleSeries.priceToCoordinate(slVal);
@@ -1688,6 +1691,11 @@ window.DeltaLiveChart = (function() {
             <text x="${x1 + 6}" y="${Math.min(tp2Y, lossY) - 6}" font-family="-apple-system, BlinkMacSystemFont, monospace" font-size="8.5" font-weight="bold" fill="#0f172a">⚠️ ESTIMATION (2-SL Protected · Real PnL ₹0)</text>
           ` : '';
 
+          const entryFmt = entryVal.toLocaleString(undefined, { minimumFractionDigits: prec, maximumFractionDigits: prec });
+          const tp1Fmt = tp1Val.toLocaleString(undefined, { minimumFractionDigits: prec, maximumFractionDigits: prec });
+          const tp2Fmt = tp2Val.toLocaleString(undefined, { minimumFractionDigits: prec, maximumFractionDigits: prec });
+          const slFmt = slVal.toLocaleString(undefined, { minimumFractionDigits: prec, maximumFractionDigits: prec });
+
           positionBoxHTML = `
             ${estBanner}
 
@@ -1716,16 +1724,16 @@ window.DeltaLiveChart = (function() {
             <!-- Interactive Floating Price Badges on the Right -->
             <g font-family="-apple-system, BlinkMacSystemFont, monospace" font-size="9" font-weight="bold">
               <rect x="${badgeX}" y="${yTp2 - 8}" width="${badgeW}" height="16" fill="rgba(8, 11, 17, 0.9)" rx="3" stroke="rgba(16, 185, 129, 0.6)" stroke-width="1" />
-              <text x="${badgeX + 6}" y="${yTp2 + 3}" fill="#10b981">TP2: $${tp2Val.toLocaleString()}${tp2OptLabel}</text>
+              <text x="${badgeX + 6}" y="${yTp2 + 3}" fill="#10b981">TP2: $${tp2Fmt}${tp2OptLabel}</text>
 
               <rect x="${badgeX}" y="${yTp1 - 8}" width="${badgeW}" height="16" fill="rgba(8, 11, 17, 0.9)" rx="3" stroke="rgba(6, 182, 212, 0.6)" stroke-width="1" />
-              <text x="${badgeX + 6}" y="${yTp1 + 3}" fill="#06b6d4">TP1: $${tp1Val.toLocaleString()}${tp1OptLabel}</text>
+              <text x="${badgeX + 6}" y="${yTp1 + 3}" fill="#06b6d4">TP1: $${tp1Fmt}${tp1OptLabel}</text>
 
               <rect x="${badgeX}" y="${yEntry - 8}" width="${badgeW}" height="16" fill="rgba(8, 11, 17, 0.9)" rx="3" stroke="rgba(56, 189, 248, 0.6)" stroke-width="1" />
-              <text x="${badgeX + 6}" y="${yEntry + 3}" fill="#38bdf8">Entry: $${entryVal.toLocaleString()}</text>
+              <text x="${badgeX + 6}" y="${yEntry + 3}" fill="#38bdf8">Entry: $${entryFmt}</text>
 
               <rect x="${badgeX}" y="${ySl - 8}" width="${badgeW}" height="16" fill="rgba(8, 11, 17, 0.9)" rx="3" stroke="rgba(244, 63, 94, 0.6)" stroke-width="1" />
-              <text x="${badgeX + 6}" y="${ySl + 3}" fill="#f43f5e">SL: $${slVal.toLocaleString()}${stopOptLabel}</text>
+              <text x="${badgeX + 6}" y="${ySl + 3}" fill="#f43f5e">SL: $${slFmt}${stopOptLabel}</text>
             </g>
           `;
         }
@@ -1843,19 +1851,27 @@ window.DeltaLiveChart = (function() {
       }
     }
 
-    // Underlying Spot Numbers (Guaranteed Non-Undefined)
-    const targetDist = trade.targetDist || Math.abs(trade.tp - trade.entry) || 500;
-    const slDist = trade.slDist || Math.abs(trade.entry - trade.sl) || 250;
-    const rrRatio = trade.rrRatio || Number((targetDist / Math.max(1, slDist)).toFixed(2));
+    // Underlying Spot Numbers (Guaranteed Non-Undefined & Precision Calibrated)
+    const isCryptoPrec = (activeAsset === 'ETH' || activeAsset === 'XAUT');
+    const rawTargetDist = trade.targetDist || Math.abs(trade.tp - trade.entry) || (isCryptoPrec ? 30 : 500);
+    const rawSlDist = trade.slDist || Math.abs(trade.entry - trade.sl) || (isCryptoPrec ? 15 : 250);
+    const targetDist = isCryptoPrec ? Number(rawTargetDist.toFixed(2)) : Math.round(rawTargetDist);
+    const slDist = isCryptoPrec ? Number(rawSlDist.toFixed(2)) : Math.round(rawSlDist);
+    const rrRatio = trade.rrRatio || Number((targetDist / Math.max(0.01, slDist)).toFixed(2));
+
+    const entryNum = Number(trade.entry) || 0;
+    const tpNum = Number(trade.tp) || 0;
+    const slNum = Number(trade.sl) || 0;
+    const prec = isCryptoPrec ? 2 : 0;
 
     const entryEl = document.getElementById('ptEntry');
-    if (entryEl) entryEl.innerText = `$${trade.entry.toLocaleString()}`;
+    if (entryEl) entryEl.innerText = `$${entryNum.toLocaleString(undefined, { minimumFractionDigits: prec, maximumFractionDigits: prec })}`;
 
     const tpEl = document.getElementById('ptTp');
-    if (tpEl) tpEl.innerText = `$${trade.tp.toLocaleString()} (+${targetDist} pts)`;
+    if (tpEl) tpEl.innerText = `$${tpNum.toLocaleString(undefined, { minimumFractionDigits: prec, maximumFractionDigits: prec })} (+${targetDist} pts)`;
 
     const slEl = document.getElementById('ptSl');
-    if (slEl) slEl.innerText = `$${trade.sl.toLocaleString()} (-${slDist} pts)`;
+    if (slEl) slEl.innerText = `$${slNum.toLocaleString(undefined, { minimumFractionDigits: prec, maximumFractionDigits: prec })} (-${slDist} pts)`;
 
     const rrEl = document.getElementById('ptRR');
     if (rrEl) rrEl.innerText = `1 : ${rrRatio}`;
@@ -2199,21 +2215,25 @@ window.DeltaLiveChart = (function() {
       }
 
       // Safe Trade Numbers
+      const isCryptoPrec = (activeAsset === 'ETH' || activeAsset === 'XAUT');
+      const prec = isCryptoPrec ? 2 : 0;
       const entryNum = Number(t.entry) || 0;
       const tpNum = Number(t.tp) || 0;
       const slNum = Number(t.sl) || 0;
-      const targetDist = t.targetDist || Math.abs(tpNum - entryNum) || 500;
-      const slDist = t.slDist || Math.abs(entryNum - slNum) || 250;
+      const rawTargetDist = t.targetDist || Math.abs(tpNum - entryNum) || (isCryptoPrec ? 30 : 500);
+      const rawSlDist = t.slDist || Math.abs(entryNum - slNum) || (isCryptoPrec ? 15 : 250);
+      const targetDist = isCryptoPrec ? Number(rawTargetDist.toFixed(2)) : Math.round(rawTargetDist);
+      const slDist = isCryptoPrec ? Number(rawSlDist.toFixed(2)) : Math.round(rawSlDist);
       const rrRatio = t.rrRatio || (slDist > 0 ? (targetDist / slDist).toFixed(2) : "2.0");
 
       const entryEl = document.getElementById('atmModalEntry');
-      if (entryEl) entryEl.innerText = `$${entryNum.toLocaleString()}`;
+      if (entryEl) entryEl.innerText = `$${entryNum.toLocaleString(undefined, { minimumFractionDigits: prec, maximumFractionDigits: prec })}`;
 
       const tpEl = document.getElementById('atmModalTp');
-      if (tpEl) tpEl.innerText = `$${tpNum.toLocaleString()} (+${targetDist} pts)`;
+      if (tpEl) tpEl.innerText = `$${tpNum.toLocaleString(undefined, { minimumFractionDigits: prec, maximumFractionDigits: prec })} (+${targetDist} pts)`;
 
       const slEl = document.getElementById('atmModalSl');
-      if (slEl) slEl.innerText = `$${slNum.toLocaleString()} (-${slDist} pts)`;
+      if (slEl) slEl.innerText = `$${slNum.toLocaleString(undefined, { minimumFractionDigits: prec, maximumFractionDigits: prec })} (-${slDist} pts)`;
 
       const rrEl = document.getElementById('atmModalRR');
       if (rrEl) rrEl.innerText = `1 : ${rrRatio}`;

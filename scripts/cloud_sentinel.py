@@ -1458,13 +1458,16 @@ def run_sentinel():
 
                 # Realized option mark at trigger vs original target
                 realized_opt_p = live_opt_mark if live_opt_mark > 0 else tp1_p
-                opt_fill_note = f"${realized_opt_p:.1f}"
+                target_p_val = active_trade.get("option", {}).get("target_price", round(buy_p * 1.65, 1))
+                sl_opt_p_val = active_trade.get("option", {}).get("stop_price", round(buy_p * 0.7, 1))
+
+                # Display exact option mark and levels so user sees everything clearly
+                opt_mark_disp = f"${realized_opt_p:.1f}" if live_opt_mark > 0 else f"${tp1_p:.1f} (Est)"
                 action_advice = f"SELL {alloc_info['half_contracts']} Contracts ({alloc_info['half_qty']} {alloc_info['unit_name']})"
 
                 # Theta decay safety check: if spot hit TP1 but option limit order has not filled yet
                 if live_opt_mark > 0 and live_opt_mark < (tp1_p * 0.96):
-                    opt_fill_note = f"${live_opt_mark:.1f} (Limit Target: ${tp1_p:.1f})"
-                    action_advice = f"MARKET EXIT {alloc_info['half_contracts']} Contracts (Close at market if limit not filled)"
+                    action_advice = f"SELL {alloc_info['half_contracts']} Contracts (Close limit or at market)"
                 
                 # Estimated profit booked in INR on 50% position
                 tp1_gross_profit_usd = (realized_opt_p - buy_p) * alloc_info["half_qty"]
@@ -1474,10 +1477,15 @@ def run_sentinel():
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 <pre>
 CONTRACT   : {contract}
-OPTION FILL: {opt_fill_note}
+OPTION MARK: {opt_mark_disp} (Entry: ${buy_p:.1f})
 PROFIT     : +₹{tp1_booked_inr:,} INR (50% Scalp Booked)
 ACTION     : {action_advice}
 STOP LOSS  : Trailed to Breakeven ({entry_str})
+
+OPTION LEVELS:
+• TP1 Target : ${tp1_p:.1f} ({tp1_pct_str})
+• TP2 Target : ${target_p_val:.1f} (Runner Target)
+• Initial SL : ${sl_opt_p_val:.1f} ➔ Trailed to Breakeven
 
 {asset} SPOT PROGRESS:
 • Entry    : {entry_str}
@@ -1831,9 +1839,9 @@ TODAY'S SCORECARD:
                     tp2_pts = round(entry_val - tp_val, 2 if asset in ["ETH", "XAUT"] else 0)
                     sl_pts = round(sl_val - entry_val, 2 if asset in ["ETH", "XAUT"] else 0)
 
-                tp1_pts_disp = f"+{tp1_pts:,.2f}" if asset in ["ETH", "XAUT"] else f"+{int(tp1_pts):,} pts"
-                tp2_pts_disp = f"+{tp2_pts:,.2f}" if asset in ["ETH", "XAUT"] else f"+{int(tp2_pts):,} pts"
-                sl_pts_disp = f"-{sl_pts:,.2f}" if asset in ["ETH", "XAUT"] else f"-{int(sl_pts):,} pts"
+                tp1_pts_disp = f"+{tp1_pts:.2f} pts" if asset in ["ETH", "XAUT"] else f"+{int(tp1_pts):,} pts"
+                tp2_pts_disp = f"+{tp2_pts:.2f} pts" if asset in ["ETH", "XAUT"] else f"+{int(tp2_pts):,} pts"
+                sl_pts_disp = f"-{sl_pts:.2f} pts" if asset in ["ETH", "XAUT"] else f"-{int(sl_pts):,} pts"
 
                 entry_disp = f"${entry_val:,.2f}" if asset in ["ETH", "XAUT"] else f"${int(entry_val):,}"
                 tp1_disp = f"${tp1_spot_val:,.2f}" if asset in ["ETH", "XAUT"] else f"${int(tp1_spot_val):,}"
