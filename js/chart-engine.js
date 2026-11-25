@@ -281,7 +281,17 @@ window.DeltaLiveChart = (function() {
           markerText = `${dirSymbol} ${cleanPct}`;
           markerColor = "#10b981";
         } else if (isBeWin) {
-          markerText = `${dirSymbol} +25%`;
+          // Dynamic calculation for BE_WIN / Ratchet exits (avoid hardcoded +25%!)
+          let bePct = 25;
+          if (st.optionExitLockedMark && st.optionEntryLockedMark && st.optionEntryLockedMark > 0) {
+            bePct = Math.round(((st.optionExitLockedMark - st.optionEntryLockedMark) / st.optionEntryLockedMark) * 100);
+          } else if (st.locked_tier2) {
+            bePct = 75;
+          } else if (st.optionPnlPct) {
+            const parsed = parseInt(st.optionPnlPct.replace(/[^0-9-]/g, ''), 10);
+            if (!isNaN(parsed) && parsed > 0) bePct = parsed;
+          }
+          markerText = `${dirSymbol} +${bePct}%`;
           markerColor = "#10b981";
         }
 
@@ -880,13 +890,22 @@ window.DeltaLiveChart = (function() {
     if (activeAsset === 'ETH') maxSpan = 85;
     else if (activeAsset === 'XAUT') maxSpan = 50;
 
+    // Reset price scale auto-scale for newly loaded asset
+    try {
+      if (candleSeries) {
+        candleSeries.priceScale().applyOptions({ autoScale: true });
+      }
+      chart.priceScale('right').applyOptions({ autoScale: true });
+    } catch (e) {}
+
     // Calculate high/low price range across candidate visible slice
     let slice = candleData.slice(startIdx);
     let minP = Math.min(...slice.map(c => c.low));
     let maxP = Math.max(...slice.map(c => c.high));
     let pRange = maxP - minP;
 
-    while (pRange > maxSpan && startIdx < candleData.length - 35) {
+    // Only compress if the candidate slice has extreme vertical range, but ensure at least 45 candles remain visible
+    while (pRange > (maxSpan * 1.5) && startIdx < candleData.length - 45) {
       startIdx += 4;
       slice = candleData.slice(startIdx);
       minP = Math.min(...slice.map(c => c.low));
@@ -898,6 +917,9 @@ window.DeltaLiveChart = (function() {
       from: startIdx,
       to: candleData.length + 5
     });
+    try {
+      chart.timeScale().scrollToRealTime();
+    } catch (e) {}
   }
 
   /**
@@ -3019,9 +3041,12 @@ Expected Profit: +50% Option Gross / +40% Net`;
           pnlDiff = Math.round((sellPrice - buyPrice) * 10) / 10;
           optGainPct = `+${Math.round((pnlDiff / buyPrice) * 100)}%`;
         } else if (t.outcome === "BE_WIN") {
-          sellPrice = Math.round(buyPrice * 1.25 * 10) / 10;
+          sellPrice = (t.optionExitLockedMark && t.optionExitLockedMark > 0)
+            ? t.optionExitLockedMark
+            : (t.locked_tier2 ? Math.round(buyPrice * 1.75 * 10) / 10 : Math.round(buyPrice * 1.25 * 10) / 10);
           pnlDiff = Math.round((sellPrice - buyPrice) * 10) / 10;
-          optGainPct = `+25%`;
+          const bePct = Math.round((pnlDiff / buyPrice) * 100);
+          optGainPct = `+${bePct}%`;
         } else if (isLoss) {
           sellPrice = (opt && opt.stopPrice > 0) ? opt.stopPrice : Math.round(buyPrice * 0.7 * 10) / 10;
           pnlDiff = Math.round((sellPrice - buyPrice) * 10) / 10;
@@ -3059,7 +3084,8 @@ Expected Profit: +50% Option Gross / +40% Net`;
         } else if (isWin) {
           outcomeBadge = `<span class="px-1.5 sm:px-2 py-0.5 rounded text-[9px] sm:text-[10px] font-bold bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 whitespace-nowrap">WIN (${targetGainPct})</span>`;
         } else if (t.outcome === "BE_WIN") {
-          outcomeBadge = `<span class="px-1.5 sm:px-2 py-0.5 rounded text-[9px] sm:text-[10px] font-bold bg-teal-500/10 text-teal-300 border border-teal-500/30 whitespace-nowrap"><i class="fa-solid fa-shield-halved mr-0.5"></i>BE WIN (+25%)</span>`;
+          const beLabel = (optGainPct && optGainPct !== '+0.0%') ? optGainPct : '+25%';
+          outcomeBadge = `<span class="px-1.5 sm:px-2 py-0.5 rounded text-[9px] sm:text-[10px] font-bold bg-teal-500/10 text-teal-300 border border-teal-500/30 whitespace-nowrap"><i class="fa-solid fa-shield-halved mr-0.5"></i>BE WIN (${beLabel})</span>`;
         } else if (isLoss) {
           outcomeBadge = `<span class="px-1.5 sm:px-2 py-0.5 rounded text-[9px] sm:text-[10px] font-bold bg-rose-500/10 text-rose-400 border border-rose-500/30 whitespace-nowrap">LOSS (-1R)</span>`;
         } else if (t.outcome === "SKIPPED_CIRCUIT_BREAKER" || t.skipped || t.isEstimation) {
@@ -3176,9 +3202,12 @@ Expected Profit: +50% Option Gross / +40% Net`;
           pnlDiff = Math.round((sellPrice - buyPrice) * 10) / 10;
           optGainPct = `+${Math.round((pnlDiff / buyPrice) * 100)}%`;
         } else if (t.outcome === "BE_WIN") {
-          sellPrice = Math.round(buyPrice * 1.25 * 10) / 10;
+          sellPrice = (t.optionExitLockedMark && t.optionExitLockedMark > 0)
+            ? t.optionExitLockedMark
+            : (t.locked_tier2 ? Math.round(buyPrice * 1.75 * 10) / 10 : Math.round(buyPrice * 1.25 * 10) / 10);
           pnlDiff = Math.round((sellPrice - buyPrice) * 10) / 10;
-          optGainPct = `+25%`;
+          const bePct = Math.round((pnlDiff / buyPrice) * 100);
+          optGainPct = `+${bePct}%`;
         } else if (isLoss) {
           sellPrice = (opt && opt.stopPrice > 0) ? opt.stopPrice : Math.round(buyPrice * 0.7 * 10) / 10;
           pnlDiff = Math.round((sellPrice - buyPrice) * 10) / 10;
@@ -3213,7 +3242,8 @@ Expected Profit: +50% Option Gross / +40% Net`;
         } else if (isWin) {
           outcomeBadge = `<span class="px-2 py-0.5 rounded text-[9px] font-bold bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 whitespace-nowrap">WIN (${targetGainPct})</span>`;
         } else if (t.outcome === "BE_WIN") {
-          outcomeBadge = `<span class="px-2 py-0.5 rounded text-[9px] font-bold bg-teal-500/15 text-teal-300 border border-teal-500/30 whitespace-nowrap"><i class="fa-solid fa-shield-halved mr-0.5"></i>BE WIN (+25%)</span>`;
+          const beLabel = (optGainPct && optGainPct !== '+0.0%') ? optGainPct : '+25%';
+          outcomeBadge = `<span class="px-2 py-0.5 rounded text-[9px] font-bold bg-teal-500/15 text-teal-300 border border-teal-500/30 whitespace-nowrap"><i class="fa-solid fa-shield-halved mr-0.5"></i>BE WIN (${beLabel})</span>`;
         } else if (isLoss) {
           outcomeBadge = `<span class="px-2 py-0.5 rounded text-[9px] font-bold bg-rose-500/15 text-rose-400 border border-rose-500/30 whitespace-nowrap">LOSS (-1R)</span>`;
         } else if (t.outcome === "SKIPPED_CIRCUIT_BREAKER" || t.skipped || t.isEstimation) {

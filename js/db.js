@@ -403,6 +403,19 @@ window.DeltaDB = (function() {
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
 
       const rawDump = await res.json();
+      if (rawDump.generated_at) {
+        // e.g. "2026-11-25 02:39:46 UTC" -> parse to standard ISO format
+        const isoSync = rawDump.generated_at.replace(" ", "T").replace(" UTC", "Z");
+        try {
+          const syncDate = new Date(isoSync);
+          if (!isNaN(syncDate.getTime())) {
+            localStorage.setItem(DeltaConfig.STORAGE_KEYS.LAST_SYNC, syncDate.toISOString());
+            if (typeof checkSyncFreshness === 'function') {
+              checkSyncFreshness();
+            }
+          }
+        } catch (e) {}
+      }
       const freshTrades = processRawDumpToTrades(rawDump);
 
       if (!freshTrades || freshTrades.length === 0) return 0;

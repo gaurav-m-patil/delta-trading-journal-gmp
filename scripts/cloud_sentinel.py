@@ -1347,6 +1347,19 @@ def run_sentinel():
                 tp1_pct_str = active_trade.get("option", {}).get("tp1_pct", "+50.0%")
                 est_prefix = "🛡️ <b>[ESTIMATION]</b> " if is_est else ""
                 alloc_info = calculate_trade_allocation(asset, buy_p)
+
+                # Fetch live contract ticker to verify current option mark & ask
+                live_opt_str = f"${tp1_p:.1f}"
+                try:
+                    t_url = f"{DELTA_BASE}/v2/tickers/{contract}"
+                    t_res = requests.get(t_url, timeout=4)
+                    if t_res.status_code == 200:
+                        t_data = t_res.json().get("result", {})
+                        opt_mark = float(t_data.get("mark_price") or 0)
+                        if opt_mark > 0:
+                            live_opt_str = f"${opt_mark:.1f} (Target: ${tp1_p:.1f})"
+                except Exception:
+                    pass
                 
                 # Estimated profit booked in INR on 50% position
                 tp1_gross_profit_usd = (tp1_p - buy_p) * alloc_info["half_qty"]
@@ -1356,6 +1369,7 @@ def run_sentinel():
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 <pre>
 CONTRACT   : {contract}
+OPTION FILL: {live_opt_str}
 PROFIT     : +₹{tp1_booked_inr:,} INR (50% Scalp Booked)
 ACTION     : SELL {alloc_info['half_contracts']} Contracts ({alloc_info['half_qty']} {alloc_info['unit_name']})
 STOP LOSS  : Trailed to Breakeven ({entry_str})
