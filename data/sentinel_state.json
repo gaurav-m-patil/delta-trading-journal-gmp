@@ -22,7 +22,7 @@
       "time": 1795613400,
       "entry": 3476.34,
       "tp": 3409.02,
-      "sl": 3476.34,
+      "sl": 3446.05,
       "rr": "1:1.9",
       "rsi": 26.9,
       "rvol": 4.0,
@@ -67,7 +67,8 @@
       "outcome": "ACTIVE",
       "optionEntryLockedMark": 33.4,
       "reached_tp1": true,
-      "trailed_stop": 3476.34
+      "trailed_stop": 3446.05,
+      "locked_tier2": true
     }
   },
   "last_alerted_trade_id_BTC": "cloud_btc_bos_down_1795570200",
