@@ -8,7 +8,7 @@
     "time": 1795570200,
     "entry": 59310.0,
     "tp": 58835.0,
-    "sl": 59555.0,
+    "sl": 59310.0,
     "rr": "1:1.9",
     "rsi": 27.4,
     "rvol": 3.23,
@@ -51,7 +51,9 @@
       "tp_bias": "Scalp Focus (TP1 priority)"
     },
     "outcome": "ACTIVE",
-    "optionEntryLockedMark": 398.8
+    "optionEntryLockedMark": 398.8,
+    "reached_tp1": true,
+    "trailed_stop": 59310.0
   },
   "last_alerted_catalyst_guid": null,
   "daily_counts": {
@@ -72,7 +74,7 @@
       "time": 1795570200,
       "entry": 59310.0,
       "tp": 58835.0,
-      "sl": 59555.0,
+      "sl": 59310.0,
       "rr": "1:1.9",
       "rsi": 27.4,
       "rvol": 3.23,
@@ -115,7 +117,9 @@
         "tp_bias": "Scalp Focus (TP1 priority)"
       },
       "outcome": "ACTIVE",
-      "optionEntryLockedMark": 398.8
+      "optionEntryLockedMark": 398.8,
+      "reached_tp1": true,
+      "trailed_stop": 59310.0
     },
     "ETH": null
   },
