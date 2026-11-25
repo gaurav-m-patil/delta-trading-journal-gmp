@@ -5,7 +5,7 @@
   "daily_counts": {
     "date": "2026-11-25",
     "trades_given": 4,
-    "wins": 2,
+    "wins": 3,
     "losses": 1
   },
   "telegram_handshake_sent": true,
@@ -14,62 +14,7 @@
   "active_trades": {
     "BTC": null,
     "ETH": null,
-    "XAUT": {
-      "id": "cloud_xaut_bos_down_1795613400",
-      "name": "XAUT Bearish Break of Structure (BOS)",
-      "asset": "XAUT",
-      "direction": "SHORT",
-      "time": 1795613400,
-      "entry": 3476.34,
-      "tp": 3409.02,
-      "sl": 3446.05,
-      "rr": "1:1.9",
-      "rsi": 26.9,
-      "rvol": 4.0,
-      "rationale": {
-        "pattern": "Trend Continuation Breakdown",
-        "levelTested": "Key Structure Floor ($3,484.78)",
-        "confirmation": "Aggressive institutional selling breaking prior structure with 4.0x RVOL",
-        "htfAlignment": "\ud83d\udd34 BEARISH CONFLUENCE (1H XAUT Macro Downtrend)",
-        "absorption": "Institutional Flow (4.0x RVOL)"
-      },
-      "htf_trend": {
-        "trend": "BEARISH",
-        "label": "\ud83d\udd34 BEARISH CONFLUENCE (1H XAUT Macro Downtrend)",
-        "cur_price": 3476.4,
-        "ema20": 3533.82,
-        "ema50": 3562.41
-      },
-      "slDist": 34.71,
-      "initial_sl": 3511.05,
-      "option": {
-        "symbol": "P-XAUT-3480-261126",
-        "strike": 3480.0,
-        "strike_tier": "Exact ATM (Delta ~0.50)",
-        "mark_price": 33.4,
-        "buy_zone": "$33.4 - $33.4",
-        "tp1_price": 59.9,
-        "tp1_pct": "+79.2%",
-        "target_price": 86.3,
-        "target_pct": "+158.4%",
-        "stop_price": 23.4,
-        "eff_delta": 0.79,
-        "iv_rating": "ELEVATED (High IV - Scalp Focus)",
-        "iv_badge": "\ud83d\udd34 ELEVATED"
-      },
-      "session": {
-        "name": "New York Session (19:00 - 02:30 IST)",
-        "code": "NEW_YORK",
-        "flag": "\ud83d\udd25",
-        "volatility": "Peak Liquidity (Gamma Spikes & Momentum)",
-        "tp_bias": "Maximum DOEV Runner Potential"
-      },
-      "outcome": "ACTIVE",
-      "optionEntryLockedMark": 33.4,
-      "reached_tp1": true,
-      "trailed_stop": 3446.05,
-      "locked_tier2": true
-    }
+    "XAUT": null
   },
   "last_alerted_trade_id_BTC": "cloud_btc_bos_down_1795570200",
   "last_trade_time_BTC": 1795572752,
@@ -78,6 +23,6 @@
   "last_trade_time_ETH": 1795618473,
   "last_trade_direction_ETH": "SHORT",
   "last_alerted_trade_id_XAUT": "cloud_xaut_bos_down_1795613400",
-  "last_trade_time_XAUT": 1795614386,
+  "last_trade_time_XAUT": 1795620986,
   "last_trade_direction_XAUT": "SHORT"
 }
