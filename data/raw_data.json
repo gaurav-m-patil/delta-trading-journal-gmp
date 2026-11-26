@@ -1,20 +1,23 @@
 {
-  "generated_at": "2026-11-25 14:42:24 UTC",
+  "generated_at": "2026-11-26 01:52:32 UTC",
   "wallet_txs": [
     {
-      "balance": "0.00001255",
-      "amount": "-7.06470589",
+      "balance": "352.2678808",
+      "amount": "-4.03453528",
       "meta_data": {
-        "withdrawal_id": 13621775
+        "amount_without_gst": "-3.41909769",
+        "fill_uuid": "6950c7d05be646ca887c77b3d5e299b6",
+        "gst": "-0.61543759",
+        "product_symbol": "P-XAUT-3480-251126"
       },
       "user_id": 27404882,
-      "uuid": "41c88781819647838d67a8907a33ac22",
+      "uuid": "93e6501322064606adc3367b9ffd081b",
       "asset_id": 14,
-      "product_id": null,
       "asset_symbol": "USD",
-      "created_at": "2026-11-24T11:34:43.093282Z",
+      "created_at": "2026-11-25T14:42:01.508755Z",
       "fund_id": null,
-      "transaction_type": "withdrawal"
+      "product_id": 166653,
+      "transaction_type": "commission"
     }
   ],
   "orders": [
