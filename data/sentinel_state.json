@@ -1,127 +1,23 @@
 {
   "last_alerted_trade_id": "cloud_btc_fvg_bull_1795745700",
-  "active_trade": {
-    "id": "cloud_btc_fvg_bull_1795745700",
-    "name": "BTC Bullish Fair Value Gap (FVG) Mitigation",
-    "asset": "BTC",
-    "direction": "LONG",
-    "time": 1795745700,
-    "entry": 61504.0,
-    "tp": 63233.0,
-    "sl": 60644.0,
-    "rr": "1:2.0",
-    "rsi": 82.8,
-    "rvol": 4.72,
-    "rationale": {
-      "pattern": "Imbalance Void Mitigation",
-      "levelTested": "FVG Equilibrium ($60,933)",
-      "confirmation": "Price tapped institutional imbalance and bounced with 4.72x RVOL",
-      "htfAlignment": "\ud83d\udfe2 BULLISH CONFLUENCE (1H BTC Macro Uptrend)",
-      "absorption": "Institutional Flow (4.72x RVOL)"
-    },
-    "htf_trend": {
-      "trend": "BULLISH",
-      "label": "\ud83d\udfe2 BULLISH CONFLUENCE (1H BTC Macro Uptrend)",
-      "cur_price": 61617.5,
-      "ema20": 60672.95,
-      "ema50": 60396.03
-    },
-    "slDist": 860.0,
-    "initial_sl": 60644.0,
-    "option": {
-      "symbol": "C-BTC-61600-271126",
-      "strike": 61600.0,
-      "strike_tier": "Exact ATM (Delta ~0.50)",
-      "mark_price": 371.9,
-      "buy_zone": "$371.9 - $371.9",
-      "tp1_price": 931.2,
-      "tp1_pct": "+150.4%",
-      "target_price": 1491.0,
-      "target_pct": "+300.9%",
-      "stop_price": 260.3,
-      "eff_delta": 0.65,
-      "iv_rating": "ELEVATED (High IV - Scalp Focus)",
-      "iv_badge": "\ud83d\udd34 ELEVATED"
-    },
-    "session": {
-      "name": "Asia Session (05:30 - 13:30 IST)",
-      "code": "ASIA",
-      "flag": "\ud83c\udf10",
-      "volatility": "Moderate (Mean-Reversion & S/R Sweeps)",
-      "tp_bias": "Scalp Focus (TP1 priority)"
-    },
-    "outcome": "ACTIVE",
-    "optionEntryLockedMark": 371.9
-  },
+  "active_trade": null,
   "last_alerted_catalyst_guid": null,
   "daily_counts": {
     "date": "2026-11-27",
     "trades_given": 2,
     "wins": 1,
-    "losses": 0
+    "losses": 1
   },
   "telegram_handshake_sent": true,
   "last_trade_time": 1795746642,
   "last_trade_direction": "LONG",
   "active_trades": {
-    "BTC": {
-      "id": "cloud_btc_fvg_bull_1795745700",
-      "name": "BTC Bullish Fair Value Gap (FVG) Mitigation",
-      "asset": "BTC",
-      "direction": "LONG",
-      "time": 1795745700,
-      "entry": 61504.0,
-      "tp": 63233.0,
-      "sl": 60644.0,
-      "rr": "1:2.0",
-      "rsi": 82.8,
-      "rvol": 4.72,
-      "rationale": {
-        "pattern": "Imbalance Void Mitigation",
-        "levelTested": "FVG Equilibrium ($60,933)",
-        "confirmation": "Price tapped institutional imbalance and bounced with 4.72x RVOL",
-        "htfAlignment": "\ud83d\udfe2 BULLISH CONFLUENCE (1H BTC Macro Uptrend)",
-        "absorption": "Institutional Flow (4.72x RVOL)"
-      },
-      "htf_trend": {
-        "trend": "BULLISH",
-        "label": "\ud83d\udfe2 BULLISH CONFLUENCE (1H BTC Macro Uptrend)",
-        "cur_price": 61617.5,
-        "ema20": 60672.95,
-        "ema50": 60396.03
-      },
-      "slDist": 860.0,
-      "initial_sl": 60644.0,
-      "option": {
-        "symbol": "C-BTC-61600-271126",
-        "strike": 61600.0,
-        "strike_tier": "Exact ATM (Delta ~0.50)",
-        "mark_price": 371.9,
-        "buy_zone": "$371.9 - $371.9",
-        "tp1_price": 931.2,
-        "tp1_pct": "+150.4%",
-        "target_price": 1491.0,
-        "target_pct": "+300.9%",
-        "stop_price": 260.3,
-        "eff_delta": 0.65,
-        "iv_rating": "ELEVATED (High IV - Scalp Focus)",
-        "iv_badge": "\ud83d\udd34 ELEVATED"
-      },
-      "session": {
-        "name": "Asia Session (05:30 - 13:30 IST)",
-        "code": "ASIA",
-        "flag": "\ud83c\udf10",
-        "volatility": "Moderate (Mean-Reversion & S/R Sweeps)",
-        "tp_bias": "Scalp Focus (TP1 priority)"
-      },
-      "outcome": "ACTIVE",
-      "optionEntryLockedMark": 371.9
-    },
+    "BTC": null,
     "ETH": null,
     "XAUT": null
   },
   "last_alerted_trade_id_BTC": "cloud_btc_fvg_bull_1795745700",
-  "last_trade_time_BTC": 1795746642,
+  "last_trade_time_BTC": 1795790183,
   "last_trade_direction_BTC": "LONG",
   "last_alerted_trade_id_ETH": "cloud_eth_fvg_bull_1795745700",
   "last_trade_time_ETH": 1795777342,
