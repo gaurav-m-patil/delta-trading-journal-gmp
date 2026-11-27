@@ -125,7 +125,7 @@
       "time": 1795745700,
       "entry": 1726.8,
       "tp": 1782.9,
-      "sl": 1697.49,
+      "sl": 1726.8,
       "rr": "1:1.9",
       "rsi": 81.0,
       "rvol": 4.47,
@@ -168,7 +168,9 @@
         "tp_bias": "Scalp Focus (TP1 priority)"
       },
       "outcome": "ACTIVE",
-      "optionEntryLockedMark": 13.6
+      "optionEntryLockedMark": 13.6,
+      "reached_tp1": true,
+      "trailed_stop": 1726.8
     },
     "XAUT": null
   },
