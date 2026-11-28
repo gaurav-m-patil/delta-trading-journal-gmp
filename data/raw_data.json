@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-11-28 08:24:26 UTC",
+  "generated_at": "2026-11-28 08:48:21 UTC",
   "wallet_txs": [
     {
       "balance": "0.00007188",
@@ -18,6 +18,89 @@
     }
   ],
   "orders": [
+    {
+      "updated_at": "2026-11-28T08:47:36.476045Z",
+      "product_symbol": "C-ETH-1660-281126",
+      "bracket_stop_loss_price": null,
+      "state": "closed",
+      "time_in_force": "gtc",
+      "order_type": "limit_order",
+      "margin_mode": "isolated",
+      "gst_rate": null,
+      "final_fee": null,
+      "bracket_take_profit_limit_price": null,
+      "client_order_id": null,
+      "fee_by_voucher": null,
+      "product_id": 166805,
+      "user_id": 27404882,
+      "mmp": "disabled",
+      "average_fill_price": "2.3",
+      "unfilled_size": 0,
+      "bracket_order": null,
+      "quote_size": null,
+      "post_offers_fee_rate": null,
+      "meta_data": {
+        "cashflow": "-96.393",
+        "ip": "2404:bd00:3:d3ce:f834:4e3c:a59c:e417",
+        "net_pnl": "-3.98103090",
+        "otc": false,
+        "pnl": "0",
+        "source": "mobile_app"
+      },
+      "trail_amount": null,
+      "stop_price": null,
+      "bracket_take_profit_price": null,
+      "options_premium_amount": null,
+      "actual_fee_rate": null,
+      "fee_reason": null,
+      "side": "buy",
+      "bracket_stop_loss_limit_price": null,
+      "options_premium_cap": null,
+      "credits_used": "0",
+      "commission": "0",
+      "scalper_size": null,
+      "size": 4191,
+      "reduce_only": false,
+      "cancellation_reason": null,
+      "bracket_trail_amount": null,
+      "id": 1723368387,
+      "options_index_price": null,
+      "stop_order_type": null,
+      "stop_trigger_method": null,
+      "paid_commission": "3.9810309",
+      "created_at": "2026-11-28T08:36:51.982525Z",
+      "referral_fee_discount": null,
+      "fees_calculated": null,
+      "limit_price": "2.3",
+      "applied_fee_rate": null,
+      "product": {
+        "id": 166805,
+        "symbol": "C-ETH-1660-281126",
+        "tick_size": "0.01",
+        "quoting_asset": {
+          "symbol": "USD",
+          "precision": 8,
+          "minimum_precision": 2
+        },
+        "underlying_asset": {
+          "symbol": "ETH",
+          "precision": 18,
+          "minimum_precision": 4
+        },
+        "contract_type": "call_options",
+        "contract_value": "0.01",
+        "notional_type": "vanilla",
+        "settling_asset": {
+          "symbol": "USD",
+          "precision": 8,
+          "minimum_precision": 2
+        },
+        "spot_index": {
+          "symbol": ".DEETHUSD"
+        },
+        "contract_unit_currency": "ETH"
+      }
+    },
     {
       "trail_amount": null,
       "product": {
