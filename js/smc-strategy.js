@@ -1263,7 +1263,7 @@ window.DeltaSMCStrategy = (function() {
         const isCall = setup.direction === "LONG";
         const dirSymbol = isCall ? "▲" : "▼";
 
-        if (isWin || isBeWin || isActive) {
+        if (isWin || isBeWin || isLoss || isActive) {
           let labelText = `${dirSymbol} ${isCall ? "CALL" : "PUT"}`;
           let markerColor = isCall ? "#38bdf8" : "#818cf8";
 
@@ -1278,6 +1278,9 @@ window.DeltaSMCStrategy = (function() {
           } else if (isBeWin) {
             labelText = `${dirSymbol} +25%`;
             markerColor = "#10b981";
+          } else if (isLoss) {
+            labelText = `${dirSymbol} -30% SL`;
+            markerColor = "#f43f5e";
           }
 
           markers.push({

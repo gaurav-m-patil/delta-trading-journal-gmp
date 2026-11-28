@@ -263,10 +263,8 @@ window.DeltaLiveChart = (function() {
       const isActive = st.outcome === "ACTIVE";
       const isEstimation = st.outcome === "SKIPPED_CIRCUIT_BREAKER" || st.skipped || st.isEstimation;
 
-      // Strict High-Conviction Filter:
-      // Only plot verified WIN, BE_WIN, and LIVE ACTIVE trades.
-      // Do not clutter chart candles with loss or scratch/timeout markers.
-      if (isWin || isBeWin || isActive) {
+      // Plot verified WIN, BE_WIN, LOSS, and LIVE ACTIVE trades so the user has 100% complete transparency
+      if (isWin || isBeWin || isLoss || isActive) {
         let markerText = `${dirSymbol} ${isCall ? 'CALL' : 'PUT'}`;
         let markerColor = isCall ? "#38bdf8" : "#818cf8";
         let markerPos = isCall ? "belowBar" : "aboveBar";
@@ -293,6 +291,9 @@ window.DeltaLiveChart = (function() {
           }
           markerText = `${dirSymbol} +${bePct}%`;
           markerColor = "#10b981";
+        } else if (isLoss) {
+          markerText = `${dirSymbol} -30% SL`;
+          markerColor = "#f43f5e";
         }
 
         verifiedMarkers.push({
