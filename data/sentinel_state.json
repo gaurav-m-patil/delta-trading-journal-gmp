@@ -6,74 +6,21 @@
     "date": "2026-11-28",
     "trades_given": 2,
     "wins": 1,
-    "losses": 0
+    "losses": 1
   },
   "telegram_handshake_sent": true,
   "last_trade_time": 1795746642,
   "last_trade_direction": "LONG",
   "active_trades": {
     "BTC": null,
-    "ETH": {
-      "id": "cloud_eth_bull_1795844700",
-      "name": "ETH Capitulation V-Bottom Sweep",
-      "asset": "ETH",
-      "direction": "LONG",
-      "time": 1795844700,
-      "entry": 1655.45,
-      "tp": 1684.66,
-      "sl": 1643.72,
-      "rr": "1:2.5",
-      "rsi": 24.5,
-      "rvol": 3.15,
-      "is_capitulation": true,
-      "rationale": {
-        "pattern": "Capitulation V-Bottom Absorption",
-        "levelTested": "Support Liquidity Sweep ($1,654.00)",
-        "confirmation": "Strong green close back above swing floor with 3.15x RVOL",
-        "absorption": "Capitulation V-Bottom Absorption (70% wick + 3.15x RVOL)",
-        "htfAlignment": "Capitulation Absorption (1H: BEARISH)"
-      },
-      "htf_trend": {
-        "trend": "BEARISH",
-        "label": "\ud83d\udd34 BEARISH CONFLUENCE (1H ETH Macro Downtrend)",
-        "cur_price": 1656.25,
-        "ema20": 1672.81,
-        "ema50": 1685.4
-      },
-      "slDist": 11.73,
-      "initial_sl": 1643.72,
-      "option": {
-        "symbol": "C-ETH-1660-281126",
-        "strike": 1660.0,
-        "strike_tier": "Exact ATM (Delta ~0.50)",
-        "mark_price": 5.8,
-        "buy_zone": "$5.8 - $5.8",
-        "tp1_price": 13.8,
-        "tp1_pct": "+137.1%",
-        "target_price": 21.7,
-        "target_pct": "+274.1%",
-        "stop_price": 4.1,
-        "eff_delta": 0.55,
-        "iv_rating": "FAIR (Institutionally Calibrated)",
-        "iv_badge": "\ud83d\udfe1 FAIR"
-      },
-      "session": {
-        "name": "Asia Session (05:30 - 13:30 IST)",
-        "code": "ASIA",
-        "flag": "\ud83c\udf10",
-        "volatility": "Moderate (Mean-Reversion & S/R Sweeps)",
-        "tp_bias": "Scalp Focus (TP1 priority)"
-      },
-      "outcome": "ACTIVE",
-      "optionEntryLockedMark": 5.8
-    },
+    "ETH": null,
     "XAUT": null
   },
   "last_alerted_trade_id_BTC": "cloud_btc_fvg_bull_1795745700",
   "last_trade_time_BTC": 1795790183,
   "last_trade_direction_BTC": "LONG",
   "last_alerted_trade_id_ETH": "cloud_eth_bull_1795844700",
-  "last_trade_time_ETH": 1795845649,
+  "last_trade_time_ETH": 1795849830,
   "last_trade_direction_ETH": "LONG",
   "last_alerted_trade_id_XAUT": "cloud_xaut_bos_down_1795613400",
   "last_trade_time_XAUT": 1795620986,
