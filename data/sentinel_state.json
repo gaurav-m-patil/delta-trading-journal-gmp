@@ -21,7 +21,7 @@
       "time": 1795832100,
       "entry": 1668.1,
       "tp": 1641.7,
-      "sl": 1668.1,
+      "sl": 1656.22,
       "rr": "1:4.6",
       "rsi": 74.0,
       "rvol": 1.52,
@@ -66,7 +66,8 @@
       "outcome": "ACTIVE",
       "optionEntryLockedMark": 9.2,
       "reached_tp1": true,
-      "trailed_stop": 1668.1
+      "trailed_stop": 1656.22,
+      "locked_tier2": true
     },
     "XAUT": null
   },
