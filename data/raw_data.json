@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-11-28 06:54:21 UTC",
+  "generated_at": "2026-11-28 06:56:23 UTC",
   "wallet_txs": [
     {
       "balance": "0.00007188",
@@ -18,6 +18,87 @@
     }
   ],
   "orders": [
+    {
+      "trail_amount": null,
+      "side": "sell",
+      "state": "cancelled",
+      "created_at": "2026-11-28T06:53:29.955300Z",
+      "limit_price": "5.9",
+      "stop_price": null,
+      "scalper_size": null,
+      "reduce_only": true,
+      "quote_size": null,
+      "options_premium_amount": null,
+      "commission": "0",
+      "margin_mode": "isolated",
+      "options_index_price": null,
+      "fee_by_voucher": null,
+      "meta_data": {
+        "ip": "2404:bd00:3:d3ce:f834:4e3c:a59c:e417",
+        "net_pnl": "0",
+        "otc": false,
+        "source": "mobile_app"
+      },
+      "fee_reason": null,
+      "bracket_trail_amount": null,
+      "options_premium_cap": null,
+      "final_fee": null,
+      "order_type": "limit_order",
+      "bracket_stop_loss_limit_price": null,
+      "product_id": 166805,
+      "actual_fee_rate": null,
+      "referral_fee_discount": null,
+      "cancellation_reason": "cancelled_by_user",
+      "product": {
+        "id": 166805,
+        "symbol": "C-ETH-1660-281126",
+        "tick_size": "0.01",
+        "quoting_asset": {
+          "symbol": "USD",
+          "precision": 8,
+          "minimum_precision": 2
+        },
+        "underlying_asset": {
+          "symbol": "ETH",
+          "precision": 18,
+          "minimum_precision": 4
+        },
+        "contract_type": "call_options",
+        "contract_value": "0.01",
+        "notional_type": "vanilla",
+        "settling_asset": {
+          "symbol": "USD",
+          "precision": 8,
+          "minimum_precision": 2
+        },
+        "spot_index": {
+          "symbol": ".DEETHUSD"
+        },
+        "contract_unit_currency": "ETH"
+      },
+      "unfilled_size": 2751,
+      "average_fill_price": null,
+      "credits_used": "0",
+      "post_offers_fee_rate": null,
+      "gst_rate": null,
+      "product_symbol": "C-ETH-1660-281126",
+      "user_id": 27404882,
+      "bracket_take_profit_price": null,
+      "mmp": "disabled",
+      "bracket_take_profit_limit_price": null,
+      "paid_commission": "0",
+      "applied_fee_rate": null,
+      "size": 2751,
+      "time_in_force": "gtc",
+      "id": 1723098124,
+      "stop_trigger_method": null,
+      "bracket_order": null,
+      "stop_order_type": null,
+      "client_order_id": null,
+      "updated_at": "2026-11-28T06:55:29.202533Z",
+      "bracket_stop_loss_price": null,
+      "fees_calculated": null
+    },
     {
       "product_id": 166805,
       "cancellation_reason": "offset_by_reduce_only",
